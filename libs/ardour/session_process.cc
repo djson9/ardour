@@ -33,6 +33,7 @@
 #include "temporal/tempo.h"
 
 #include "ardour/audioengine.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/auditioner.h"
 #include "ardour/butler.h"
 #include "ardour/debug.h"
@@ -240,6 +241,9 @@ int
 Session::process_routes (pframes_t nframes, bool& need_butler)
 {
 	TimerRAII tr (dsp_stats[Roll]);
+	if (_anticipative_process && _anticipative_process->running ()) {
+		_anticipative_process->begin_cycle ();
+	}
 	std::shared_ptr<RouteList const> r = routes.reader ();
 
 	const samplepos_t start_sample = _transport_sample;

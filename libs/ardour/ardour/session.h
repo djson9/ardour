@@ -134,6 +134,7 @@ namespace ARDOUR {
 class Amp;
 class AsyncMIDIPort;
 class AudioEngine;
+class AnticipativeProcess;
 class AudioFileSource;
 class AudioRegion;
 class AudioSource;
@@ -337,6 +338,10 @@ public:
 	std::shared_ptr<RouteList const> get_routes() const {
 		return routes.reader ();
 	}
+
+	/** Control thread, consumer quiescent: obtain the session-owned render plan.
+	 * Register route adapters before starting it; clear it before route mutation. */
+	AnticipativeProcess& anticipative_process ();
 
 	std::shared_ptr<RTTaskList> rt_tasklist () { return _rt_tasklist; }
 	std::shared_ptr<IOTaskList> io_tasklist () { return _io_tasklist; }
@@ -2387,6 +2392,7 @@ private:
 	 * and solo/mute computations.
 	 */
 	GraphEdges _current_route_graph;
+	std::unique_ptr<AnticipativeProcess> _anticipative_process;
 
 	friend class IOPlug;
 	std::shared_ptr<Graph>      _process_graph;

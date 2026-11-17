@@ -58,7 +58,7 @@ AnticipationQueue::allocate (BufferSet& buffers)
 }
 
 void
-AnticipationQueue::start (Range const& first, uint64_t generation)
+AnticipationQueue::start (Range const& first, uint64_t generation, bool initially_live)
 {
 	stop ();
 	if (!first.frames || first.frames > _config.max_frames) {
@@ -75,7 +75,7 @@ AnticipationQueue::start (Range const& first, uint64_t generation)
 	_discontinuities.store (0);
 	_live_handoffs.store (0);
 	_quit.store (false);
-	_state.store (State::Ahead, std::memory_order_release);
+	_state.store (initially_live ? State::Live : State::Ahead, std::memory_order_release);
 	_worker = std::thread (&AnticipationQueue::worker, this);
 }
 

@@ -25,6 +25,7 @@ CURRENT_SESSION_FILE_VERSION = 7004
 I18N_PACKAGE = 'ardour'
 
 libardour_sources = [
+        'anticipative_process.cc',
         'anticipation_queue.cc',
         'amp.cc',
         'analyser.cc',

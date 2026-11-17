@@ -61,6 +61,7 @@
 #include "temporal/types_convert.h"
 
 #include "ardour/amp.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/analyser.h"
 #include "ardour/async_midi_port.h"
 #include "ardour/audio_buffer.h"
@@ -601,6 +602,15 @@ Session::~Session ()
 	destroy ();
 }
 
+AnticipativeProcess&
+Session::anticipative_process ()
+{
+	if (!_anticipative_process) {
+		_anticipative_process.reset (new AnticipativeProcess (*this));
+	}
+	return *_anticipative_process;
+}
+
 unsigned int
 Session::next_name_id ()
 {
@@ -706,6 +716,10 @@ Session::destroy ()
 	ControlProtocolManager::instance().drop_protocols ();
 
 	_engine.remove_session ();
+
+	/* No consumer can run now. Join render owners before dropping ports,
+	 * processors, playlists or Butler state used by their snapshots. */
+	_anticipative_process.reset ();
 
 	/* deregister all ports - there will be no process or any other
 	 * callbacks from the engine any more.

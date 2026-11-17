@@ -55,7 +55,7 @@ public:
 	AnticipationQueue& operator= (AnticipationQueue const&) = delete;
 
 	/** Non-RT; caller supplies DSP already located/reset to this range. */
-	void start (Range const&, uint64_t generation);
+	void start (Range const&, uint64_t generation, bool initially_live = false);
 	/** Non-RT; joins the producer before allowing DSP mutation/destruction. */
 	void stop ();
 	/** RT; false live request resumes ahead rendering after the last live call. */
