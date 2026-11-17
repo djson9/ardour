@@ -223,3 +223,10 @@ track headers right, compact rulers, and the bottom device panel. Numbered track
 type checks passed for all six choices, keypad input, text-entry preservation,
 and unchanged route count. Live key reload passed at 0.57 seconds with malformed
 XML retaining the last valid binding. The 59-color theme's 429 aliases resolve.
+
+In Live layout, a plain Grab-tool click on an audio/MIDI region or its title
+moves the playhead to the region start. Space starts playback from there; clicking
+while rolling relocates without stopping. Completed drags, modifier clicks,
+range selection, recording, trimming and note editing retain their existing
+behavior. This change was compiled and deployed on macOS arm64; a full pointer
+interaction regression check remains outstanding.

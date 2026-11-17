@@ -1768,6 +1768,16 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 
 		}
 
+		/* A completed move returned above. Locate only for a plain region
+		 * selection, never note editing, trimming, range selection or modifiers.
+		 * Keep the transport stopped/rolling as it was before the click. */
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && _session &&
+		    clicked_regionview && eff == MouseObject &&
+		    (item_type == RegionItem || item_type == RegionViewName) &&
+		    Keyboard::modifier_state_equals (event->button.state, Keyboard::ModifierMask (0))) {
+			_session->request_locate (clicked_regionview->region()->position().samples ());
+		}
+
 		/* do any (de)selection operations that should occur on button release */
 		button_selection (item, event, item_type);
 
