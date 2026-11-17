@@ -230,3 +230,17 @@ while rolling relocates without stopping. Completed drags, modifier clicks,
 range selection, recording, trimming and note editing retain their existing
 behavior. This change was compiled and deployed on macOS arm64; a full pointer
 interaction regression check remains outstanding.
+
+### Application logs over MCP
+
+Call `ui_get_logs` with `{}` to read the in-process Log window messages without
+opening a window. The result contains `text` with severity prefixes, `source`,
+`maxBytes` (65536), and `truncated`. It keeps the latest complete lines within
+that bound. It is read-only and includes engine/plugin errors that are not
+written to stdout/stderr. Messages belong to this app run and do not include
+macOS unified logs. Upstream retained messages have no timestamps. Restarting
+clears this history. Access uses the existing bounded GUI dispatch and log mutex.
+
+Validation: live MCP discovery/read succeeded, including a deliberately malformed
+hotkey XML error followed by restored bindings. The tail buffer passed overflow,
+latest-message retention, and UTF-8 line-boundary checks.

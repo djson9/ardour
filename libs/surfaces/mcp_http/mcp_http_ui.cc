@@ -5,6 +5,8 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <deque>
+#include "gtkmm2ext/gtk_ui.h"
 #include "gtkmm2ext/actions.h"
 #include "gtkmm2ext/bindings.h"
 #include "pbd/event_loop.h"
@@ -30,6 +32,26 @@ std::string quote (std::string const& s) {
 	out << '"';
 	return out.str ();
 }
+/* Keep the response bounded even when the process log is very large. */
+class LogTail : public std::streambuf {
+public:
+	std::deque<char> data;
+	bool truncated = false;
+	int_type overflow (int_type c) override {
+		if (traits_type::eq_int_type (c, traits_type::eof ())) return traits_type::not_eof (c);
+		if (data.size () == 65536) { data.pop_front (); truncated = true; }
+		data.push_back (traits_type::to_char_type (c));
+		return c;
+	}
+	std::string text () {
+		/* Discard a partial first line, including any partial UTF-8 sequence. */
+		if (truncated) {
+			while (!data.empty () && data.front () != '\n') data.pop_front ();
+			if (!data.empty ()) data.pop_front ();
+		}
+		return std::string (data.begin (), data.end ());
+	}
+};
 struct Reply {
 	std::mutex mutex;
 	std::condition_variable cv;
@@ -52,7 +74,13 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 		using namespace Gtkmm2ext;
 		std::ostringstream out;
 		auto action = action_name.empty () ? Glib::RefPtr<Gtk::Action> () : ActionManager::get_action (action_name, false);
-		if (tool == "ui/close_dialog") {
+		if (tool == "ui/get_logs") {
+			LogTail tail;
+			std::ostream log (&tail);
+			UI::instance ()->dump_errors (log);
+			out << "{\"source\":\"Ardour in-process log\",\"text\":" << quote (tail.text ())
+			    << ",\"truncated\":" << (tail.truncated ? "true" : "false") << ",\"maxBytes\":65536}";
+		} else if (tool == "ui/close_dialog") {
 			bool found = false;
 			for (Gtk::Window* w : Gtk::Window::list_toplevels ()) {
 				if (!w->get_visible () || w->get_title () != window_name || !GTK_IS_DIALOG (w->gobj ())) continue;
@@ -148,7 +176,7 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 		reply->cv.notify_one ();
 	});
 	if (!queued) return "{\"error\":\"Could not queue UI request\"}";
-	if (tool != "ui/get_state") return "{\"queued\":true}";
+	if (tool != "ui/get_state" && tool != "ui/get_logs") return "{\"queued\":true}";
 	std::unique_lock<std::mutex> lock (reply->mutex);
 	if (!reply->cv.wait_for (lock, std::chrono::seconds (2), [&] { return reply->done; })) {
 		reply->cancelled = true;

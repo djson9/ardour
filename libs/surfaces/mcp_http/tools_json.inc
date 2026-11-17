@@ -3691,6 +3691,15 @@ R"mcp(
           "window"
         ]
       }
+    },
+    {
+      "name": "ui_get_logs",
+      "description": "Read the recent Ardour in-process log, including plugin and audio-engine errors shown in the Log window. Read-only; no window opens. Returns up to 64 KiB with severity prefixes and a truncated flag. Does not include macOS unified logs or earlier app runs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     }
   ]
 }

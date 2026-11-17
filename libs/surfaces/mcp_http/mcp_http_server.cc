@@ -8055,7 +8055,7 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 
 	if (method == "tools/call") {
 		std::string tool_name = canonical_tool_name (root.get<std::string> ("params.name", ""));
-		if (tool_name == "ui/get_state" || tool_name == "ui/activate_action" || tool_name == "ui/press_key" || tool_name == "ui/close_dialog") {
+		if (tool_name == "ui/get_logs" || tool_name == "ui/get_state" || tool_name == "ui/activate_action" || tool_name == "ui/press_key" || tool_name == "ui/close_dialog") {
 			std::string result = mcp_ui_call (_event_loop, tool_name,
 			    root.get<std::string> ("params.arguments.action", ""),
 			    root.get<std::string> ("params.arguments.group", "Global"),
