@@ -24,6 +24,20 @@ class LIBARDOUR_API AnticipativeProcess {
 public:
 	struct RouteAdapter;
 	using Queue = AnticipationQueue;
+	/** Immutable snapshot of the callback's block, preroll and loop boundaries.
+	 * Construct only while the session's transport/routing plan is quiescent. */
+	class LIBARDOUR_API Timeline {
+	public:
+		Timeline (Session&, samplepos_t start, bool preroll = true);
+		Queue::Range first (Route const&) const;
+		Queue::Range next (Queue::Range const&) const;
+	private:
+		Queue::Range at (samplecnt_t elapsed) const;
+		pframes_t _block;
+		samplepos_t _start, _loop_start {0}, _loop_end {0};
+		samplecnt_t _preroll;
+		std::vector<samplecnt_t> _boundaries;
+	};
 	enum Reason : uint32_t {
 		Predictable = 0, Forced = 1, Recording = 2, Monitoring = 4,
 		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32, RequiredLive = 64

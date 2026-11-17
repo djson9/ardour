@@ -22,8 +22,51 @@
 #include "ardour/route.h"
 #include "ardour/session.h"
 #include "ardour/track.h"
+#include "ardour/location.h"
 
 using namespace ARDOUR;
+
+AnticipativeProcess::Timeline::Timeline (Session& session, samplepos_t start, bool preroll)
+	: _block (session.engine ().samples_per_cycle ()), _start (start),
+	  _preroll (preroll ? session.worst_latency_preroll_buffer_size_ceil () : 0)
+{
+	if (!_block) { throw std::invalid_argument ("Anticipation needs a running backend"); }
+	for (auto const& route : *session.get_routes ()) {
+		if (route->active ()) { _boundaries.push_back (std::max (samplecnt_t (0), _preroll - route->playback_latency ())); }
+	}
+	_boundaries.push_back (_preroll);
+	std::sort (_boundaries.begin (), _boundaries.end ());
+	if (session.get_play_loop ()) {
+		if (auto loop = session.locations ()->auto_loop_location ()) { _loop_start = loop->start_sample (); _loop_end = loop->end_sample (); }
+	}
+}
+
+AnticipativeProcess::Queue::Range
+AnticipativeProcess::Timeline::at (samplecnt_t elapsed) const
+{
+	samplepos_t project = _start - _preroll + elapsed;
+	pframes_t frames = _block - elapsed % _block;
+	for (auto boundary : _boundaries) {
+		if (boundary > elapsed) { frames = std::min (samplecnt_t (frames), boundary - elapsed); break; }
+	}
+	if (_loop_end > _loop_start) {
+		if (project >= _loop_end) { project = _loop_start + (project - _loop_start) % (_loop_end - _loop_start); }
+		frames = std::min (samplecnt_t (frames), _loop_end - project);
+	}
+	return {project, elapsed, frames};
+}
+
+AnticipativeProcess::Queue::Range
+AnticipativeProcess::Timeline::first (Route const& route) const
+{
+	return at (dynamic_cast<Track const*> (&route) ? std::max (samplecnt_t (0), _preroll - route.playback_latency ()) : 0);
+}
+
+AnticipativeProcess::Queue::Range
+AnticipativeProcess::Timeline::next (Queue::Range const& previous) const
+{
+	return at (previous.continuous + previous.frames);
+}
 
 struct AnticipativeProcess::RouteAdapter {
 	struct Feed {
@@ -156,6 +199,14 @@ struct AnticipativeProcess::RouteAdapter {
 	}
 	bool ready (Queue::Range const& range) {
 		for (auto& feed : feeds) {
+			/* Tracks remain silent until their existing PDC preroll boundary.
+			 * Buses still run during that prefix and must not wait for a range
+			 * the source will never render. Timeline splits at every boundary. */
+			if (range.continuous + range.frames <= feed.source->first.continuous) {
+				feed.input->silence (range.frames, 0);
+				for (uint32_t c = 0; c < feed.input->count ().n_midi (); ++c) { feed.input->get_midi (c).clear (); }
+				continue;
+			}
 			if (!feed.source->queue->peek (*feed.reader, *feed.input, range, plan.generation ())) { return false; }
 		}
 		future_input.set_count (processing_channels); future_input.silence (range.frames, 0);
