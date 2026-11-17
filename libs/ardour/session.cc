@@ -646,9 +646,9 @@ void
 Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
 {
 	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
-	_anticipation_horizon.store (milliseconds);
-	_anticipation_enabled.store (enabled);
-	request_anticipative_refresh ();
+	const bool horizon_changed = _anticipation_horizon.exchange (milliseconds) != milliseconds;
+	const bool enabled_changed = _anticipation_enabled.exchange (enabled) != enabled;
+	if (horizon_changed || enabled_changed) { request_anticipative_refresh (); }
 }
 
 unsigned int
