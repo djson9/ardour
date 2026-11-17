@@ -616,6 +616,14 @@ protected:
 															 std::shared_ptr<Processor> endpoint, bool include_endpoint,
 	                             bool for_export, bool for_freeze);
 
+	/* Same processing slice, with normal playback timestamps for each plugin.
+	 * The caller owns the processors exclusively and all routing boundaries.
+	 */
+	void render_process (BufferSet&, samplepos_t, samplecnt_t,
+	                     std::shared_ptr<Processor>, bool, bool, bool);
+	void bounce_process_impl (BufferSet&, samplepos_t, samplecnt_t,
+	                          std::shared_ptr<Processor>, bool, bool, bool, bool);
+
 	samplecnt_t  bounce_get_latency (std::shared_ptr<Processor> endpoint, bool include_endpoint, bool for_export, bool for_freeze) const;
 	ChanCount    bounce_get_output_streams (ChanCount &cc, std::shared_ptr<Processor> endpoint, bool include_endpoint, bool for_export, bool for_freeze) const;
 

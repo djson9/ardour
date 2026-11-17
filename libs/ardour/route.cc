@@ -615,6 +615,22 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 		std::shared_ptr<Processor> endpoint,
 		bool include_endpoint, bool for_export, bool for_freeze)
 {
+	bounce_process_impl (buffers, start, nframes, endpoint, include_endpoint, for_export, for_freeze, false);
+}
+
+void
+Route::render_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframes,
+		std::shared_ptr<Processor> endpoint,
+		bool include_endpoint, bool for_export, bool for_freeze)
+{
+	bounce_process_impl (buffers, start, nframes, endpoint, include_endpoint, for_export, for_freeze, true);
+}
+
+void
+Route::bounce_process_impl (BufferSet& buffers, samplepos_t start, samplecnt_t nframes,
+		std::shared_ptr<Processor> endpoint,
+		bool include_endpoint, bool for_export, bool for_freeze, bool playback_timestamps)
+{
 	/* If no processing is required, there's no need to go any further. */
 	if (!endpoint && !include_endpoint) {
 		return;
@@ -669,9 +685,14 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 		 * Also don't bother with metering.
 		 */
 		if (!proc->does_routing() && !std::dynamic_pointer_cast<PeakMeter>(proc)) {
+			if (playback_timestamps && proc->active()) {
+				latency += proc->effective_latency ();
+			}
 			proc->run (buffers, start - latency, start - latency + nframes, 1.0, nframes, true);
 			buffers.set_count (proc->output_streams());
-			latency += proc->effective_latency ();
+			if (!playback_timestamps) {
+				latency += proc->effective_latency ();
+			}
 		}
 
 		if (proc == endpoint) {
