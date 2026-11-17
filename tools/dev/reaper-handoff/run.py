@@ -4,10 +4,12 @@ args=argparse.ArgumentParser()
 args.add_argument('--horizon',type=int,default=200)
 args.add_argument('--block',type=int,default=64)
 args.add_argument('--output',type=Path)
+args.add_argument('--action',choices=['monitor','seek'],default='monitor')
 args=args.parse_args()
 source=Path(__file__).resolve().parent
 out=args.output.resolve() if args.output else source
 out.mkdir(parents=True,exist_ok=True)
+(out/'action.txt').write_text(args.action)
 if out!=source:
  for name in ['run.lua','trace.jsfx']:shutil.copy2(source/name,out/name)
 resource=Path.home()/'Library/Application Support/REAPER'
@@ -39,8 +41,8 @@ with (out/'reaper.log').open('w') as log:
   if (out/'complete.txt').exists() or (out/'error.txt').exists():
    p.terminate();p.wait(timeout=10)
  assert hashlib.sha256(config.read_bytes()).hexdigest()==before,'Normal REAPER preferences changed'
- dest=out/'results'/f'{args.horizon}ms-{args.block}frames-{time.time_ns()}'
+ dest=out/'results'/f'{args.action}-{args.horizon}ms-{args.block}frames-{time.time_ns()}'
  dest.mkdir(parents=True)
- for n in ['complete.txt','events.csv','trace-0.csv','trace-1.csv','trace.rpp']:
+ for n in ['complete.txt','events.csv','trace-0.csv','trace-1.csv','trace.rpp','action.txt']:
   shutil.copy2(out/n,dest/n)
  print('Evidence:',dest)

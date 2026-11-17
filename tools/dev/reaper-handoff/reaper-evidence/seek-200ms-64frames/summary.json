@@ -1,0 +1,82 @@
+{
+  "host": "7.81/macOS-arm64",
+  "action": "seek",
+  "monitor_activation_ms": null,
+  "positions_discontinuous": [
+    [
+      0,
+      1.0,
+      -1.156
+    ],
+    [
+      0,
+      5.0,
+      1.828
+    ],
+    [
+      1,
+      1.0,
+      -0.9560000000000001
+    ],
+    [
+      1,
+      5.0,
+      2.028
+    ]
+  ],
+  "state_counter_discontinuous": [
+    [
+      0,
+      1.0
+    ],
+    [
+      0,
+      5.0
+    ],
+    [
+      1,
+      1.0
+    ],
+    [
+      1,
+      5.0
+    ]
+  ],
+  "first_seek_processing_gaps_ms": [
+    34.73997116088867
+  ],
+  "render_lead_ms": {
+    "before_first_seek": 198.66666666666677,
+    "between_seeks": 199.99999999999974,
+    "after_second_seek": 200.00000000000017
+  },
+  "state_after_seek": [
+    {
+      "track": 0,
+      "position": 1.0,
+      "samples_seen": 0.0,
+      "history": 0.0
+    },
+    {
+      "track": 0,
+      "position": 5.0,
+      "samples_seen": 0.0,
+      "history": 0.0
+    },
+    {
+      "track": 1,
+      "position": 1.0,
+      "samples_seen": 0.0,
+      "history": 0.0
+    },
+    {
+      "track": 1,
+      "position": 5.0,
+      "samples_seen": 0.0,
+      "history": 0.0
+    }
+  ],
+  "playing_block_sizes": [
+    64.0
+  ]
+}

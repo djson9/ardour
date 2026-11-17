@@ -50,6 +50,10 @@ int main(int argc,char** argv){try{
   auto send=configure_midchain_send(*s,a,b.route);
   auto refsend=configure_midchain_send(*s,ar,br.route);
   auto cache=std::make_shared<TapCache>(block,ab->capacity);
+  const bool main_output=getenv("ARDOUR_PROBE_MAIN_OUTPUT");
+  std::vector<std::shared_ptr<BufferSet>> rendered_outputs;
+  std::shared_ptr<TapCache> main_cache,main_reference;
+  std::shared_ptr<Tap> port_watch;
   std::shared_ptr<PluginInsert> comp,refcomp;
   double reduction_peak=0,reference_reduction_peak=0;
   std::unique_ptr<SidechainInput> sc,rsc;
@@ -62,11 +66,38 @@ int main(int argc,char** argv){try{
    bb->after_render=[&](unsigned){reduction_peak=std::max(reduction_peak,double(comp->plugin(0)->get_parameter(6)));};
    brb->after_render=[&](unsigned){reference_reduction_peak=std::max(reference_reduction_peak,double(refcomp->plugin(0)->get_parameter(6)));};
   }
+  if(main_output){
+   for(auto* f:{&a,&ar,&b,&br}){
+    auto storage=std::make_shared<BufferSet>();prepare(*storage,block);rendered_outputs.push_back(storage);
+    f->route->main_outs()->set_render_buffers(storage.get());
+    f->route->pannable()->pan_azimuth_control->set_value(.23,PBD::Controllable::NoGroup);
+    for(auto point:std::vector<std::pair<samplepos_t,double>>{{0,.6},{2400,.9},{12000,.2},{48000,.7},{192000,.4}})
+     f->route->gain_control()->alist()->add(timepos_t(point.first),point.second,false,false);
+    f->route->gain_control()->alist()->set_automation_state(Play);
+   }
+   main_cache=std::make_shared<TapCache>(block,ab->capacity);main_reference=std::make_shared<TapCache>(block,arb->capacity);
+   ab->after_output=[main_cache](unsigned k,const BufferSet& buffer){main_cache->publish(k,buffer);};
+   arb->after_output=[main_reference](unsigned k,const BufferSet& buffer){main_reference->publish(k,buffer);};
+   ab->dependent_readers.push_back(&main_cache->read);
+   auto input=[&](Fixture& f,std::shared_ptr<TapCache> main){
+    auto source_route=f.route;
+    f.render_override=[main,source_route](BufferSet& buffer,samplepos_t start,unsigned n){
+     const unsigned k=start/n;need(main->write.load(std::memory_order_acquire)>k,"main input unavailable");
+     for(unsigned c=0;c<2;++c)buffer.get_audio(c).read_from(main->slots[k%main->capacity].data()+c*n,n);
+     main->read.store(k+1,std::memory_order_release);
+     (source_route.get()->*RouteAccess::bounce())(buffer,start,n,source_route->main_outs(),true,true,false);
+    };
+   };
+   input(b,main_cache);input(br,main_reference);
+   auto watcher=route("Private port observer");
+   {PBD::Mutex::Lock lock(engine->process_lock());for(unsigned c=0;c<2;++c)need(watcher->input()->connect(watcher->input()->nth(c),a.route->output()->nth(c)->name())==0,"observe private output ports");}
+   port_watch=std::make_shared<Tap>(*s,block);need(watcher->add_processor(port_watch,PreFader)==0,"port observer");
+  }
   CachedTapReturn reader(*s,send.get(),cache,false);
   b.route->internal_return()->set_cached_input_reader(&CachedTapReturn::read,&reader);
   ab->extra_reader=&cache->read;
   ab->after_render=[cache,send](unsigned k){cache->publish(k,send->get_buffers());};
-  bb->ready_for_render=[cache](unsigned k){return cache->write.load(std::memory_order_acquire)>k;};
+  bb->ready_for_render=[cache,main_cache](unsigned k){return cache->write.load(std::memory_order_acquire)>k&&(!main_cache||main_cache->write.load(std::memory_order_acquire)>k);};
   // Mirror the private DSP edge in the ordinary callback graph. Delivery here
   // uses zero-gain sends because the bridge obtains that edge's audio from its
   // private InternalReturn. These nodes are fixture adapters, not extra DAW tracks.
@@ -86,6 +117,7 @@ int main(int argc,char** argv){try{
   engine->set_session(nullptr);ab->stop_worker();bb->stop_worker();
   b.route->internal_return()->set_cached_input_reader(nullptr,nullptr);
   if(comp){comp->sidechain()->set_cached_input_reader(nullptr,nullptr);refcomp->sidechain()->set_cached_input_reader(nullptr,nullptr);}
+  if(main_output)for(auto* f:{&a,&ar,&b,&br})f->route->main_outs()->set_render_buffers(nullptr);
   need(ab->done&&bb->done&&tap->k==total_blocks&&rtap->k==total_blocks,"incomplete graph");
   for(unsigned i=0;i<tap->captured.size();++i)error=std::max(error,double(std::abs(tap->captured[i]-rtap->captured[i])));
   misses=ab->misses+bb->misses+reader.misses;late=ab->late+bb->late;peak=tap->peak;
@@ -96,6 +128,7 @@ int main(int argc,char** argv){try{
    std::cerr<<"SIDECHAIN blocks="<<sc->k<<" reference_blocks="<<rsc->k<<" misses="<<sc->misses<<" peak="<<sc->peak<<" peak_gain_reduction_db="<<reduction_peak<<","<<reference_reduction_peak<<std::endl;
    need(sc->k==total_blocks&&rsc->k==total_blocks&&sc->misses==0&&sc->peak>1e-4&&reduction_peak>1,"sidechain not exercised");
   }
+  if(main_output){std::cerr<<"MAIN OUTPUT cached_blocks="<<main_cache->read.load()<<" reference_blocks="<<main_reference->read.load()<<" backend_leak_peak="<<port_watch->peak<<std::endl;need(main_cache->read==total_blocks&&main_reference->read==total_blocks&&port_watch->k==total_blocks&&port_watch->peak==0,"main output delivery failure");}
   need(reader.k==total_blocks&&bus_cut<=source_cut&&bus_cut>=arm_block,"invalid dependency handoff");
  }
  delete s;engine->stop();

@@ -1,0 +1,61 @@
+{
+  "passed": true,
+  "backend": "None (Dummy)",
+  "normal_session_callback": true,
+  "blocks": [
+    128
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "bridge_max_us": 207.708,
+  "engine_mean_us": 182.854,
+  "engine_max_us": 4026,
+  "peak": 0.0800547,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 2666.6666666666665,
+  "observed_engine_max_us": 4026.0,
+  "measured_callback_budget_met": false,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [
+    "MIDI source_events=4 reference_events=4 calls=2048 source_peak=0.0742263 tail_peak=1.62086e-17"
+  ],
+  "source_commit": "f70bcc4717b2e94b7c632055683a46fa74f14d3a",
+  "linked_source_commit": "f70bcc4717b2e94b7c632055683a46fa74f14d3a",
+  "library_sha256": "8b74bad7a6841dd490803aa0f1ec05c6cc10b2e986386f49021882a9407efa5b",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "95f450840da0dfbd766b41c3c95c74bb055e99d53ecae4a471241347c9056222",
+    "anticipation_capacity_probe.cc": "3ab81353f88d8df634dccfb17e0a43e85ebe787fdf7b29a685420e079b729b56",
+    "anticipation_eligibility_probe.cc": "103a8a5c7f3bacafc5aa563dbf9f3fbd0f37e565b9033fb6f5ead193f76c45e3",
+    "anticipation_graph_probe.cc": "af44ad61643168cb0e7f50dc64fb9c72babc27bf571de923b8837b571ce6376c",
+    "anticipation_pdc_probe.cc": "021c2b7847922a7cb20416cce323eeab38023a279bbc08c5742ff9bf8f793141",
+    "anticipation_probe.cc": "33009da351782efb423b88176423442bed5de5351352ad0184b02622c56c46c8",
+    "run-anticipation-probe.py": "424912a82b140e9f6a22c284219606f87566c4ab7a3d66d4ced7a92a9025427f"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_MIDI": "1",
+    "ARDOUR_PROBE_BLOCK": "128",
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-callback-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "compressor_plugin_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/anticipation_graph_probe.cc",
+    " M tools/dev/anticipation_probe.cc",
+    " M tools/dev/reaper-handoff/analyze.py",
+    " M tools/dev/reaper-handoff/run.lua",
+    " M tools/dev/reaper-handoff/run.py",
+    " M tools/dev/run-anticipation-probe.py",
+    " M tools/dev/validate-anticipation.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_eligibility_probe.cc",
+    "?? tools/dev/anticipation_pdc_probe.cc",
+    "?? tools/dev/reaper-handoff/reaper-evidence/seek-200ms-64frames/"
+  ]
+}

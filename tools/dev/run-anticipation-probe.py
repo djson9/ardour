@@ -6,7 +6,7 @@ import ast, hashlib, json, os, pathlib, shlex, subprocess, sys, tempfile, plistl
 root=pathlib.Path(__file__).resolve().parents[2]
 base=pathlib.Path(sys.argv[1]).resolve()
 source=sys.argv[2] if len(sys.argv)>2 else 'anticipation_probe.cc'
-assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc','anticipation_graph_probe.cc')
+assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc','anticipation_graph_probe.cc','anticipation_eligibility_probe.cc','anticipation_pdc_probe.cc')
 out=root/'artifacts'/source.replace('.cc','').replace('_','-');out.mkdir(parents=True,exist_ok=True)
 (out/'result.json').unlink(missing_ok=True)
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
@@ -91,7 +91,7 @@ if result.get('normal_session_callback') and 'blocks' in result:
  result['observed_engine_max_us']=max(observed+[result['engine_max_us']])
  result['measured_callback_budget_met']=result['observed_engine_max_us']<=period and result['bridge_deadline_overruns']==0
  result['timing_limitation']='Dummy backend pacing does not establish hardware deadlines or input/output latency.'
- result['routing_and_input_evidence']=[line for line in output.splitlines() if line.startswith(('PLAYLIST ','MIDCHAIN TAP ','BUS INPUT ERROR ','MIDI ','DISK_READER ','READER INPUT ','READER PREFILL ','CACHED GRAPH ','SIDECHAIN '))]
+ result['routing_and_input_evidence']=[line for line in output.splitlines() if line.startswith(('PLAYLIST ','MIDCHAIN TAP ','BUS INPUT ERROR ','MIDI ','DISK_READER ','READER INPUT ','READER PREFILL ','CACHED GRAPH ','SIDECHAIN ','MAIN OUTPUT ','PDC '))]
 for line in output.splitlines():
  if line.startswith('REAL_PLUGIN_RESULT '):result['real_plugins']=json.loads(line[len('REAL_PLUGIN_RESULT '):])
 result.update(source_commit=head,linked_source_commit=base_head,library_sha256=digest(base/'build/libs/ardour/libardour.dylib'),user_config_unchanged=True)

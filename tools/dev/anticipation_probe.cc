@@ -34,6 +34,9 @@
 #include "ardour/monitor_control.h"
 #include "ardour/rc_configuration.h"
 #include "ardour/disk_reader.h"
+#include "ardour/amp.h"
+#include "ardour/pannable.h"
+#include "ardour/port.h"
 #include "test_ui.h"
 using namespace ARDOUR;
 static void need(bool b, const char* s) { if (!b) throw std::runtime_error(s); }

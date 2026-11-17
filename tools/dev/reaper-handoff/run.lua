@@ -5,6 +5,8 @@ assert(reaper.CountTracks(0)==0,'Expected empty project')
 local function write(name,txt) local f=assert(io.open(out..'/'..name,'w'));f:write(txt);f:close() end
 local tracks={}
 local events={}
+local action_file=io.open(out..'/action.txt','r')
+local action=action_file and action_file:read('*a') or 'monitor';if action_file then action_file:close() end
 local function event(label)
   events[#events+1]=string.format('%.9f,%.9f,%s',reaper.time_precise(),reaper.GetPlayPosition(),label)
 end
@@ -37,10 +39,14 @@ local function run()
   local m=reaper.GetMediaTrackInfo_Value(tracks[1],'B_RECMON_IN_EFFECT')
   if m~=monitor then event('monitor_'..tostring(m));monitor=m end
   if elapsed>=2 and not armed then
-   event('arm_before');reaper.SetMediaTrackInfo_Value(tracks[1],'I_RECARM',1);event('arm_after');armed=true
+   if action=='seek' then event('seek_back_before');reaper.SetEditCurPos(1,false,true);event('seek_back_after')
+   else event('arm_before');reaper.SetMediaTrackInfo_Value(tracks[1],'I_RECARM',1);event('arm_after') end
+   armed=true
   end
   if elapsed>=4 and not disarmed then
-   event('disarm_before');reaper.SetMediaTrackInfo_Value(tracks[1],'I_RECARM',0);event('disarm_after');disarmed=true
+   if action=='seek' then event('seek_forward_before');reaper.SetEditCurPos(5,false,true);event('seek_forward_after')
+   else event('disarm_before');reaper.SetMediaTrackInfo_Value(tracks[1],'I_RECARM',0);event('disarm_after') end
+   disarmed=true
   end
   if elapsed<6 then reaper.defer(tick);return end
   event('stop_before');reaper.OnStopButton()

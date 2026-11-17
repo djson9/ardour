@@ -3,10 +3,46 @@
 These standalone macOS probes link the existing Ardour build. They reuse real
 Routes, PluginInsert/LV2 effects, sends, returns and (in the callback probe) the
 normal Session processing path. They are experiments, not an enabled DAW feature.
-The branch now has three narrow engine hooks: a cached-input reader on
-InternalReturn, explicit cycle ownership for InternalSend, and automation
-evaluation for a moving render before the audible transport rolls. The coordinator
+The branch has narrow hooks for cached InternalReturn and SideChain input,
+independent InternalSend cycle ownership, private MainDelivery output buffers,
+and automation evaluation before the audible transport rolls. The coordinator
 and fixtures still live in standalone experiments; this is not a finished feature.
+
+The current engine diff is 117 insertions and 22 deletions across 12 files. That
+is the host-boundary support, not the complete feature's code size: queueing,
+ownership, eligibility and transport coordination also need production code.
+
+## Expanded graph and latency evidence
+
+The eleven-case validation matrix passes after the Delivery changes. It includes
+the original disk/monitoring/MIDI/send cases, cached buses with an actual active
+compressor sidechain, private main output at 64/128 frames, automatic latency
+compensation at both sizes, and six eligibility decisions using real controls.
+All audio comparisons have zero final-output error and zero queue underruns.
+Most dummy runs exceed their nominal callback period; correctness is reported
+separately from deadline success. Physical I/O latency remains unmeasured.
+
+`anticipation_graph_probe.cc` exercises cached A feeding cached B while a live
+source feeds the common output. The compressor receives the cached key at its
+normal SideChain boundary and produces roughly 20 dB peak gain reduction.
+`ARDOUR_PROBE_MAIN_OUTPUT=1` includes the original gain/panner/Delivery processing
+with owned output storage; an independently connected backend-port observer sees
+zero future-audio leakage. Dependency handoffs preserve the existing DSP state.
+
+`anticipation_pdc_probe.cc` compares the cached slice against a normal registered
+Route containing the same real LV2 chain and an actual 257-sample delay. Ardour's
+existing compensation supplies 320/384 samples of startup preroll and initial
+63+1 / 127+1 subcycles. The cache uses those timeline chunks and reports 257
+samples, never the 9,600-sample anticipation horizon. Both output comparisons
+are exact. Independent oracle instances are flushed on their first moving call
+because stopped callbacks otherwise advance only the normal route's plugin
+smoothing. The synthetic delay does not exercise a third-party latent plugin's
+own host-time interpretation; `bounce_process` and normal processing currently
+apply a processor's own latency on opposite sides of its call.
+
+`anticipation_eligibility_probe.cc` reuses `Route::feeds` and existing graph edges
+for record-arm, explicit input monitoring, forced-live buses, sidechain propagation
+and disconnection. It validates the classification, not a shipped coordinator.
 
 ## Run
 

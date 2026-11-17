@@ -15,20 +15,28 @@ cases = [
     ('held-midi-128-automation', dict(MIDI=1, BLOCK=128, AUTOMATION=1)),
     ('send-delay-187', dict(DISK=1, MONITOR=1, TAP=1, AUTOMATION=1, SEND_DELAY=187, BLOCK=128)),
 ]
+cases = [(name, flags, 'anticipation_callback_probe.cc') for name, flags in cases]
+cases += [
+    ('main-output-sidechain-64', dict(MAIN_OUTPUT=1, SIDECHAIN=1, AUTOMATION=1), 'anticipation_graph_probe.cc'),
+    ('main-output-sidechain-128', dict(MAIN_OUTPUT=1, SIDECHAIN=1, AUTOMATION=1, BLOCK=128), 'anticipation_graph_probe.cc'),
+    ('automatic-pdc-64', dict(AUTOMATION=1), 'anticipation_pdc_probe.cc'),
+    ('automatic-pdc-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_pdc_probe.cc'),
+    ('actual-eligibility-controls', {}, 'anticipation_eligibility_probe.cc'),
+]
 results = []
-for name, flags in cases:
+for name, flags, probe in cases:
     env = {k: v for k, v in os.environ.items() if not k.startswith('ARDOUR_PROBE_')}
     env.update({'ARDOUR_PROBE_' + k: str(v) for k, v in flags.items()})
     with (destination / (name + '.log')).open('w') as log:
         completed = subprocess.run([sys.executable, str(root / 'tools/dev/run-anticipation-probe.py'),
-                                    str(build), 'anticipation_callback_probe.cc'], env=env,
+                                    str(build), probe], env=env,
                                    stdout=log, stderr=subprocess.STDOUT, timeout=150)
     result = {'case': name, 'exit_code': completed.returncode}
-    source = root / 'artifacts/anticipation-callback-probe/result.json'
+    source = root / 'artifacts' / probe.replace('.cc', '').replace('_', '-') / 'result.json'
     if source.exists():
         shutil.copyfile(source, destination / (name + '.json'))
         data = json.loads(source.read_text())
-        result.update(correctness_passed=data.get('correctness_passed'),
+        result.update(correctness_passed=data.get('correctness_passed', data.get('passed')),
                       max_sample_error=data.get('max_sample_error'),
                       cache_underruns=data.get('cache_underruns'),
                       measured_callback_budget_met=data.get('measured_callback_budget_met'))

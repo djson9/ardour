@@ -6,10 +6,14 @@
 #include <chrono>
 using Clock=std::chrono::steady_clock;
 constexpr unsigned total_blocks=2048,horizon_samples=9600,arm_block=512,demote_block=1024;
+struct RenderChunk {samplepos_t start;pframes_t frames;};
 
 struct Bridge : Processor {
  enum Mode {Ahead,Drain,Live};
  Fixture& source;unsigned block,capacity;bool cache_enabled,transitions;
+ samplepos_t render_origin=0;samplecnt_t reported_latency=0;bool check_position=false;
+ std::vector<RenderChunk> render_plan;
+ RenderChunk chunk(unsigned index)const{return render_plan.empty()?RenderChunk{render_origin+samplepos_t(index*block),block}:render_plan.at(index);}
  std::vector<std::vector<float>> slots;
  std::atomic<unsigned> read{0},write{0},mode{Ahead};
  std::atomic<bool> acknowledged{false},quit{false},done{false};
@@ -22,11 +26,14 @@ struct Bridge : Processor {
  std::shared_ptr<AudioTrack> reader_track;bool follow_record_arm=false;
  std::atomic<unsigned> completed_blocks{0};unsigned request_block=0,release_block=0,reader_monitor_blocks=0;
  std::function<void(unsigned)> after_render;
+ std::function<void(unsigned,const BufferSet&)> after_output;
  std::function<bool(unsigned)> ready_for_render;
  std::atomic<unsigned>* extra_reader=nullptr;
  std::atomic<unsigned>* extra_reader2=nullptr;
+ std::vector<std::atomic<unsigned>*> dependent_readers;
  Bridge(Session& s,Fixture& f,unsigned n,bool cached=true,bool handoffs=true):Processor(s,"Cache bridge",s),source(f),block(n),capacity((horizon_samples+n-1)/n),cache_enabled(cached),transitions(handoffs),slots(capacity,std::vector<float>(2*n)){if(!cached)mode=Live;}
  bool can_support_io_configuration(const ChanCount& in,ChanCount& out) override {out=in;return true;}
+ samplecnt_t signal_latency() const override {return reported_latency;}
  void start_worker(){worker=std::thread([&]{
   Temporal::TempoMap::fetch();ProcessThread pt;pt.get_buffers();BufferSet b;prepare(b,block);
   b.ensure_buffers(DataType::AUDIO,std::max(2u,source.route->max_processor_streams().n_audio()),block);
@@ -37,11 +44,13 @@ struct Bridge : Processor {
    const auto w=write.load();auto r=read.load(std::memory_order_acquire);
    if(extra_reader)r=std::min(r,extra_reader->load(std::memory_order_acquire));
    if(extra_reader2)r=std::min(r,extra_reader2->load(std::memory_order_acquire));
+   for(auto* reader:dependent_readers)r=std::min(r,reader->load(std::memory_order_acquire));
    if(w>=total_blocks||w-r>=capacity){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
    if(ready_for_render&&!ready_for_render(w)){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
-   source.run(b,w*block,block);
+   const auto part=chunk(w);source.run(b,part.start,part.frames);
+   if(after_output)after_output(w,b);
    if(after_render)after_render(w);
-   for(unsigned c=0;c<2;++c)std::copy_n(b.get_audio(c).data(),block,slots[w%capacity].begin()+c*block);
+   for(unsigned c=0;c<2;++c)std::copy_n(b.get_audio(c).data(),part.frames,slots[w%capacity].begin()+c*block);
    write.store(w+1,std::memory_order_release);
   }
   pt.drop_buffers();
@@ -58,32 +67,37 @@ struct Bridge : Processor {
     if(k>=128&&maximum>steady_engine_max){steady_engine_max=maximum;steady_engine_max_block=k-1;}
    }
   }
-  if(n!=block){++bad_size;b.silence(n,0);return;}
+  const auto part=chunk(k);
+  if(n!=part.frames){++bad_size;b.silence(n,0);return;}
+  if(check_position&&start!=part.start-reported_latency){
+   std::cerr<<"CACHE POSITION actual="<<start<<" expected="<<(part.start-reported_latency)<<" k="<<k<<" preroll="<<_session.remaining_latency_preroll()<<" route_signal="<<reported_latency<<std::endl;
+   need(false,"cache position differs from compensated render time");
+  }
   const bool wants_live=follow_record_arm?reader_track->rec_enable_control()->get_value()!=0:k>=arm_block&&k<demote_block;
   if(cache_enabled&&transitions&&mode.load()==Ahead&&wants_live){request_block=k;mode.store(Drain,std::memory_order_release);}
   if(monitor_range&&cache_enabled&&mode.load()==Drain&&acknowledged.load(std::memory_order_acquire)){
-   samplepos_t unset=max_samplepos;monitor_range->from.compare_exchange_strong(unset,write.load(std::memory_order_acquire)*block);
+   samplepos_t unset=max_samplepos;monitor_range->from.compare_exchange_strong(unset,chunk(write.load(std::memory_order_acquire)).start);
   }
   if(mode.load()==Drain&&acknowledged.load(std::memory_order_acquire)&&read.load()==write.load(std::memory_order_acquire)){
    mode.store(Live,std::memory_order_release);cutover=k;
   }
   if(mode.load()==Live){
    if(reader_track&&monitor_range){
-    const bool input=samplepos_t(k*block)>=monitor_range->from.load()&&samplepos_t(k*block)<monitor_range->until.load();
+    const bool input=part.start>=monitor_range->from.load()&&part.start<monitor_range->until.load();
     const auto desired=input?MonitorInput:MonitorDisk;
     if(reader_track->monitoring_control()->get_value()!=desired)reader_track->monitoring_control()->set_value(desired,PBD::Controllable::NoGroup);
     if(input)++reader_monitor_blocks;
    }
-   if(disk_input)disk_input->capture_monitor_input(b,start,block);source.run(b,k*block,block);if(after_render)after_render(k);
+   if(disk_input)disk_input->capture_monitor_input(b,part.start,n);source.run(b,part.start,n);if(after_output)after_output(k,b);if(after_render)after_render(k);
   }
   else if(write.load(std::memory_order_acquire)>k){
-   for(unsigned c=0;c<2;++c)b.get_audio(c).read_from(slots[k%capacity].data()+c*block,block);
+   for(unsigned c=0;c<2;++c)b.get_audio(c).read_from(slots[k%capacity].data()+c*block,n);
    read.store(k+1,std::memory_order_release);
   }else {++misses;b.silence(n,0);read.store(k+1,std::memory_order_release);}
-  for(unsigned c=0;c<2;++c)for(unsigned i=0;i<block;++i){const auto value=double(std::abs(b.get_audio(c).data()[i]));source_peak=std::max(source_peak,value);if(k>=total_blocks-128)tail_peak=std::max(tail_peak,value);}
+  for(unsigned c=0;c<2;++c)for(unsigned i=0;i<n;++i){const auto value=double(std::abs(b.get_audio(c).data()[i]));source_peak=std::max(source_peak,value);if(k>=total_blocks-128)tail_peak=std::max(tail_peak,value);}
   ++k;
   if(cache_enabled&&transitions&&mode.load()==Live&&(follow_record_arm?!wants_live:k==demote_block)){
-   release_block=k;if(monitor_range)monitor_range->until.store(k*block,std::memory_order_release);
+   release_block=k;if(monitor_range)monitor_range->until.store(part.start+n,std::memory_order_release);
    if(reader_track)reader_track->monitoring_control()->set_value(MonitorDisk,PBD::Controllable::NoGroup);
    read.store(k);write.store(k);acknowledged.store(false);
    mode.store(Ahead,std::memory_order_release);
@@ -151,6 +165,7 @@ static std::shared_ptr<InternalSend> configure_midchain_send(Session& s,Fixture&
  ordered.remove(send);auto where=std::find(ordered.begin(),ordered.end(),plugins[1]);ordered.insert(std::next(where),send);
  need(fixture.route->reorder_processors(ordered)==0,"move send between actual inserts");
  auto route=fixture.route;auto prefix=plugins[1];std::vector<std::shared_ptr<Processor>> suffix{plugins[2],plugins[3]};
+ if(getenv("ARDOUR_PROBE_MAIN_OUTPUT")){suffix.push_back(route->amp());suffix.push_back(route->main_outs());}
  fixture.render_override=[route,prefix,suffix,send](BufferSet& b,samplepos_t start,unsigned n){
   auto track=std::dynamic_pointer_cast<AudioTrack>(route);
   if(!track||!(track->monitoring_state()&MonitoringInput))b.silence(n,0);
