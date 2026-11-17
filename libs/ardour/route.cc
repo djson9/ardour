@@ -643,13 +643,13 @@ Route::process_output_buffers (BufferSet& bufs,
 }
 
 void
-Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input)
+Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader)
 {
 	auto const* time = ProcessThread::render_time ();
 	samplepos_t continuous = time ? time->continuous_at (start) : start;
 	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
 	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
-	process_output_buffers (buffers, start, end, nframes, true, true, true);
+	process_output_buffers (buffers, start, end, nframes, run_disk_reader, run_disk_reader, true);
 	if (_disk_reader) { _render_declick.store (_disk_reader->declick_in_progress (), std::memory_order_release); }
 }
 

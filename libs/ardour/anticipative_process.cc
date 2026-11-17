@@ -59,7 +59,9 @@ AnticipativeProcess::Timeline::at (samplecnt_t elapsed) const
 AnticipativeProcess::Queue::Range
 AnticipativeProcess::Timeline::first (Route const& route) const
 {
-	return at (dynamic_cast<Track const*> (&route) ? std::max (samplecnt_t (0), _preroll - route.playback_latency ()) : 0);
+	/* Track no-roll preroll still advances instruments, effects and their tails.
+	 * Only the disk reader is held; skipping the entire route loses DSP history. */
+	return at (0);
 }
 
 AnticipativeProcess::Queue::Range
@@ -98,11 +100,13 @@ struct AnticipativeProcess::RouteAdapter {
 	bool track;
 	samplepos_t continuous;
 	pframes_t max_frames;
+	samplecnt_t reader_start;
 
 	RouteAdapter (AnticipativeProcess& p, std::shared_ptr<Route> r, Queue::Range const& first)
 		: plan (p), route (r), channels (ChanCount::max (r->max_processor_streams (), ChanCount::max (r->n_inputs (), r->n_outputs ()))),
 		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous),
-		  max_frames (p._session.engine ().samples_per_cycle ())
+		  max_frames (p._session.engine ().samples_per_cycle ()),
+		  reader_start (track ? std::max (samplecnt_t (0), p._session.worst_latency_preroll_buffer_size_ceil () - r->playback_latency ()) : 0)
 	{
 		processing_channels = channels;
 		ChanCount packed = r->n_outputs ();
@@ -224,7 +228,7 @@ struct AnticipativeProcess::RouteAdapter {
 		work.set_count (processing_channels); work.silence (range.frames, 0);
 		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { work.get_midi (c).clear (); }
 		work.read_from (live ? b : future_input, range.frames);
-		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live);
+		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live, range.continuous >= reader_start);
 		b.set_count (channels); b.silence (range.frames, 0);
 		for (uint32_t c = 0; c < channels.n_midi (); ++c) { b.get_midi (c).clear (); }
 		pack (b, main, ChanCount::ZERO, range.frames);
@@ -246,7 +250,7 @@ struct AnticipativeProcess::RouteAdapter {
 	}
 	static bool consume (void* context, BufferSet& input, samplepos_t start, samplepos_t end, pframes_t nframes, bool moving) {
 		auto& self = *static_cast<RouteAdapter*> (context);
-		if (!moving || !self.plan.running ()) { self.route->output ()->silence (nframes); return true; }
+		if ((!moving && !self.plan._session.remaining_latency_preroll ()) || !self.plan.running ()) { self.route->output ()->silence (nframes); return true; }
 		self.route->capture_anticipative_input (input, start, end, nframes);
 		for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
 		self.audible.read_from (input, nframes);
