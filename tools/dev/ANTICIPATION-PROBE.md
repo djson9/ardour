@@ -3,14 +3,17 @@
 These standalone macOS probes link the existing Ardour build. They reuse real
 Routes, PluginInsert/LV2 effects, sends, returns and (in the callback probe) the
 normal Session processing path. They are experiments, not an enabled DAW feature.
-No production engine source has been changed in this stage.
+The branch now has three narrow engine hooks: a cached-input reader on
+InternalReturn, explicit cycle ownership for InternalSend, and automation
+evaluation for a moving render before the audible transport rolls. The coordinator
+and fixtures still live in standalone experiments; this is not a finished feature.
 
 ## Run
 
 ```sh
-python3 tools/dev/run-anticipation-probe.py ../ardour-9.10
-python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_callback_probe.cc
-ARDOUR_PROBE_BLOCK=128 python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_callback_probe.cc
+python3 tools/dev/run-anticipation-probe.py .
+python3 tools/dev/run-anticipation-probe.py . anticipation_callback_probe.cc
+python3 tools/dev/validate-anticipation.py .
 ```
 
 The runner verifies compatible library sources and records library/source hashes,
@@ -19,6 +22,19 @@ working-tree status, logs and JSON under `artifacts/anticipation-probe/` or
 A process-local GLib home interposer isolates Mac preferences without changing
 HOME; the executable checks isolation before initializing Ardour, and the runner
 checks the real user-config checksum afterward. It never operates the user's GUI.
+
+Use a build of this branch: the InternalReturn layout differs from the original
+main-checkout build. After configuring with the normal optimized macOS options,
+the targeted build is:
+
+```sh
+python3 waf build -j4 --targets=libardour-tests,dummy_audiobackend,a-delay,reasonablesynth,libardour_pan1in2out,libardour_pan2in2out,libardour_panbalance,libardour_panvbap
+python3 waf build --targets=ardev_common_waf.sh,../../LV2/a-delay.lv2/manifest.ttl,../../LV2/a-delay.lv2/a-delay.ttl,../../LV2/reasonablesynth.lv2/manifest.ttl,../../LV2/reasonablesynth.lv2/reasonablesynth.ttl
+```
+
+Waf's source-distribution detection currently mistakes a Git worktree's `.git`
+file for the absence of Git. Generate its ignored `libs/ardour/revision.cc` with
+the actual worktree revision if configuration reports a missing revision file.
 
 ## REAPER behavior: drain before live ownership
 
@@ -97,8 +113,8 @@ of massive-chain capacity.
 ## Capacity experiment
 
 ```sh
-ARDOUR_PROBE_DIRECT=1 python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_capacity_probe.cc
-python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_capacity_probe.cc
+ARDOUR_PROBE_DIRECT=1 python3 tools/dev/run-anticipation-probe.py . anticipation_capacity_probe.cc
+python3 tools/dev/run-anticipation-probe.py . anticipation_capacity_probe.cc
 ```
 
 The fixture uses eight independent chains of 32 actual LV2 delay inserts, a live
@@ -150,12 +166,54 @@ an anticipation failure, or omit measured steady-state overruns.
   original contents were not captured and were not blindly restored. Subsequent
   successful isolated runs verify the original config is unchanged during them.
 
+## Expanded input and routing tests
+
+`validate-anticipation.py` records each run's complete log and hashed JSON in a
+new timestamped directory. Its matrix covers:
+
+- Actual AudioTrack/DiskReader playback, actual queued record-enable controls,
+  current-cycle monitored input, plugin automation, and a cached mid-chain send,
+  with two repeated 64-frame runs and a 128-frame run.
+- Reasonable Synth plus four real delays, with notes held across both ownership
+  transitions and note-offs at nonzero block offsets. It checks nonzero synth
+  output and a decayed release tail, not just event delivery.
+- A 187-sample InternalSend compensation delay with file/live switching,
+  automation and a cached mid-chain send at 128 frames. This exercises the delay
+  line, not yet automatic graph-wide PDC.
+
+The actual-track test preloads 12 seconds of media buffering for its short run.
+It does not yet exercise continuous butler refill. Record-enable events are
+requested from the control thread through Ardour's real control API; the bridge
+observes that control, drains, and applies effective monitoring at its handoff
+cursor. This proves a control-driven candidate inside the fixture, not general
+recording, downstream eligibility or arbitrary route migration.
+
+The startup barrier matters: the Session must process its queued initial controls
+and locate work before the worker pre-renders. A stale global locate flag otherwise
+made DiskReader cache silence for the entire initial horizon. Waiting while the
+Session remains detached cannot refresh that flag. Diagnostics must compare the
+beginning of the stream as well as steady playback.
+
+Two other failures established the need for the narrow engine hooks. Mixing a
+cached tap through an added generic Processor bypassed Ardour's mandatory trim
+stage; mixing through InternalReturn restores exact ordering. Global hardware
+CycleStart notifications also reach private InternalSends, so background-owned
+sends now prepare their buffers explicitly. Finally, moving plugin automation
+must follow the rendered range even before the audible session starts rolling.
+
+`passed`/`correctness_passed` are signal and transition checks. The separate
+`measured_callback_budget_met` field includes observed whole-engine peaks. Several
+expanded runs miss that budget despite correct output and no missing cached
+blocks. None establishes physical monitoring latency or hardware stability.
+
 ## Remaining gates
 
 1. Establish correctly paced 64/128-frame execution and total callback deadlines;
    then show an actual workload that fails direct and succeeds anticipated.
-2. Cover mid-chain sends, cached buses, sidechains and latency compensation with
-   timestamped boundary outputs while retaining existing routing code.
-3. Cover disk/MIDI sources, held notes, seek/loop and generation cancellation.
-4. Connect the proven ownership mechanism to actual monitoring eligibility and
-   live downstream propagation, with safe mutation/deletion.
+2. Cover cached buses, sidechains and automatic latency propagation, retaining
+   the existing routing code and testing cache timestamps under compensation.
+3. Cover ongoing disk refill, MIDI routing/input, seek/loop and generation
+   cancellation. The isolated REAPER seek fixture resets JSFX state at a seek;
+   this differs from its state-continuous monitoring handoff.
+4. Integrate general route eligibility and downstream promotion, replacing the
+   fixture's controller with safe production mutation/deletion ownership.

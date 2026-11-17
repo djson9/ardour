@@ -30,7 +30,7 @@ int main(int argc,char** argv){try{
   s->resort_routes();std::cerr<<"DSP threads="<<engine->process_thread_count()<<" graph_present="<<s->plot_process_graph(std::string(argv[1])+"/graph.dot")<<std::endl;
   if(cached){
    for(auto& bridge:bridges)bridge->start_worker();
-   for(auto& bridge:bridges)while(bridge->write.load()<queue_blocks)std::this_thread::sleep_for(std::chrono::milliseconds(1));
+   for(auto& bridge:bridges)while(bridge->write.load()<bridge->capacity)std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   engine->dsp_stats[AudioEngine::ProcessCallback].queue_reset();s->request_roll();engine->set_session(s);
   const auto begin=Clock::now();const auto deadline=begin+std::chrono::seconds(60);

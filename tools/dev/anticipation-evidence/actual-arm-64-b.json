@@ -1,0 +1,57 @@
+{
+  "passed": true,
+  "backend": "None (Dummy)",
+  "normal_session_callback": true,
+  "blocks": [
+    64
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 1,
+  "bridge_max_us": 1804.17,
+  "engine_mean_us": 773.765,
+  "engine_max_us": 20882,
+  "peak": 0.233493,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 1333.3333333333333,
+  "observed_engine_max_us": 25818.0,
+  "measured_callback_budget_met": false,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [
+    "READER PREFILL monitoring=4,4 choice=2,2",
+    "READER INPUT error=0 first_block=2048 peaks=0.132728,0.132728",
+    "DISK_READER source_peak=0.0730283 remaining_buffer=0.867188 monitor_blocks=358,358 record_request_block=518 release_block=1026",
+    "BUS INPUT ERROR 0",
+    "MIDCHAIN TAP blocks=2048 misses=0 max_error_block=0 phases=0,0,0,0 delay_out=0,0 raw_send_error=0 automation_play=0"
+  ],
+  "source_commit": "2458a0a42b9e5b160a18ece045319f5883294cbf",
+  "linked_source_commit": "2458a0a42b9e5b160a18ece045319f5883294cbf",
+  "library_sha256": "d7ad1962e08eca3dad6a785b36be58b0e5f8b7154acb67aa5a4c25d7448cfbc5",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "480b7af12bb01b12ae745ec3e4f2661865b57900eabe84b7aa7d023d31022afe",
+    "anticipation_capacity_probe.cc": "3ab81353f88d8df634dccfb17e0a43e85ebe787fdf7b29a685420e079b729b56",
+    "anticipation_probe.cc": "fec85d4085115489bac6de4029910a0c744cb00ab56ee7d1217b187a7db5d4cf",
+    "run-anticipation-probe.py": "99ec4ac1b0db59536432a555d36488beec3f0baeff508e1e604e961d09f47af5"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_DISK_READER": "1",
+    "ARDOUR_PROBE_TAP": "1",
+    "ARDOUR_PROBE_MONITOR": "1",
+    "ARDOUR_PROBE_RECORD_CONTROL": "1",
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-callback-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/anticipation_capacity_probe.cc",
+    " M tools/dev/anticipation_probe.cc",
+    " M tools/dev/run-anticipation-probe.py",
+    "?? artifacts/",
+    "?? tools/dev/validate-anticipation.py"
+  ]
+}

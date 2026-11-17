@@ -1,0 +1,25 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+latcomp-Shared callback bus-0x119862000 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Shared callback bus | Shared callback bus | 
+latcomp-Reference callback bus-0x10406d600 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Reference callback bus | Reference callback bus | 
+READER PREFILL monitoring=4,4 choice=0,0
+CALLBACK wall_seconds=4.59262 sample_rate=48000 buffer=64 backend=None (Dummy)
+CALLBACK block=64 processed=2048 taps=2048 misses=0 cutover=665 error=0.12192 peak=0.272299 max_us=456.375
+ENGINE observed_max_us=33195 at_block=2016
+ENGINE steady_max_us=33195 at_block=2016
+READER INPUT error=0.129873 first_block=0 peaks=0.129873,0.129873
+INPUT SAMPLE 0 0 0
+INPUT SAMPLE 1 0 4.9797e-06
+INPUT SAMPLE 16 0 0.00115734
+INPUT SAMPLE 63 0 0.0218412
+INPUT SAMPLE 128 0 0.0223012
+INPUT SAMPLE 191 0 0.0377616
+INPUT SAMPLE 1280 0 -0.0961014
+INPUT SAMPLE 19199 0 -0.0438798
+INPUT SAMPLE 19200 -0.0421597 -0.0421597
+DISK_READER source_peak=0.0803845 remaining_buffer=0.867188 monitor_blocks=360,360 record_request_block=515 release_block=1025
+FIRST RAW block=0 actual=8.48666e-24 reference=1.05311e-07
+BUS INPUT ERROR 0.0237387
+MIDCHAIN TAP blocks=2048 misses=0 max_error_block=298 phases=0.12192,0.01486,2.65148e-06,4.65661e-10 delay_out=0,0 raw_send_error=0.0117219 automation_play=0
+: [WARNING]: Pool AudioEngine 1 has no trash collector; a memory leak has therefore occurred
+FAIL callback output failed
+

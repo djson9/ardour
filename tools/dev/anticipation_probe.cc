@@ -22,6 +22,18 @@
 #include "ardour/plugin.h"
 #include "ardour/plugin_insert.h"
 #include "ardour/io.h"
+#include "ardour/audioplaylist.h"
+#include "ardour/playlist_factory.h"
+#include "ardour/source_factory.h"
+#include "ardour/sndfilesource.h"
+#include "ardour/region_factory.h"
+#include "ardour/region.h"
+#include "ardour/automation_list.h"
+#include "ardour/midi_buffer.h"
+#include "ardour/audio_track.h"
+#include "ardour/monitor_control.h"
+#include "ardour/rc_configuration.h"
+#include "ardour/disk_reader.h"
 #include "test_ui.h"
 using namespace ARDOUR;
 static void need(bool b, const char* s) { if (!b) throw std::runtime_error(s); }
@@ -44,10 +56,13 @@ struct Probe : Processor {
 struct RouteAccess : Route { static auto bounce() { return &RouteAccess::bounce_process; } };
 struct Fixture {
  std::shared_ptr<Route> route;std::shared_ptr<Probe> probe;std::shared_ptr<Processor> endpoint;
- Fixture(Session& s,const char* name,bool real_plugins=false,bool generator=true,bool registered=true,unsigned inserts=4){
+ std::function<void(BufferSet&,samplepos_t,unsigned)> render_override;
+ Fixture(Session& s,const char* name,bool real_plugins=false,bool generator=true,bool registered=true,unsigned inserts=4,bool audio_track=false){
   if(registered)route=s.new_audio_route(2,2,{},1,name,PresentationInfo::AudioBus,0).front();
   else {
-   route=std::make_shared<Route>(s,name,PresentationInfo::AudioBus,DataType::AUDIO);need(route->init()==0,"private route init");
+   if(audio_track)route=std::make_shared<AudioTrack>(s,name,Normal);
+   else route=std::make_shared<Route>(s,name,PresentationInfo::AudioBus,DataType::AUDIO);
+   need(route->init()==0,"private route init");
    {PBD::Mutex::Lock lock(AudioEngine::instance()->process_lock());
     need(route->input()->ensure_io(ChanCount(DataType::AUDIO,2),false)==0,"private input");
     need(route->output()->ensure_io(ChanCount(DataType::AUDIO,2),false)==0,"private output");}
@@ -61,13 +76,92 @@ struct Fixture {
    need(route->add_processor(insert,PreFader)==0,"add actual plugin");insert->activate();endpoint=insert;
    for(auto parameter:std::vector<std::pair<unsigned,double>>{{5,13.0+7*k},{7,70},{8,55}})
     insert->automation_control(Evoral::Parameter(PluginAutomation,0,parameter.first))->set_value(parameter.second,PBD::Controllable::NoGroup);
+   if(getenv("ARDOUR_PROBE_AUTOMATION")){
+    auto control=insert->automation_control(Evoral::Parameter(PluginAutomation,0,7));
+    for(auto point:std::vector<std::pair<samplepos_t,double>>{{0,70},{2400,20},{7200,85},{24000,45},{48000,95},{96000,30},{192000,65}})
+     control->alist()->add(timepos_t(point.first),point.second,false,false);
+    control->alist()->set_automation_state(Play);
+   }
   }
  }
  void run(BufferSet& b,long long t,unsigned n){
-  b.silence(n,0);(route.get()->*RouteAccess::bounce())(b,t,n,endpoint,true,true,false);
+  if(render_override){render_override(b,t,n);return;}
+  auto track=std::dynamic_pointer_cast<AudioTrack>(route);
+  if(!track||!(track->monitoring_state()&MonitoringInput))b.silence(n,0);
+  (route.get()->*RouteAccess::bounce())(b,t,n,endpoint,true,true,false);
  }
 };
-static void prepare(BufferSet& b,unsigned n){b.ensure_buffers(DataType::AUDIO,2,n);b.set_count(ChanCount(DataType::AUDIO,2));}
+static void prepare(BufferSet& b,unsigned n){b.ensure_buffers(DataType::AUDIO,2,n);b.ensure_buffers(DataType::MIDI,1,8192);b.set_count(ChanCount(DataType::AUDIO,2));}
+
+struct MidiNotes : Processor {
+ unsigned block,events=0,calls=0;
+ MidiNotes(Session& s,unsigned n):Processor(s,"Held MIDI notes",s),block(n){}
+ bool can_support_io_configuration(const ChanCount& in,ChanCount& out)override{out=in;out.set(DataType::MIDI,1);return true;}
+ void run(BufferSet& b,samplepos_t start,samplepos_t,double,pframes_t n,bool)override{
+  need(start==samplepos_t(calls*block),"MIDI cursor discontinuity");++calls;
+  auto count=b.count();count.set(DataType::MIDI,1);b.set_count(count);auto& midi=b.get_midi(0);midi.clear();
+  const samplepos_t positions[]={400*block+7,850*block+29,950*block+3,1250*block+5};
+  const uint8_t messages[][3]={{0x90,60,100},{0x80,60,0},{0x90,67,100},{0x80,67,0}};
+  for(unsigned e=0;e<4;++e)if(positions[e]>=start&&positions[e]<start+n){
+   need(midi.push_back(positions[e]-start,Evoral::MIDI_EVENT,3,messages[e]),"MIDI event buffer full");++events;
+  }
+ }
+};
+static std::shared_ptr<MidiNotes> use_midi_synth(Session& s,Fixture& f,unsigned block){
+ auto notes=std::make_shared<MidiNotes>(s,block);need(f.route->replace_processor(f.probe,notes)==0,"MIDI source");
+ auto plugin=find_plugin(s,"https://community.ardour.org/node/7596",LV2);need(bool(plugin),"reasonable synth");
+ auto insert=std::make_shared<PluginInsert>(s,*f.route,plugin);
+ std::shared_ptr<Processor> first_fx;f.route->foreach_processor([&](std::weak_ptr<Processor> weak){auto p=weak.lock();if(!first_fx&&std::dynamic_pointer_cast<PluginInsert>(p))first_fx=p;});
+ need(bool(first_fx)&&f.route->add_processor(insert,first_fx)==0,"synth before effects");insert->activate();return notes;
+}
+
+// Real file/region/playlist input for timing-context experiments. Direct playlist
+// reads can block on disk and are suitable for the producer, not a proposed
+// monitored-input implementation. Scratch storage is allocated before playback.
+struct MonitorRange {std::atomic<samplepos_t> from{max_samplepos},until{max_samplepos};};
+struct DiskInput : Processor {
+ std::shared_ptr<AudioPlaylist> playlist;std::vector<Sample> mix;std::vector<float> gain;
+ std::shared_ptr<MonitorRange> monitor_range;std::vector<Sample> monitor_input;samplepos_t captured_start=-1;
+ unsigned reads=0,monitor_blocks=0;double monitor_peak=0;
+ DiskInput(Session& s,std::shared_ptr<AudioPlaylist> p):Processor(s,"Playlist input",s),playlist(p),mix(8192),gain(8192),monitor_input(2*8192){}
+ bool can_support_io_configuration(const ChanCount& in,ChanCount& out)override{out=in;return true;}
+ void capture_monitor_input(const BufferSet& b,samplepos_t start,unsigned n){
+  need(n<=8192&&b.count().n_audio()==2,"monitor input size");captured_start=start;
+  for(unsigned c=0;c<2;++c)std::copy_n(b.get_audio(c).data(),n,monitor_input.begin()+c*8192);
+ }
+ void run(BufferSet& b,samplepos_t start,samplepos_t,double,pframes_t n,bool)override{
+  need(n<=mix.size(),"playlist scratch size");
+  if(monitor_range&&start>=monitor_range->from.load(std::memory_order_acquire)&&start<monitor_range->until){
+   need(captured_start==start,"stale monitored input timestamp");
+   for(unsigned c=0;c<2;++c){b.get_audio(c).read_from(monitor_input.data()+c*8192,n);for(unsigned i=0;i<n;++i)monitor_peak=std::max(monitor_peak,double(std::abs(monitor_input[c*8192+i])));}
+   ++monitor_blocks;return;
+  }
+  for(unsigned c=0;c<b.count().n_audio();++c)
+   need(playlist->read(b.get_audio(c).data(),mix.data(),gain.data(),timepos_t(start),timecnt_t(n),0).samples()==n,"playlist read");
+  ++reads;
+ }
+};
+static std::shared_ptr<AudioPlaylist> make_disk_playlist(Session& s,const std::string& path){
+ auto source=SourceFactory::createWritable(DataType::AUDIO,s,path,48000);
+ auto snd=std::dynamic_pointer_cast<SndFileSource>(source);need(bool(snd),"file source");
+ std::vector<Sample> samples(48000*10);
+ for(unsigned i=0;i<samples.size();++i)samples[i]=.1*std::sin(i*.017)+.03*std::cos(i*.003);
+ need(snd->write(samples.data(),samples.size())==samples.size(),"write source WAV");
+ PBD::PropertyList properties;properties.add(Properties::start,timepos_t(0));properties.add(Properties::length,timecnt_t(samples.size()));
+ auto region=RegionFactory::create(source,properties);need(bool(region),"audio region");
+ auto playlist=std::dynamic_pointer_cast<AudioPlaylist>(PlaylistFactory::create(DataType::AUDIO,s,"Disk fixture"));
+ need(bool(playlist),"audio playlist");playlist->add_region(region,timepos_t(0));return playlist;
+}
+static std::shared_ptr<DiskInput> use_disk_input(Session& s,Fixture& fixture,std::shared_ptr<AudioPlaylist> playlist){
+ auto input=std::make_shared<DiskInput>(s,playlist);need(fixture.route->replace_processor(fixture.probe,input)==0,"replace generated source with playlist");return input;
+}
+static std::shared_ptr<AudioTrack> use_real_disk_reader(Fixture& f,std::shared_ptr<AudioPlaylist> playlist){
+ auto track=std::dynamic_pointer_cast<AudioTrack>(f.route);need(bool(track),"real audio track");
+ need(track->remove_processor(f.probe)==0,"remove synthetic input");
+ need(track->use_playlist(DataType::AUDIO,playlist)==0,"assign actual track playlist");
+ track->monitoring_control()->set_value(MonitorDisk,PBD::Controllable::NoGroup);
+ need(track->seek(0,true)==0,"prefill actual DiskReader");return track;
+}
 int main(int argc,char**argv){
  try {
   need(argc==2,"session path argument required");need(std::string(g_get_home_dir())==getenv("ARDOUR_PROBE_HOME"),"preferences isolation failed");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();
