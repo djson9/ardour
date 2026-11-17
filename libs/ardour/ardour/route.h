@@ -647,6 +647,7 @@ protected:
 	void* _render_consumer_context {nullptr};
 	RenderObserver _render_observer {nullptr};
 	void* _render_observer_context {nullptr};
+	std::atomic<bool> _render_declick {false};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 

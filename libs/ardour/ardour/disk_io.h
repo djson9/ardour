@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 #include <exception>
+#include <atomic>
 
 #include "pbd/ringbufferNPT.h"
 #include "pbd/rcu.h"
@@ -117,7 +118,7 @@ protected:
 	bool         _slaved;
 	bool          in_set_state;
 	samplepos_t   playback_sample;
-	bool         _need_butler;
+	std::atomic<bool> _need_butler;
 	Track&       _track;
 
 	void init ();

@@ -315,7 +315,7 @@ Track::freeze_state() const
 bool
 Track::declick_in_progress () const
 {
-	return active() && _disk_reader->declick_in_progress ();
+	return active() && (_render_consumer ? _render_declick.load (std::memory_order_acquire) : _disk_reader->declick_in_progress ());
 }
 
 bool

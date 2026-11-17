@@ -647,6 +647,7 @@ Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t e
 	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
 	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
 	process_output_buffers (buffers, start, end, nframes, true, true, true);
+	if (_disk_reader) { _render_declick.store (_disk_reader->declick_in_progress (), std::memory_order_release); }
 }
 
 void

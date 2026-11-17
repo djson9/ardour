@@ -2457,7 +2457,7 @@ private:
 
 	CoreSelection* _selection;
 
-	bool _global_locate_pending;
+	std::atomic<bool> _global_locate_pending;
 	std::optional<samplepos_t> _nominal_jack_transport_sample;
 
 	bool _had_destructive_tracks;
