@@ -1,0 +1,15 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+latcomp-Shared callback bus-0x14e070a00 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Shared callback bus | Shared callback bus | 
+latcomp-Reference callback bus-0x14e1b7800 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Reference callback bus | Reference callback bus | 
+READER PREFILL monitoring=4,4 choice=2,2
+CALLBACK wall_seconds=3.31727 sample_rate=48000 buffer=64 backend=None (Dummy)
+BACKEND xruns=0 session_xruns=0
+CALLBACK block=64 processed=2048 taps=2048 misses=0 cutover=670 error=0 peak=0.194994 max_us=87.375
+ENGINE observed_max_us=1245 at_block=1301
+ENGINE steady_max_us=1245 at_block=1301
+READER INPUT error=0 first_block=2048 peaks=0.129873,0.129873
+DISK_READER source_peak=0.0649155 remaining_buffer=0.867188 monitor_blocks=355,355 record_request_block=520 release_block=1025
+BUS INPUT ERROR 0
+MIDCHAIN TAP blocks=2048 misses=0 max_error_block=0 phases=0,0,0,0 delay_out=0,0 raw_send_error=0 automation_play=0
+RESULT {"passed":true,"backend":"None (Dummy)","normal_session_callback":true,"blocks":[64],"verified_bus_blocks":2048,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"bridge_max_us":87.375,"engine_mean_us":96.6274,"engine_max_us":1245,"peak":0.194994,"hardware_latency_measured":false}
+

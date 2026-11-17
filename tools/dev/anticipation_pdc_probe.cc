@@ -48,6 +48,7 @@ struct ReportedDelay : Processor {
  samplecnt_t signal_latency()const override{return delay;}
  void run(BufferSet& b,samplepos_t start,samplepos_t,double speed,pframes_t n,bool)override{
   for(unsigned i=0;i<n;++i){for(unsigned c=0;c<2;++c){auto& memory=history[c*delay+cursor];auto& sample=b.get_audio(c).data()[i];std::swap(memory,sample);}cursor=(cursor+1)%delay;}
+  if(auto* time=ProcessThread::render_time())need(time->continuous_at(start)==start,"latent processor continuous clock offset");
   // Deliberately depend on the host-provided output timestamp as well as the
   // audio delay. An ordinary delay alone cannot detect the wrong time context.
   if(getenv("ARDOUR_PROBE_HOST_TIME"))for(unsigned i=0;i<n;++i)for(unsigned c=0;c<2;++c)b.get_audio(c).data()[i]*=.75+.25*std::sin((start+i)*.003);

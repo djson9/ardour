@@ -1,0 +1,8 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+CACHED GRAPH source_cutover=662 bus_cutover=662 cached_return_blocks=2048 error=0 misses=0
+ENGINE observed_max_us=5151
+SIDECHAIN blocks=2048 reference_blocks=2048 misses=0 peak=0.022282 peak_gain_reduction_db=19.7394,19.7394
+MAIN OUTPUT cached_blocks=2048 reference_blocks=2048 backend_leak_peak=0
+: [WARNING]: Pool AudioEngine 1 has no trash collector; a memory leak has therefore occurred
+RESULT {"passed":true,"normal_session_callback":true,"backend":"Dummy Realtime","blocks":[64],"verified_bus_blocks":2048,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":1,"engine_mean_us":149.668,"engine_max_us":5151,"source_cutover":662,"bus_cutover":662,"peak":0.175057,"hardware_latency_measured":false}
+

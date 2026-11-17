@@ -1,0 +1,4 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+MIDI BOUNDARY events=4 cutover=662 error=0 peak=0.0309421 tail=3.75061e-09
+RESULT {"passed":true,"normal_session_callback":true,"blocks":[64],"midi_events":4,"live_synth_consumer":true,"monitor_cutover":662,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"engine_mean_us":83.3589,"engine_max_us":1958,"hardware_latency_measured":false}
+

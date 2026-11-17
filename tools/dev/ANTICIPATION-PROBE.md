@@ -8,17 +8,45 @@ independent InternalSend cycle ownership, private MainDelivery output buffers,
 and automation evaluation before the audible transport rolls. The coordinator
 and fixtures still live in standalone experiments; this is not a finished feature.
 
-The current engine diff is 147 insertions and 23 deletions across 13 files. That
+The current engine diff is 177 insertions and 24 deletions across 16 files. That
 is the host-boundary support, not the complete feature's code size: queueing,
 ownership, eligibility and transport coordination also need production code.
 
+## CoreAudio capacity breakthrough
+
+At 48 kHz / 64 frames, eight chains of 64 real LV2 effect inserts feed a shared
+bus with four effects and a live source. Two paired runs produced identical
+1,048,576-byte sample captures (SHA-256
+`125056af1ac2b0bf1510f942b2bba57428acc367e8d25dc9d6e093fa34f3873d`).
+Anticipated processing had zero cache misses and zero backend xruns in both runs,
+with whole-engine mean 79.68 / 79.48 µs and observed maxima 373 / 334 µs. Direct
+processing had 51 / 99 backend xruns, mean 1,071.97 / 1,089.80 µs and observed
+maxima 4,463 / 4,343 µs. Each run covers 2,048 blocks (2.731 seconds of music).
+
+Plugin resets for an identical starting state happen off-callback with the Session
+detached. Calling PluginInsert::flush instead merely queues a large delay-buffer
+clear for the next callback; that caused the earlier startup spike. Removing all
+resets avoided the spike but gave unequal initial states, so those exploratory
+runs are preserved separately. The final pair fixes both issues.
+
+Evidence and runtime/source manifests are under
+`tools/dev/anticipation-evidence/coreaudio-evidence/`. The final four capture hashes
+agree; prior failed and exploratory runs remain in the summary. A deliberate
+768-insert overload produced 3,074 cache misses and is explicitly a failed workload.
+Fast callback timing alone is never sufficient evidence of successful playback.
+
+These are real CoreAudio callbacks using BlackHole, with a synthesized live input;
+they do not measure physical microphone/interface round-trip latency. They prove
+the capacity mechanism in short isolated tests, not sustained release stability.
+
 ## Expanded graph and latency evidence
 
-The fifteen-case validation matrix passes after the Delivery and render-time changes. It includes
+The twenty-one-case validation matrix passes on engine revision `5f4b5bd4e3`. It includes
 the original disk/monitoring/MIDI/send cases, cached buses with an actual active
 compressor sidechain, private main output at 64/128 frames, automatic latency
 compensation at both sizes, six eligibility decisions using real controls,
-ongoing disk refill at both sizes, and seek/edit generations at both sizes.
+ongoing disk refill, seek/edit generations, actual recorded files, nonaligned loops
+with scoped-clock witnesses and MIDI crossing the cache boundary at both sizes.
 All audio comparisons have zero final-output error and zero queue underruns.
 Most dummy runs exceed their nominal callback period; correctness is reported
 separately from deadline success. Physical I/O latency remains unmeasured.
@@ -42,8 +70,9 @@ opposite placement of own-processor latency in `bounce_process` and normal
 playback: before-fix output error was 0.00185462. `Route::render_process` now reuses
 the same processing loop with normal playback timestamps, retaining the existing
 bounce timing for export. Both 64/128-frame time-sensitive tests pass exactly.
-This checks the render entry point; format-specific host-clock fields such as
-VST3 continuous time remain an adapter integration concern.
+ProcessThread::RenderScope supplies project/continuous sample mapping to the
+VST3 adapter. The loop witness validates the mapping and restoration across
+ownership changes, but native vendor VST3 DSP compatibility remains untested.
 
 `anticipation_eligibility_probe.cc` reuses `Route::feeds` and existing graph edges
 for record-arm, explicit input monitoring, forced-live buses, sidechain propagation
@@ -264,14 +293,33 @@ must follow the rendered range even before the audible session starts rolling.
 expanded runs miss that budget despite correct output and no missing cached
 blocks. None establishes physical monitoring latency or hardware stability.
 
-## Remaining gates
+## Additional recording, clock and MIDI boundary cases
 
-1. Establish correctly paced 64/128-frame execution and total callback deadlines;
-   then show an actual workload that fails direct and succeeds anticipated.
-2. Cover cached buses, sidechains and automatic latency propagation, retaining
-   the existing routing code and testing cache timestamps under compensation.
-3. Cover ongoing disk refill, MIDI routing/input, seek/loop and generation
-   cancellation. The isolated REAPER seek fixture resets JSFX state at a seek;
-   this differs from its state-continuous monitoring handoff.
-4. Integrate general route eligibility and downstream promotion, replacing the
-   fixture's controller with safe production mutation/deletion ownership.
+`anticipation_record_probe.cc` leaves actual DiskWriter capture in the registered
+track's callback while DSP ownership changes. Recorded files match raw input and
+the final mix exactly at 64/128. Record arming precedes playback in this fixture;
+the separate control fixture exercises dynamic record-enable requests.
+
+`anticipation_loop_probe.cc` uses actual Session loop boundaries, including their
+beat/sample rounding and split callbacks. Its ClockWitness checks continuous time
+across wraps and ownership changes and verifies restoration before downstream DSP.
+`anticipation_midi_boundary_probe.cc` caches MIDI events for a normal callback synth,
+requiring four exact event offsets, identical output and a quiet release tail.
+
+Real CoreAudio/BlackHole callback runs now pass the actual-arm/disk/send fixture at
+64 and 128 frames with zero xruns, exact audio and no cache misses. Portable runtimes
+contain only task-owned copies with source/package hashes; run-portable-probe.py
+verifies packaged runtime hashes and unchanged user preferences. These are short
+virtual-device runs, not physical round-trip latency or sustained stability tests.
+
+## Remaining production gates
+
+1. Move fixture orchestration into one Session-owned coordinator with safe route
+   mutation/deletion and generation retirement. Reuse the unchanged normal Graph,
+   existing Route::feeds dependencies and DiskReader/Butler APIs.
+2. Connect controls, raw capture, routing caches and measured drain handoffs to
+   normal Track lifecycle. Keep settings default-off until release validation.
+3. Validate rolling seek/edit response, dynamic latency/tempo/device changes,
+   vendor-plugin compatibility, overload recovery and session close races.
+4. Run ten-minute hardware stress, repeated transitions and physical interface
+   loopback before claiming release readiness or full REAPER behavioral parity.

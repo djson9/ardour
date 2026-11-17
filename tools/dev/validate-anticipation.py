@@ -26,6 +26,12 @@ cases += [
     ('ongoing-disk-refill-128', dict(DISK_READER=1, TAP=1, AUTOMATION=1, REFILL=1, BLOCK=128), 'anticipation_callback_probe.cc'),
     ('seek-edit-64', dict(AUTOMATION=1), 'anticipation_seek_probe.cc'),
     ('seek-edit-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_seek_probe.cc'),
+    ('recorded-input-64', dict(AUTOMATION=1), 'anticipation_record_probe.cc'),
+    ('recorded-input-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_record_probe.cc'),
+    ('loop-clock-64', dict(AUTOMATION=1), 'anticipation_loop_probe.cc'),
+    ('loop-clock-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_loop_probe.cc'),
+    ('midi-boundary-64', {}, 'anticipation_midi_boundary_probe.cc'),
+    ('midi-boundary-128', dict(BLOCK=128), 'anticipation_midi_boundary_probe.cc'),
 ]
 results = []
 for name, flags, probe in cases:

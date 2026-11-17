@@ -1,0 +1,39 @@
+{
+  "exit_status": 0,
+  "mode": "capacity-ahead",
+  "elapsed_seconds": 4.626528125023469,
+  "user_config_unchanged": true,
+  "runtime_manifest": "/Users/davidson/workspace/artifacts/ardour-anticipation-spike/portable-anticipation-1794953431722407000/manifest.json",
+  "runtime_manifest_sha256": "1d8328efd1aeaac22fdab448d49b5d6592168ecba86fbae2f5ac0b582f684a1e",
+  "runtime_hashes_verified": true,
+  "physical_loopback_latency_measured": false,
+  "settings": {
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/artifacts/ardour-anticipation-spike/coreaudio-run-1794953490123120000/private-home",
+    "ARDOUR_PROBE_BACKEND": "CoreAudio",
+    "ARDOUR_PROBE_BLOCK": "64",
+    "ARDOUR_PROBE_CHAINS": "8",
+    "ARDOUR_PROBE_INSERTS": "64"
+  },
+  "probe_result": {
+    "passed": true,
+    "mode": "anticipated",
+    "backend": "CoreAudio",
+    "block": 64,
+    "chains": 8,
+    "inserts_per_chain": 64,
+    "verified_blocks": 2048,
+    "cache_underruns": 0,
+    "bridge_overruns": 0,
+    "bridge_max_us": 17.959,
+    "engine_mean_us": 79.484,
+    "engine_max_us": 334,
+    "observed_engine_max_us": 334,
+    "backend_xruns": 0,
+    "playback_xruns": 0,
+    "period_us": 1333.33,
+    "wall_seconds": 2.73092,
+    "peak": 0.0354645,
+    "capture": "/Users/davidson/workspace/artifacts/ardour-anticipation-spike/coreaudio-run-1794953490123120000/session/capacity-output.f32",
+    "hardware_deadlines_measured": true
+  }
+}

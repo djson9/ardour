@@ -6,7 +6,7 @@
 #include <chrono>
 using Clock=std::chrono::steady_clock;
 constexpr unsigned total_blocks=2048,horizon_samples=9600,arm_block=512,demote_block=1024;
-struct RenderChunk {samplepos_t start;pframes_t frames;};
+struct RenderChunk {samplepos_t start;pframes_t frames;samplepos_t continuous_start=max_samplepos;};
 
 struct Bridge : Processor {
  enum Mode {Ahead,Drain,Live};
@@ -47,7 +47,7 @@ struct Bridge : Processor {
    for(auto* reader:dependent_readers)r=std::min(r,reader->load(std::memory_order_acquire));
    if(w>=total_blocks||w-r>=capacity){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
    if(ready_for_render&&!ready_for_render(w)){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
-   const auto part=chunk(w);source.run(b,part.start,part.frames);
+   const auto part=chunk(w);ProcessThread::RenderScope render_time(part.start,part.continuous_start==max_samplepos?part.start:part.continuous_start);source.run(b,part.start,part.frames);
    if(after_output)after_output(w,b);
    if(after_render)after_render(w);
    for(unsigned c=0;c<2;++c)std::copy_n(b.get_audio(c).data(),part.frames,slots[w%capacity].begin()+c*block);
@@ -82,6 +82,7 @@ struct Bridge : Processor {
    mode.store(Live,std::memory_order_release);cutover=k;
   }
   if(mode.load()==Live){
+   ProcessThread::RenderScope render_time(part.start,part.continuous_start==max_samplepos?part.start:part.continuous_start);
    if(reader_track&&monitor_range){
     const bool input=part.start>=monitor_range->from.load()&&part.start<monitor_range->until.load();
     const auto desired=input?MonitorInput:MonitorDisk;
@@ -182,6 +183,8 @@ int main(int argc,char** argv){try{
  std::string backend_name=getenv("ARDOUR_PROBE_BACKEND")?getenv("ARDOUR_PROBE_BACKEND"):"None (Dummy)";
  auto* engine=AudioEngine::create();auto backend=engine->set_backend(backend_name,"AnticipationCallback","");
  need(bool(backend),"backend");
+ std::atomic<unsigned> backend_xruns{0};PBD::ScopedConnection backend_xrun_connection;
+ engine->Xrun.connect_same_thread(backend_xrun_connection,[&]{++backend_xruns;});
  if(backend_name=="CoreAudio"){
   backend->enumerate_input_devices();backend->enumerate_output_devices();
   need(backend->set_input_device_name(AudioBackend::get_standard_device_name(AudioBackend::DeviceNone))==0,"disable physical input");
@@ -313,6 +316,7 @@ int main(int argc,char** argv){try{
    if(refill_thread.joinable()){refill_quit=true;refill_thread.join();std::cerr<<"DISK_REFILL increases="<<refill_increases.load()<<" underruns="<<disk_underruns.load()<<" configured_buffer_seconds="<<Config->get_audio_playback_buffer_seconds()<<std::endl;need(refill_increases>4&&disk_underruns==0,"ongoing refill incomplete or underrun");}
    if(cached_return)bus.route->internal_return()->set_cached_input_reader(nullptr,nullptr);
    std::cerr<<"CALLBACK wall_seconds="<<std::chrono::duration<double>(Clock::now()-run_start).count()<<" sample_rate="<<backend->sample_rate()<<" buffer="<<backend->buffer_size()<<" backend="<<backend_name<<std::endl;
+   std::cerr<<"BACKEND xruns="<<backend_xruns.load()<<" session_xruns="<<s->get_xrun_count()<<std::endl;
    double error=0;unsigned error_index=0;double phases[4]={0,0,0,0};
    for(unsigned i=0;i<tap->captured.size();++i){double diff=std::abs(tap->captured[i]-ref_tap->captured[i]);phases[i/(512*2*block)]=std::max(phases[i/(512*2*block)],diff);if(diff>error){error=diff;error_index=i;}}
    std::cerr<<"CALLBACK block="<<block<<" processed="<<bridge->k<<" taps="<<tap->k<<" misses="<<bridge->misses<<" cutover="<<bridge->cutover<<" error="<<error<<" peak="<<tap->peak<<" max_us="<<bridge->max_us<<std::endl;

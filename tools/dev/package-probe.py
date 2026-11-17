@@ -4,10 +4,10 @@
 All install-name/signature changes apply to task-owned copies, never the build
 or installed applications. Source and packaged hashes are retained separately.
 """
-import hashlib, json, pathlib, shutil, subprocess, sys, tarfile
+import hashlib, json, pathlib, shutil, subprocess, sys, tarfile, time
 
 root = pathlib.Path(sys.argv[1]).resolve()
-out = root / 'artifacts/portable-anticipation'
+out = root / 'artifacts' / ('portable-anticipation-' + str(time.time_ns()))
 assert not out.exists(), 'Use a new destination rather than replacing a runtime'
 runtime = out / 'runtime'
 runtime.mkdir(parents=True)
@@ -15,8 +15,21 @@ def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 def dependencies(path):
     return [line.strip().split(' (')[0] for line in subprocess.check_output(
         ['otool', '-L', str(path)], text=True).splitlines()[1:]]
+def resolve_dependency(dep, source):
+    if dep.startswith('@rpath/'):
+        tail = dep[len('@rpath/'):]
+        for parent in (source.parent, pathlib.Path('/opt/homebrew/lib')):
+            candidate = parent / tail
+            if candidate.exists(): return candidate.resolve()
+        raise RuntimeError('Unresolved rpath dependency: ' + dep)
+    if dep.startswith('@loader_path/'):
+        return (source.parent / dep[len('@loader_path/'):]).resolve()
+    assert not dep.startswith('@'), dep
+    return pathlib.Path(dep).resolve()
 
-probe_dir = root / 'artifacts/anticipation-callback-probe'
+probe_name = sys.argv[2] if len(sys.argv)>2 else 'anticipation-callback-probe'
+assert probe_name in ('anticipation-callback-probe', 'anticipation-capacity-probe')
+probe_dir = root / 'artifacts' / probe_name
 entries = [probe_dir / 'probe', probe_dir / 'private-home.dylib']
 backends = list((root / 'build/libs/backends').glob('*/lib*backend.dylib'))
 panners = list((root / 'build/libs/panners').glob('*/lib*.dylib'))
@@ -32,8 +45,7 @@ while pending:
     paths[source.name] = source
     for dep in dependencies(source):
         if dep.startswith(('/System/', '/usr/lib/')): continue
-        if dep.startswith('@'): raise RuntimeError('Unresolved dependency: ' + dep)
-        path = pathlib.Path(dep)
+        path = resolve_dependency(dep, source)
         assert path.exists(), dep
         pending.append(path)
 
@@ -45,7 +57,7 @@ for name, source in paths.items():
     changes = []
     for dep in dependencies(source):
         if dep.startswith(('/System/', '/usr/lib/')): continue
-        changes += ['-change', dep, '@executable_path/' + pathlib.Path(dep).resolve().name]
+        changes += ['-change', dep, '@executable_path/' + resolve_dependency(dep, source).name]
     if dest.suffix == '.dylib': changes += ['-id', '@executable_path/' + name]
     if changes: subprocess.run(['install_name_tool', *changes, str(dest)], check=True)
     subprocess.run(['codesign', '--force', '--sign', '-', str(dest)], check=True,
