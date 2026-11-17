@@ -105,7 +105,14 @@ public:
 	void non_realtime_transport_stop (samplepos_t now, bool flush);
 	void realtime_locate (bool);
 
-	BufferSet& output_buffers() { return *_output_buffers; }
+	BufferSet& output_buffers() { return _render_buffers ? *_render_buffers : *_output_buffers; }
+
+	/** Redirect rendered output into preallocated storage, preserving the normal
+	 * gain/panner DSP without touching backend ports. Install/remove only with
+	 * this processor's owner suspended. Storage must match configured outputs
+	 * and remain alive until removal. Null restores normal backend delivery.
+	 */
+	void set_render_buffers (BufferSet* buffers) { _render_buffers = buffers; }
 
 	PBD::Signal<void()> MuteChange;
 
@@ -165,6 +172,7 @@ protected:
 
 	Role        _role;
 	BufferSet*  _output_buffers;
+	BufferSet*  _render_buffers;
 	gain_t      _current_gain;
 	std::shared_ptr<PannerShell> _panshell;
 	std::shared_ptr<Amp>         _amp;
@@ -173,6 +181,7 @@ protected:
 	void maybe_merge_midi_mute (BufferSet&, bool always);
 
 private:
+	void copy_rendered_outputs (BufferSet&, DataType, pframes_t);
 	bool _no_outs_cuz_we_no_monitor;
 
 	std::shared_ptr<MuteMaster>        _mute_master;

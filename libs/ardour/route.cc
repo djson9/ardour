@@ -622,11 +622,11 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 
 	samplecnt_t latency = bounce_get_latency(_amp, false, for_export, for_freeze);
 	_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
-	_amp->setup_gain_automation (start - latency, start - latency + nframes, nframes);
+	_amp->setup_gain_automation (start - latency, start - latency + nframes, nframes, true);
 
 	/* trim is always at the top, for bounce no latency compensation is needed */
 	_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
-	_trim->setup_gain_automation (start, start + nframes, nframes);
+	_trim->setup_gain_automation (start, start + nframes, nframes, true);
 
 	latency = 0;
 	bool seen_disk_io = false;

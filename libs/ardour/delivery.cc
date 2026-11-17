@@ -60,6 +60,7 @@ Delivery::Delivery (Session& s, std::shared_ptr<IO> io, std::shared_ptr<Pannable
 	: IOProcessor(s, std::shared_ptr<IO>(), (role_requires_output_ports (r) ? io : std::shared_ptr<IO>()), name, Temporal::TimeDomainProvider (Temporal::AudioTime), (r == Send || r == Aux || r == Foldback))
 	, _role (r)
 	, _output_buffers (new BufferSet())
+	, _render_buffers (nullptr)
 	, _current_gain (GAIN_COEFF_ZERO)
 	, _no_outs_cuz_we_no_monitor (false)
 	, _mute_master (mm)
@@ -88,6 +89,7 @@ Delivery::Delivery (Session& s, std::shared_ptr<Pannable> pannable, std::shared_
 	: IOProcessor(s, false, (role_requires_output_ports (r) ? true : false), name, "", DataType::AUDIO, (r == Send || r == Aux || r == Foldback))
 	, _role (r)
 	, _output_buffers (new BufferSet())
+	, _render_buffers (nullptr)
 	, _current_gain (GAIN_COEFF_ZERO)
 	, _no_outs_cuz_we_no_monitor (false)
 	, _mute_master (mm)
@@ -327,7 +329,8 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 	 */
 
 	if (!_active && !_pending_active) {
-		_output->silence (nframes);
+		if (_render_buffers) { _render_buffers->silence (nframes, 0); }
+		else { _output->silence (nframes); }
 		return;
 	}
 
@@ -343,7 +346,15 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 	 */
 
 	// TODO delayline -- latency-compensation
-	output_buffers().get_backend_port_addresses (*ports, nframes);
+	if (_render_buffers) {
+		assert (_render_buffers->count () == _configured_output);
+		_render_buffers->silence (nframes, 0);
+		for (BufferSet::audio_iterator b = _render_buffers->audio_begin (); b != _render_buffers->audio_end (); ++b) {
+			b->prepare ();
+		}
+	} else {
+		output_buffers().get_backend_port_addresses (*ports, nframes);
+	}
 
 	// this Delivery processor is not a derived type, and thus we assume
 	// we really can modify the buffers passed in (it is almost certainly
@@ -368,14 +379,15 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 		 * Silence the outputs, and make sure the buffers are quiet too,
 		 */
 
-		_output->silence (nframes);
+		if (_render_buffers) { _render_buffers->silence (nframes, 0); }
+		else { _output->silence (nframes); }
 		if (result_required) {
 			bufs.set_count (output_buffers().count ());
 			Amp::apply_simple_gain (bufs, nframes, GAIN_COEFF_ZERO);
 		}
 
 		RTABufferListPtr rtabuffers = _rtabuffers.load ();
-		if (_rta_active.load () && rtabuffers && !rtabuffers->empty ()) {
+		if (!_render_buffers && _rta_active.load () && rtabuffers && !rtabuffers->empty ()) {
 			BufferSet& silent_bufs = _session.get_silent_buffers(ChanCount(DataType::AUDIO, 1));
 			for (auto const& rb : *rtabuffers) {
 				rb->write (silent_bufs.get_audio(0).data(), nframes);
@@ -398,14 +410,14 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 	/* gain control/automation */
 	if (_amp) {
 		_amp->set_gain_automation_buffer (_session.send_gain_automation_buffer ());
-		_amp->setup_gain_automation (start_sample, end_sample, nframes);
+		_amp->setup_gain_automation (start_sample, end_sample, nframes, speed != 0);
 		_amp->run (bufs, start_sample, end_sample, speed, nframes, true);
 	}
 
 	maybe_merge_midi_mute (bufs, false);
 
 	RTABufferListPtr rtabuffers = _rtabuffers;
-	if (_rta_active.load () && rtabuffers && !rtabuffers->empty ()) {
+	if (!_render_buffers && _rta_active.load () && rtabuffers && !rtabuffers->empty ()) {
 		uint32_t n_audio = bufs.count().n_audio();
 		uint32_t n = 0;
 		for (auto const& rb: *rtabuffers) {
@@ -430,7 +442,7 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 
 		for (DataType::iterator t = DataType::begin(); t != DataType::end(); ++t) {
 			if (*t != DataType::AUDIO && bufs.count().get(*t) > 0) {
-				_output->copy_to_outputs (bufs, *t, nframes, 0);
+				copy_rendered_outputs (bufs, *t, nframes);
 			}
 		}
 
@@ -444,12 +456,12 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 		*/
 
 		if (bufs.count().n_audio() > 0) {
-			_output->copy_to_outputs (bufs, DataType::AUDIO, nframes, 0);
+			copy_rendered_outputs (bufs, DataType::AUDIO, nframes);
 		}
 
 		for (DataType::iterator t = DataType::begin(); t != DataType::end(); ++t) {
 			if (*t != DataType::AUDIO && bufs.count().get(*t) > 0) {
-				_output->copy_to_outputs (bufs, *t, nframes, 0);
+				copy_rendered_outputs (bufs, *t, nframes);
 			}
 		}
 	}
@@ -473,6 +485,20 @@ Delivery::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample
 				b->read_from (outs.get_available (*t, n++), nframes, 0);
 			}
 		}
+	}
+}
+
+void
+Delivery::copy_rendered_outputs (BufferSet& input, DataType type, pframes_t nframes)
+{
+	if (!_render_buffers) {
+		_output->copy_to_outputs (input, type, nframes, 0);
+		return;
+	}
+	const uint32_t inputs = input.count ().get (type);
+	assert (inputs > 0);
+	for (uint32_t i = 0; i < _render_buffers->count ().get (type); ++i) {
+		_render_buffers->get_available (type, i).read_from (input.get_available (type, std::min (i, inputs - 1)), nframes, 0);
 	}
 }
 
@@ -638,7 +664,7 @@ void
 Delivery::flush_buffers (samplecnt_t nframes)
 {
 	/* io_lock, not taken: function must be called from Session::process() calltree */
-	if (_output) {
+	if (_output && !_render_buffers) {
 		_output->flush_buffers (nframes);
 	}
 }
@@ -652,7 +678,7 @@ Delivery::non_realtime_transport_stop (samplepos_t now, bool flush)
 		_panshell->pannable()->non_realtime_transport_stop (now, flush);
 	}
 
-	if (_output) {
+	if (_output && !_render_buffers) {
 		for (auto const& p : *_output->ports()) {
 			p->transport_stopped ();
 		}
@@ -662,7 +688,7 @@ Delivery::non_realtime_transport_stop (samplepos_t now, bool flush)
 void
 Delivery::realtime_locate (bool for_loop_end)
 {
-	if (_output) {
+	if (_output && !_render_buffers) {
 		for (auto const& p : *_output->ports()) {
 			p->realtime_locate (for_loop_end);
 		}
