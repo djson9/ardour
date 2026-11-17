@@ -278,10 +278,10 @@ keys/actions in the same group rather than adding duplicates):
 <Binding key="Primary-Tertiary-t" action="Main/AddMidiTrack"/>
 <!-- Editor / Press -->
 <Binding key="Primary-l" action="Region/loop-region"/>
-<Binding key="Primary-Tertiary-l" action="Editor/show-editor-props"/>
+<Binding key="Primary-Level4-l" action="Editor/show-editor-props"/>
 ```
 
-On macOS these are Cmd+T, Cmd+Shift+T, Cmd+L, and Cmd+Shift+L. Loop uses the selected
+On macOS these are Cmd+T, Cmd+Shift+T, Cmd+L, and Cmd+Option+L. Loop uses the selected
 region span and starts loop playback. The bottom-panel toggle shows/hides the
 current piano roll or device view. N continues to open the full Add dialog.
 Native build/deployment and all four live binding/action checks passed.
