@@ -572,6 +572,15 @@ InternalSend::set_can_pan (bool yn)
 }
 
 void
+InternalSend::set_manual_cycle_start (bool manual)
+{
+	cycle_connection.disconnect ();
+	if (!manual) {
+		CycleStart.connect_same_thread (cycle_connection, std::bind (&InternalSend::cycle_start, this, _1));
+	}
+}
+
+void
 InternalSend::cycle_start (pframes_t /*nframes*/)
 {
 	for (BufferSet::audio_iterator b = mixbufs.audio_begin (); b != mixbufs.audio_end (); ++b) {

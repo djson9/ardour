@@ -63,6 +63,11 @@ public:
 
 	static PBD::Signal<void(pframes_t)> CycleStart;
 
+	/** Non-RT ownership setup while processing is suspended. A manually
+	 * scheduled send must call cycle_start itself before each rendered block.
+	 */
+	void set_manual_cycle_start (bool);
+
 protected:
 	XMLNode& state() const;
 
