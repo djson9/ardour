@@ -336,6 +336,7 @@ DiskReader::use_playlist (DataType dt, std::shared_ptr<Playlist> playlist)
 void
 DiskReader::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample, double speed, pframes_t nframes, bool result_required)
 {
+	if (_pending_tracker_reset.exchange (false)) { _tracker.reset (); }
 	uint32_t                           n;
 	std::shared_ptr<ChannelList const> c = channels.reader ();
 	ChannelList::const_iterator        chan;
@@ -542,7 +543,7 @@ midi:
 	if (bufs.count ().n_midi ()) {
 		MidiBuffer& dst (bufs.get_midi (0));
 
-		if (run_must_resolve) {
+		if (run_must_resolve || _pending_tracker_resolve.exchange (false)) {
 			resolve_tracker (dst, 0);
 			run_must_resolve = false;
 		}

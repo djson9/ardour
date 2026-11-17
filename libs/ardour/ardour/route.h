@@ -125,11 +125,12 @@ public:
 	void set_render_observer (RenderObserver observer, void* context) { _render_observer = observer; _render_observer_context = context; }
 	/** Same normal processor loop, with disk capture left to the audible owner.
 	 * Caller provides owned Delivery buffers and exclusive processor ownership. */
-	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input, bool run_disk_reader);
-	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t);
+	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input, bool run_disk_reader, bool include_oob);
+	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool include_oob);
 	void deliver_anticipative (BufferSet&, pframes_t);
 	void set_anticipative_processing_disabled (bool disabled) { _anticipation_disabled.store (disabled); }
 	bool anticipative_processing_disabled () const { return _anticipation_disabled.load (); }
+	bool has_anticipative_owner () const { return _render_consumer != nullptr; }
 
 	virtual int init ();
 
@@ -622,7 +623,7 @@ protected:
 	                             pframes_t nframes,
 	                             bool gain_automation_ok,
 	                             bool run_disk_processors,
-	                             bool owned_render = false);
+	                             bool owned_render = false, bool include_oob = true);
 
 	void flush_processor_buffers_locked (samplecnt_t nframes);
 

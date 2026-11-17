@@ -7,6 +7,7 @@
 #include "ardour/record_enable_control.h"
 #include "ardour/audio_buffer.h"
 #include "ardour/midi_buffer.h"
+#include "ardour/midi_track.h"
 #include "ardour/delivery.h"
 #include "ardour/internal_send.h"
 #include "ardour/internal_return.h"
@@ -95,6 +96,7 @@ struct AnticipativeProcess::RouteAdapter {
 	std::vector<std::unique_ptr<SideInput>> side_inputs;
 	ChanCount processing_channels;
 	bool requires_live {false}, attached {false}, rendering_future {false};
+	bool captured_live {false}; // callback only; read by the live DSP owner
 	static thread_local RouteAdapter* current;
 	bool wired {false};
 	bool track;
@@ -232,7 +234,7 @@ struct AnticipativeProcess::RouteAdapter {
 		work.set_count (processing_channels); work.silence (range.frames, 0);
 		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { work.get_midi (c).clear (); }
 		work.read_from (live ? b : future_input, range.frames);
-		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live, range.continuous >= reader_start);
+		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live, range.continuous >= reader_start, live && captured_live);
 		b.set_count (channels); b.silence (range.frames, 0);
 		for (uint32_t c = 0; c < channels.n_midi (); ++c) { b.get_midi (c).clear (); }
 		pack (b, main, ChanCount::ZERO, range.frames);
@@ -260,7 +262,10 @@ struct AnticipativeProcess::RouteAdapter {
 			for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
 			self.route->output ()->silence (nframes); return true;
 		}
-		self.route->capture_anticipative_input (input, start, end, nframes);
+		/* Keep immediate MIDI queued through drain. The first complete live
+		 * callback snapshots it once for both DiskWriter and instrument delivery. */
+		self.captured_live = self.node->queue->state () == Queue::State::Live;
+		self.route->capture_anticipative_input (input, start, end, nframes, self.captured_live);
 		if (!self.plan.running ()) {
 			self.audible.silence (nframes, 0);
 			for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
@@ -489,6 +494,8 @@ AnticipativeProcess::begin_cycle ()
 			reason |= OutputRoute;
 		}
 		auto track = std::dynamic_pointer_cast<Track> (node.route);
+		auto midi = std::dynamic_pointer_cast<MidiTrack> (node.route);
+		if (midi && (midi->immediate_events ().read_space () || midi->user_immediate_events ().read_space ())) { reason |= ImmediateMidi; }
 		if (track) {
 			if (track->rec_enable_control ()->get_value () != 0) { reason |= Recording; }
 			if (track->monitoring_state () & MonitoringInput) { reason |= Monitoring; }

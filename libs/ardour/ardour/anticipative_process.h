@@ -40,7 +40,8 @@ public:
 	};
 	enum Reason : uint32_t {
 		Predictable = 0, Forced = 1, Recording = 2, Monitoring = 4,
-		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32, RequiredLive = 64
+		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32, RequiredLive = 64,
+		ImmediateMidi = 128
 	};
 
 	struct Node {

@@ -391,7 +391,7 @@ Route::ensure_track_or_route_name (string newname) const
 void
 Route::process_output_buffers (BufferSet& bufs,
 			       samplepos_t start_sample, samplepos_t end_sample, pframes_t nframes,
-			       bool gain_automation_ok, bool run_disk_reader, bool owned_render)
+			       bool gain_automation_ok, bool run_disk_reader, bool owned_render, bool include_oob)
 {
 	/* Caller must hold process lock */
 	assert (owned_render || !AudioEngine::instance()->process_lock().trylock());
@@ -631,7 +631,7 @@ Route::process_output_buffers (BufferSet& bufs,
 		if (owned_render && _render_observer) { _render_observer (_render_observer_context, proc.get (), bufs, nframes); }
 		bufs.set_count (proc->output_streams());
 
-		if (re_inject_oob_data) {
+		if (re_inject_oob_data && include_oob) {
 			write_out_of_band_data (bufs, nframes);
 		}
 
@@ -644,21 +644,23 @@ Route::process_output_buffers (BufferSet& bufs,
 }
 
 void
-Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader)
+Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader, bool include_oob)
 {
 	auto const* time = ProcessThread::render_time ();
 	samplepos_t continuous = time ? time->continuous_at (start) : start;
 	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
 	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
-	process_output_buffers (buffers, start, end, nframes, run_disk_reader, run_disk_reader, true);
+	process_output_buffers (buffers, start, end, nframes, run_disk_reader, run_disk_reader, true, include_oob);
 	if (_disk_reader) { _render_declick.store (_disk_reader->declick_in_progress (), std::memory_order_release); }
 }
 
 void
-Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes)
+Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool include_oob)
 {
-	snapshot_out_of_band_data (nframes);
-	write_out_of_band_data (buffers, nframes);
+	if (include_oob) {
+		snapshot_out_of_band_data (nframes);
+		write_out_of_band_data (buffers, nframes);
+	}
 	if (!_disk_writer) { return; }
 	/* This prefix always belongs to the audible callback, including any custom
 	 * processors before DiskWriter. The producer begins at DiskReader. */
