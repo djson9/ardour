@@ -103,14 +103,15 @@ struct AnticipativeProcess::RouteAdapter {
 	bool track;
 	samplepos_t continuous;
 	pframes_t max_frames;
-	samplecnt_t reader_start;
+	samplecnt_t preroll, reader_start;
 	samplepos_t last_project_end;
 
 	RouteAdapter (AnticipativeProcess& p, std::shared_ptr<Route> r, Queue::Range const& first)
 		: plan (p), route (r), channels (ChanCount::max (r->max_processor_streams (), ChanCount::max (r->n_inputs (), r->n_outputs ()))),
 		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous),
 		  max_frames (p._session.engine ().samples_per_cycle ()),
-		  reader_start (track ? std::max (samplecnt_t (0), p._session.worst_latency_preroll_buffer_size_ceil () - r->playback_latency ()) : 0),
+		  preroll (std::max (samplecnt_t (0), first.continuous + p._session.transport_sample () - first.project)),
+		  reader_start (track ? std::max (samplecnt_t (0), preroll - r->playback_latency ()) : 0),
 		  last_project_end (first.project)
 	{
 		processing_channels = channels;
@@ -236,7 +237,7 @@ struct AnticipativeProcess::RouteAdapter {
 		work.set_count (processing_channels); work.silence (range.frames, 0);
 		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { work.get_midi (c).clear (); }
 		work.read_from (live ? b : future_input, range.frames);
-		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live, range.continuous >= reader_start, live && captured_live);
+		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live, range.continuous >= reader_start, live && captured_live, range.continuous >= preroll);
 		b.set_count (channels); b.silence (range.frames, 0);
 		for (uint32_t c = 0; c < channels.n_midi (); ++c) { b.get_midi (c).clear (); }
 		pack (b, main, ChanCount::ZERO, range.frames);

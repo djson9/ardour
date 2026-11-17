@@ -644,13 +644,14 @@ Route::process_output_buffers (BufferSet& bufs,
 }
 
 void
-Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader, bool include_oob)
+Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader, bool include_oob, bool gain_automation)
 {
 	auto const* time = ProcessThread::render_time ();
 	samplepos_t continuous = time ? time->continuous_at (start) : start;
 	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
 	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
-	process_output_buffers (buffers, start, end, nframes, run_disk_reader, run_disk_reader, true, include_oob);
+	gain_automation &= !live_input || !_disk_writer || !_disk_writer->record_enabled ();
+	process_output_buffers (buffers, start, end, nframes, gain_automation, run_disk_reader, true, include_oob);
 	if (_disk_reader) { _render_declick.store (_disk_reader->declick_in_progress (), std::memory_order_release); }
 }
 
@@ -671,7 +672,7 @@ Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, sample
 	for (auto const& proc : _processors) {
 		if (proc == _disk_reader) { break; }
 		if (_midi_freeze_processors.count (proc.get ())) { continue; }
-		if (proc == _amp || proc == _trim) {
+		if ((proc == _amp || proc == _trim) && !_disk_writer->record_enabled () && _session.transport_rolling ()) {
 			auto amp = std::static_pointer_cast<Amp> (proc);
 			amp->set_gain_automation_buffer (proc == _amp ? _session.gain_automation_buffer () : _session.trim_automation_buffer ());
 			amp->setup_gain_automation (start + amp->output_latency () + _output_latency,
