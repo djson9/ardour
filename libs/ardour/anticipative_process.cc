@@ -13,6 +13,7 @@
 #include "ardour/disk_reader.h"
 #include "ardour/meter.h"
 #include "ardour/plugin_insert.h"
+#include "ardour/sidechain.h"
 #include "ardour/port_insert.h"
 #include "ardour/send.h"
 #include "ardour/port.h"
@@ -31,6 +32,7 @@ struct AnticipativeProcess::RouteAdapter {
 		std::unique_ptr<BufferSet> input;
 	};
 	struct Connection { size_t feed; DataType type; uint32_t source, destination; };
+	struct SideInput { RouteAdapter* owner; std::shared_ptr<SideChain> sidechain; std::vector<Connection> connections; };
 	struct Tap {
 		std::shared_ptr<Processor> processor;
 		std::shared_ptr<InternalSend> send;
@@ -45,6 +47,7 @@ struct AnticipativeProcess::RouteAdapter {
 	std::vector<Feed> feeds;
 	std::vector<Connection> connections;
 	std::vector<Tap> taps;
+	std::vector<std::unique_ptr<SideInput>> side_inputs;
 	ChanCount processing_channels;
 	bool requires_live {false}, attached {false}, rendering_future {false};
 	static thread_local RouteAdapter* current;
@@ -65,7 +68,8 @@ struct AnticipativeProcess::RouteAdapter {
 			auto send = std::dynamic_pointer_cast<InternalSend> (proc);
 			auto meter = std::dynamic_pointer_cast<PeakMeter> (proc);
 			auto plugin = std::dynamic_pointer_cast<PluginInsert> (proc);
-			if ((!send && std::dynamic_pointer_cast<Send> (proc)) || std::dynamic_pointer_cast<PortInsert> (proc) || (plugin && plugin->has_sidechain ())) { requires_live = true; }
+			if ((!send && std::dynamic_pointer_cast<Send> (proc)) || std::dynamic_pointer_cast<PortInsert> (proc)) { requires_live = true; }
+			if (plugin && plugin->has_sidechain ()) { std::unique_ptr<SideInput> side (new SideInput); side->owner = this; side->sidechain = plugin->sidechain (); side_inputs.push_back (std::move (side)); }
 			if (!send && !(meter && suffix)) { return; }
 			if (send && !suffix) { requires_live = true; }
 			Tap tap; tap.processor = proc; tap.send = send; tap.offset = packed;
@@ -83,6 +87,7 @@ struct AnticipativeProcess::RouteAdapter {
 		if (!attached) { return; }
 		route->set_render_consumer (nullptr, nullptr); route->set_render_observer (nullptr, nullptr); route->main_outs ()->set_render_buffers (nullptr);
 		for (auto& tap : taps) { if (tap.send) { tap.send->set_manual_cycle_start (false); } }
+		for (auto& side : side_inputs) { side->sidechain->set_cached_input_reader (nullptr, nullptr); }
 	}
 	static void allocate (BufferSet& b, ChanCount c, pframes_t n) {
 		b.ensure_buffers (DataType::AUDIO, c.n_audio (), n); b.ensure_buffers (DataType::MIDI, c.n_midi (), 8192); b.set_count (c);
@@ -96,16 +101,19 @@ struct AnticipativeProcess::RouteAdapter {
 		if (wired) { return; }
 		wired = true;
 		/* DiskReader replaces the playback input; physical capture remains live. */
-		if (track) { return; }
-		for (auto& source : plan._nodes) {
+		if (!track) for (auto& source : plan._nodes) {
 			if (!source->adapter || source.get () == node) { continue; }
 			for (auto const& tap : source->adapter->taps) {
 				if (tap.send && tap.send->target_route () == route) { feed_for (*source); }
 			}
 		}
+		if (!track) { wire_io (route->input (), connections); }
+		for (auto& side : side_inputs) { wire_io (side->sidechain->input (), side->connections); }
+	}
+	void wire_io (std::shared_ptr<IO> input, std::vector<Connection>& target) {
 		for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
-			for (uint32_t destination = 0; destination < route->n_inputs ().get (*type); ++destination) {
-				auto port = route->input ()->ports ()->port (*type, destination);
+			for (uint32_t destination = 0; destination < input->n_ports ().get (*type); ++destination) {
+				auto port = input->ports ()->port (*type, destination);
 				std::vector<std::string> names; port->get_connections (names);
 				for (auto const& name : names) {
 					bool found = false;
@@ -120,12 +128,28 @@ struct AnticipativeProcess::RouteAdapter {
 								Feed f; f.source = candidate.get (); f.reader = &candidate->queue->add_reader (); f.input.reset (new BufferSet);
 								allocate (*f.input, candidate->adapter->channels, node->first.frames); feeds.push_back (std::move (f));
 							}
-							connections.push_back ({feed, *type, source, destination});
+							target.push_back ({feed, *type, source, destination});
 						}
 					}
 					if (!found) { node->requires_live = true; }
 				}
 			}
+		}
+	}
+	static void side_input (void* context, BufferSet& output, ChanCount const& offset, samplepos_t, pframes_t nframes) {
+		auto& side = *static_cast<SideInput*> (context);
+		if (!side.owner->rendering_future) { side.sidechain->input ()->collect_input (output, nframes, offset); return; }
+		for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+			for (uint32_t c = 0; c < side.sidechain->input ()->n_ports ().get (*type); ++c) {
+				auto& buffer = output.get_available (*type, c + offset.get (*type));
+				if (*type == DataType::MIDI) { static_cast<MidiBuffer&> (buffer).clear (); } else { buffer.silence (nframes); }
+			}
+		}
+		for (auto const& connection : side.connections) {
+			auto const& source = side.owner->feeds[connection.feed].input->get_available (connection.type, connection.source);
+			uint32_t c = connection.destination + offset.get (connection.type);
+			if (connection.type == DataType::AUDIO) { output.get_audio (c).accumulate_from (static_cast<AudioBuffer const&> (source), nframes); }
+			else { output.get_midi (c).merge_from (source, nframes); }
 		}
 	}
 	bool ready (Queue::Range const& range) {
@@ -232,6 +256,7 @@ AnticipativeProcess::add_route (std::shared_ptr<Route> route, Queue::Range const
 	                 Queue::NextRange (), [adapter] (Queue::Range const& r) { return adapter->ready (r); });
 	node.adapter = adapter; adapter->node = &node; node.requires_live = adapter->requires_live;
 	for (auto& tap : adapter->taps) { if (tap.send) { tap.send->set_manual_cycle_start (true); } }
+	for (auto& side : adapter->side_inputs) { side->sidechain->set_cached_input_reader (&RouteAdapter::side_input, side.get ()); }
 	route->main_outs ()->set_render_buffers (&adapter->main);
 	route->set_render_consumer (&RouteAdapter::consume, adapter.get ());
 	route->set_render_observer (&RouteAdapter::observe, adapter.get ()); adapter->attached = true;
