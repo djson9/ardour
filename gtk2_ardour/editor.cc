@@ -1318,6 +1318,23 @@ Editor::set_session (Session *t)
 	_locations->set_session (_session);
 	_properties_box->set_session (_session);
 
+	/* A move/trim can change the selected extents without changing the
+	 * selection itself. Region position is stored in its length property. */
+	Region::RegionsPropertyChanged.connect (_session_connections, invalidator (*this),
+	    [this] (std::shared_ptr<RegionList> regions, const PBD::PropertyChange& change) {
+		    if (!change.contains (ARDOUR::Properties::length) &&
+		        !change.contains (ARDOUR::Properties::time_domain)) return;
+		    for (auto const& region : *regions) {
+			    for (auto const& view : selection->regions) {
+				    if (view->region () == region) {
+					    update_selection_markers ();
+					    return;
+				    }
+			    }
+		    }
+	    }, gui_context ());
+
+
 	_bottom_hbox.show_all();
 
 	if (rhythm_ferret) {

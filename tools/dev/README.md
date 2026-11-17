@@ -255,3 +255,9 @@ open for its region; selecting a different region requires another double-click.
 The traditional layout retains its existing behavior. Native build/deployment
 passed; the piano roll was observed opening in the running app. Automated pointer
 regression checks were inconclusive because the app was being used concurrently.
+
+Selection boundary markers now also refresh when a selected region emits a
+length/position or time-domain change. This covers movement and trimming without
+requiring a new selection, including model changes from undo/redo or MCP. The
+subscription follows the session lifetime and does not activate the piano roll.
+Native build and deployment passed; interactive drag verification remains pending.
