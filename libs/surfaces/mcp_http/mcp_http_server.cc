@@ -76,6 +76,7 @@
 #include "ardour/track.h"
 
 #include "mcp_http_server.h"
+#include "mcp_http_ui.h"
 
 namespace pt = boost::property_tree;
 
@@ -223,6 +224,7 @@ canonical_tool_name (std::string tool_name)
 	}
 
 	static const char* known_groups[] = {
+		"ui",
 		"session",
 		"transport",
 		"markers",
@@ -458,6 +460,7 @@ session_info_json (ARDOUR::Session& session)
 {
 	std::ostringstream ss;
 	ss << "{\"sessionName\":\"" << json_escape (session.name ()) << "\""
+	   << ",\"sessionPath\":\"" << json_escape (session.path ()) << "\""
 	   << ",\"sampleRate\":" << session.nominal_sample_rate ()
 	   << ",\"tempoBpm\":" << transport_tempo_bpm (session)
 	   << ",\"transport\":" << transport_state_json (session)
@@ -3044,6 +3047,7 @@ MCPHttpServer::start ()
 	_protocols[0].tx_packet_size = 0;
 #endif
 
+	_info.iface     = "127.0.0.1"; // local assistant control only
 	_info.port      = _port;
 	_info.protocols = _protocols;
 	_info.gid       = -1;
@@ -8051,6 +8055,14 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 
 	if (method == "tools/call") {
 		std::string tool_name = canonical_tool_name (root.get<std::string> ("params.name", ""));
+		if (tool_name == "ui/get_state" || tool_name == "ui/activate_action" || tool_name == "ui/press_key" || tool_name == "ui/close_dialog") {
+			std::string result = mcp_ui_call (_event_loop, tool_name,
+			    root.get<std::string> ("params.arguments.action", ""),
+			    root.get<std::string> ("params.arguments.group", "Global"),
+			    root.get<std::string> ("params.arguments.key", ""),
+			    root.get<std::string> ("params.arguments.window", ""));
+			return jsonrpc_result (id, "{\"content\":[{\"type\":\"text\",\"text\":" + std::string ("\"") + json_escape (result) + "\"}],\"structuredContent\":" + result + "}");
+		}
 		if (tool_name == "hello_world") {
 			std::string caller = root.get<std::string> ("params.arguments.name", "");
 			std::string text   = "Hello from Ardour";

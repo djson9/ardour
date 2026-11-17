@@ -27,6 +27,9 @@
 #include "pbd/error.h"
 #include "pbd/file_utils.h"
 #include "pbd/basename.h"
+#include <fstream>
+#include <iterator>
+#include <glibmm/main.h>
 
 #include "ardour/filesystem_paths.h"
 #include "ardour/revision.h"
@@ -34,6 +37,8 @@
 #include "ardour_ui.h"
 #include "public_editor.h"
 #include "keyboard.h"
+#include "keybinding_config.h"
+#include "keyeditor.h"
 #include "opts.h"
 #include "ui_config.h"
 
@@ -110,13 +115,8 @@ ArdourKeyboard::setup_keybindings ()
 
 	string lowercase_program_name = downcase (string(PROGRAM_NAME));
 
-	/* extract and append minor version */
-	std::string rev (revision);
-	std::size_t pos = rev.find_first_of("-");
-	if (pos != string::npos && pos > 0) {
-		lowercase_program_name += "-";
-		lowercase_program_name += rev.substr (0, pos);
-	}
+	/* The major-version preferences directory already separates releases.
+	 * Keep this filename stable across local source commits. */
 
 	user_keybindings_path = Glib::build_filename (user_config_directory(), lowercase_program_name + binding_filename_suffix);
 
@@ -221,6 +221,31 @@ ArdourKeyboard::setup_keybindings ()
 	}
 
 	load_keybindings (keybindings_path);
+
+	/* Poll the pathname, not the inode: text editors often save by rename.
+	 * Apply on the GUI thread, keeping every open window's Bindings pointer. */
+	static sigc::connection config_watch;
+	if (!config_watch.connected ()) {
+		config_watch = Glib::signal_timeout ().connect ([path = ARDOUR_COMMAND_LINE::keybindings_path.empty () ? user_keybindings_path : keybindings_path, state = ArdourKeybindingConfig::WatchState ()] () mutable -> bool {
+			std::ifstream file (path, std::ios::binary);
+			if (!file) {
+				state.missing ();
+				return true;
+			}
+			std::string contents ((std::istreambuf_iterator<char> (file)), std::istreambuf_iterator<char> ());
+			if (file.bad () || !state.ready (contents)) {
+				return true;
+			}
+			std::string reason;
+			if (ArdourKeybindingConfig::reload (contents, reason)) {
+				KeyEditor::UpdateBindings ();
+				info << "Reloaded keyboard shortcuts from " << path << endmsg;
+			} else {
+				warning << "Keeping current keyboard shortcuts: " << reason << endmsg;
+			}
+			return true;
+		}, 500);
+	}
 
 	/* catch changes made via some GTK mechanism */
 

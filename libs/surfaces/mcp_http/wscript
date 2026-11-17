@@ -1,5 +1,17 @@
 #!/usr/bin/env python
 import os
+from waflib.TaskGen import feature, after_method
+
+@feature('ardour_dev_fast')
+@after_method('process_source')
+def fast_development_compile(obj):
+    # Opt-in only; the HTTP/control code is not in the audio processing path.
+    if not os.environ.get('ARDOUR_DEV_FAST'):
+        return
+    for task in obj.compiled_tasks:
+        task.env = task.env.derive()
+        task.env.CXXFLAGS = [f for f in task.env.CXXFLAGS if not f.startswith('-O')] + ['-O0']
+
 
 def options(opt):
     pass
@@ -8,12 +20,13 @@ def configure(conf):
     pass
 
 def build(bld):
-    obj = bld(features = 'cxx cxxshlib')
+    obj = bld(features = 'cxx cxxshlib ardour_dev_fast')
     obj.source = '''
             interface.cc
             mcp_http.cc
             mcp_http_gui.cc
             mcp_http_server.cc
+            mcp_http_ui.cc
     '''
     obj.defines      = [ 'PACKAGE="ardour_mcp_http"' ]
     obj.defines     += [ 'ARDOURSURFACE_DLL_EXPORTS' ]

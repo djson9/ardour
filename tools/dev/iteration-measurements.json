@@ -1,0 +1,48 @@
+{
+  "hotkeys": {
+    "atomic_edit_to_active_seconds": 0.76395812490955,
+    "invalid_xml_preserves_binding": true,
+    "restore_to_active_seconds": 0.544476208044216,
+    "passed": true
+  },
+  "native": [
+    {
+      "files": [
+        "Contents/lib/surfaces/libardour_mcp_http.dylib"
+      ],
+      "seconds": {
+        "build": 1.9718780000694096,
+        "prepare_transfer": 0.7014558748342097,
+        "install": 0.40511029213666916,
+        "launch_ready": 2.3271861660759896,
+        "total": 5.405749458121136
+      }
+    },
+    {
+      "files": [
+        "Contents/lib/surfaces/libardour_mcp_http.dylib"
+      ],
+      "seconds": {
+        "build": 1.9791900420095772,
+        "prepare_transfer": 0.7097977080848068,
+        "install": 0.4278979590162635,
+        "launch_ready": 2.3389200000092387,
+        "total": 5.455903708934784
+      },
+      "edit_to_verified_seconds": 5.818347916007042
+    },
+    {
+      "files": [
+        "Contents/lib/surfaces/libardour_mcp_http.dylib"
+      ],
+      "seconds": {
+        "build": 1.676365040941164,
+        "prepare_transfer": 0.8009874168783426,
+        "install": 0.18194837518967688,
+        "launch_ready": 2.326462375000119,
+        "total": 4.9858574999962
+      },
+      "edit_to_verified_seconds": 5.232219415949658
+    }
+  ]
+}

@@ -3626,6 +3626,71 @@ R"mcp(
         },
         "additionalProperties": true
       }
+    },
+    {
+      "name": "ui_get_state",
+      "description": "Inspect visible Ardour windows and the live key assigned to an action.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string",
+            "default": "Global"
+          }
+        }
+      }
+    },
+    {
+      "name": "ui_activate_action",
+      "description": "Invoke an Ardour UI action by its Group/Name on the UI thread (for example Main/AddTrackBus). Quit is excluded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "ui_press_key",
+      "description": "Queue a key press/release through an Ardour window key handler, using the .keys notation. Requires the exact visible window title. Text-entry focus is respected.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "window"
+        ]
+      }
+    },
+    {
+      "name": "ui_close_dialog",
+      "description": "Queue the normal delete event for a named visible dialog. Does not close the main application window.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "window"
+        ]
+      }
     }
   ]
 }
