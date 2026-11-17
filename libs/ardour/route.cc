@@ -534,6 +534,10 @@ Route::process_output_buffers (BufferSet& bufs,
 
 	for (auto const & proc : _processors) {
 
+		if (_midi_freeze_processors.count (proc.get())) {
+			continue;
+		}
+
 		bool re_inject_oob_data = false;
 
 		if (proc == _disk_reader) {
@@ -627,6 +631,10 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 	latency = 0;
 	bool seen_disk_io = false;
 	for (auto & proc : _processors) {
+		if (_midi_freeze_processors.count (proc.get())) {
+			if (proc == endpoint) { break; }
+			continue;
+		}
 
 		if (!include_endpoint && (proc) == endpoint) {
 			break;
@@ -683,6 +691,10 @@ Route::bounce_get_latency (std::shared_ptr<Processor> endpoint,
 
 	bool seen_disk_io = false;
 	for (auto & proc : _processors) {
+		if (_midi_freeze_processors.count (proc.get())) {
+			if (proc == endpoint) { break; }
+			continue;
+		}
 		if (!include_endpoint && (proc) == endpoint) {
 			break;
 		}
@@ -716,6 +728,10 @@ Route::bounce_get_output_streams (ChanCount &cc, std::shared_ptr<Processor> endp
 	PBD::RWLock::ReaderLock lm (_processor_lock);
 
 	for (auto & proc : _processors) {
+		if (_midi_freeze_processors.count (proc.get())) {
+			if (proc == endpoint) { break; }
+			continue;
+		}
 		if (!include_endpoint && (proc) == endpoint) {
 			break;
 		}
@@ -1878,6 +1894,12 @@ Route::try_configure_processors_unlocked (ChanCount in, ProcessorStreams* err)
 
 	for (auto & proc : _processors) {
 
+		if (_midi_freeze_processors.count (proc.get())) {
+			configuration.push_back (make_pair (in, in));
+			++index;
+			continue;
+		}
+
 		if (std::dynamic_pointer_cast<DiskReader> (proc)) {
 			/* disk-reader has the same i/o as disk-writer */
 			in = max (in, disk_io);
@@ -2041,7 +2063,7 @@ Route::configure_processors_unlocked (ProcessorStreams* err, PBD::RWLock::Writer
 	for (ProcessorList::iterator p = _processors.begin(); p != _processors.end(); ++p, ++c) {
 		std::shared_ptr<Processor> proc = *p;
 
-		if (!proc->configure_io(c->first, c->second)) {
+		if (!_midi_freeze_processors.count (proc.get()) && !proc->configure_io(c->first, c->second)) {
 			DEBUG_TRACE (DEBUG::Processors, string_compose ("%1: configuration failed\n", _name));
 			_in_configure_processors = false;
 			lr.release ();

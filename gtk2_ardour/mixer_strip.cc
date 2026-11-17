@@ -662,8 +662,8 @@ MixerStrip::set_route (std::shared_ptr<Route> rt)
 		}
 	}
 
-	if (is_audio_track()) {
-		std::shared_ptr<AudioTrack> at = audio_track();
+	if (is_track()) {
+		std::shared_ptr<Track> at = track();
 		at->FreezeChange.connect (route_connections, invalidator (*this), std::bind (&MixerStrip::map_frozen, this), gui_context());
 	}
 
@@ -1440,7 +1440,7 @@ MixerStrip::map_frozen ()
 {
 	ENSURE_GUI_THREAD (*this, &MixerStrip::map_frozen)
 
-	std::shared_ptr<AudioTrack> at = audio_track();
+	std::shared_ptr<Track> at = track();
 
 	bool en   = _route->active () || ARDOUR::Profile->get_mixbus();
 

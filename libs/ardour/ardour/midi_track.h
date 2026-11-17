@@ -50,6 +50,7 @@ public:
 	bool can_be_record_safe ();
 
 	void freeze_me (InterThreadInfo&);
+	std::string freeze_unavailable_reason () const;
 	void unfreeze ();
 
 	bool bounceable (std::shared_ptr<Processor>, bool include_endpoint) const;
@@ -184,6 +185,7 @@ private:
 	std::shared_ptr<VelocityControl>  _velocity_control;
 
 	void set_state_part_two ();
+	bool configure_frozen_playback (uint32_t channels);
 	void set_state_part_three ();
 
 	int no_roll_unlocked (pframes_t nframes, samplepos_t start_sample, samplepos_t end_sample, bool state_changing);

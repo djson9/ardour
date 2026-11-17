@@ -59,6 +59,8 @@
 #include "ardour/midi_region.h"
 #include "ardour/midi_source.h"
 #include "ardour/midi_track.h"
+#include "ardour/interthread_info.h"
+#include "ardour/meter.h"
 #include "ardour/playlist.h"
 #include "ardour/plugin.h"
 #include "ardour/plugin_insert.h"
@@ -2794,6 +2796,7 @@ track_info_json (const std::shared_ptr<ARDOUR::Route>& route)
 	   << ",\"presentationOrder\":" << route->presentation_info ().order ()
 	   << ",\"hidden\":" << (hidden ? "true" : "false");
 
+	if (track) { ss << ",\"frozen\":" << (track->freeze_state() == ARDOUR::Track::Frozen ? "true" : "false"); }
 	if (gain) {
 		double db = -193.0;
 		if (gain->get_value () > 0.0) {
@@ -2844,6 +2847,15 @@ track_info_json (const std::shared_ptr<ARDOUR::Route>& route)
 		ss << "null";
 	}
 
+	ss << ",\"audioPeakDb\":[";
+	if (auto meter = route->peak_meter()) {
+		for (uint32_t c = 0; c < meter->input_streams().n_audio(); ++c) {
+			if (c) ss << ",";
+			const float db = meter->meter_level (meter->input_streams().n_midi() + c, ARDOUR::MeterPeak);
+			ss << (std::isfinite (db) ? db : -193.0f);
+		}
+	}
+	ss << "]";
 	ss << ",\"sends\":" << send_list_json (route);
 	ss << ",\"plugins\":" << plugin_list_json (route);
 
@@ -3725,6 +3737,10 @@ handle_track_add_send_tool (ARDOUR::Session& session, const pt::ptree& root, con
 	std::shared_ptr<ARDOUR::Route> monitor_out = session.monitor_out ();
 	if (monitor_out && monitor_out->id () == target_route->id ()) {
 		return jsonrpc_error (id, -32602, "Cannot add aux send to monitor route");
+	}
+
+	if (!target_route->internal_return()) {
+		return jsonrpc_error (id, -32602, "Target has no internal return; choose a bus for the aux send");
 	}
 
 	const bool                         existed_before = (route->internal_send_for (target_route) != 0);
@@ -8071,7 +8087,7 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
             const double x = root.get<double> ("params.arguments.x", -1), y = root.get<double> ("params.arguments.y", -1);
             if (!std::isfinite (x) || !std::isfinite (y) || x < 0 || y < 0) return jsonrpc_error (id, -32602, "Invalid canvas coordinates");
             std::ostringstream coordinates; coordinates.imbue (std::locale::classic ());
-            coordinates << std::setprecision (17) << x << ' ' << y << ' ' << root.get<bool> ("params.arguments.shift", false) << ' ' << root.get<bool> ("params.arguments.buttonDown", false);
+            coordinates << std::setprecision (17) << x << ' ' << y << ' ' << root.get<bool> ("params.arguments.shift", false) << ' ' << root.get<bool> ("params.arguments.buttonDown", false) << ' ' << root.get<int> ("params.arguments.button", 1);
             const auto result = mcp_ui_call (_event_loop, tool_name, root.get<std::string> ("params.arguments.event", ""), root.get<std::string> ("params.arguments.canvas", ""), coordinates.str (), root.get<std::string> ("params.arguments.window", ""));
             return jsonrpc_result (id, "{\"structuredContent\":" + result + ",\"content\":[{\"type\":\"text\",\"text\":\"Canvas pointer event\"}]}");
         }
@@ -8094,6 +8110,39 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 			return jsonrpc_result (
 			    id,
 			    std::string ("{\"content\":[{\"type\":\"text\",\"text\":\"") + json_escape (text) + "\"}]}");
+		}
+
+		if (tool_name == "track/set_frozen") {
+			if (!_event_loop) return jsonrpc_error (id, -32000, "UI event loop unavailable");
+			struct Reply { std::mutex mutex; std::condition_variable cv; bool done = false; std::string response; };
+			auto reply = std::make_shared<Reply>();
+			const bool queued = _event_loop->call_slot (MISSING_INVALIDATOR, [this, reply, root, id] {
+				std::string response;
+				auto track = std::dynamic_pointer_cast<ARDOUR::Track> (route_by_mcp_id (_session, root.get<std::string> ("params.arguments.id", "")));
+				const bool frozen = root.get<bool> ("params.arguments.frozen", true);
+				if (!track || !_session.transport_stopped()) {
+					response = jsonrpc_error (id, -32602, "Select a track and stop playback before changing freeze state");
+				} else {
+					std::string reason;
+					if (auto midi = std::dynamic_pointer_cast<ARDOUR::MidiTrack> (track)) {
+						if (frozen) reason = midi->freeze_unavailable_reason();
+					} else if (frozen && (track->has_external_redirects() || !track->bounceable (track->main_outs(), true))) {
+						reason = "Audio track cannot be frozen safely through this tool";
+					}
+					if (!reason.empty()) { response = jsonrpc_error (id, -32602, reason); }
+					else {
+						ARDOUR::InterThreadInfo itt;
+						if (frozen && track->freeze_state() != ARDOUR::Track::Frozen) track->freeze_me (itt);
+						else if (!frozen && track->freeze_state() == ARDOUR::Track::Frozen) track->unfreeze();
+						response = handle_track_get_info_tool (_session, root, id);
+					}
+				}
+				std::lock_guard<std::mutex> lock (reply->mutex); reply->response = response; reply->done = true; reply->cv.notify_one();
+			});
+			if (!queued) return jsonrpc_error (id, -32000, "Cannot queue freeze operation");
+			std::unique_lock<std::mutex> lock (reply->mutex);
+			if (!reply->cv.wait_for (lock, std::chrono::seconds (60), [&] { return reply->done; })) return jsonrpc_error (id, -32000, "Freeze still running; query track state before retrying");
+			return reply->response;
 		}
 
 		std::string track_tool_response;

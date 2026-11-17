@@ -1667,7 +1667,7 @@ Editor::popup_track_context_menu (int button, int32_t time, ItemType item_type, 
 		return;
 	}
 
-	if (item_type != SelectionItem && clicked_routeview && clicked_routeview->audio_track()) {
+	if (item_type != SelectionItem && clicked_routeview && clicked_routeview->track()) {
 
 		/* Bounce to disk */
 
@@ -1676,7 +1676,7 @@ Editor::popup_track_context_menu (int button, int32_t time, ItemType item_type, 
 
 		edit_items.push_back (SeparatorElem());
 
-		switch (clicked_routeview->audio_track()->freeze_state()) {
+		switch (clicked_routeview->track()->freeze_state()) {
 		case AudioTrack::NoFreeze:
 			edit_items.push_back (MenuElem (_("Freeze"), sigc::mem_fun(*this, &Editor::freeze_route)));
 			break;

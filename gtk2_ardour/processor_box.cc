@@ -4000,8 +4000,8 @@ ProcessorBox::clear_processors (Placement p)
 bool
 ProcessorBox::processor_can_be_edited (std::shared_ptr<Processor> processor)
 {
-	std::shared_ptr<AudioTrack> at = std::dynamic_pointer_cast<AudioTrack> (_route);
-	if (at && at->freeze_state() == AudioTrack::Frozen) {
+	std::shared_ptr<Track> at = std::dynamic_pointer_cast<Track> (_route);
+	if (at && at->freeze_state() == Track::Frozen) {
 		return false;
 	}
 
@@ -4057,9 +4057,9 @@ ProcessorBox::get_editor_window (std::shared_ptr<Processor> processor, bool use_
 	 * Plugins and others will return a window for control.
 	 */
 
-	if (std::dynamic_pointer_cast<AudioTrack>(_route) != 0) {
+	if (std::dynamic_pointer_cast<Track>(_route) != 0) {
 
-		if (std::dynamic_pointer_cast<AudioTrack> (_route)->freeze_state() == AudioTrack::Frozen) {
+		if (std::dynamic_pointer_cast<Track> (_route)->freeze_state() == Track::Frozen) {
 			return 0;
 		}
 	}

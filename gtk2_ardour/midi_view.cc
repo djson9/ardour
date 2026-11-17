@@ -483,6 +483,7 @@ MidiView::set_model (std::shared_ptr<MidiModel> m)
 bool
 MidiView::midi_canvas_group_event (GdkEvent* ev)
 {
+	if (_midi_track && _midi_track->freeze_state() == Track::Frozen) { return true; }
 	//For now, move the snapped cursor aside so it doesn't bother you during internal editing
 	//_editing_context.set_snapped_cursor_position(_midi_region->position());
 
@@ -535,6 +536,7 @@ MidiView::midi_canvas_group_event (GdkEvent* ev)
 bool
 MidiView::note_group_event (GdkEvent* ev)
 {
+	if (_midi_track && _midi_track->freeze_state() == Track::Frozen) { return true; }
 	switch (ev->type) {
 	case GDK_ENTER_NOTIFY:
 		_last_event_x = ev->crossing.x;
@@ -1315,6 +1317,10 @@ MidiView::note_diff_add_change (NoteBase* ev,
 void
 MidiView::apply_note_diff (bool as_subcommand, bool was_copy)
 {
+	if (_midi_track && _midi_track->freeze_state() == Track::Frozen) {
+		abort_note_diff();
+		return;
+	}
 	if (!_note_diff_command) {
 		return;
 	}
@@ -1689,7 +1695,7 @@ MidiView::view_changed()
 bool
 MidiView::should_be_editable (NoteBase const * ev) const
 {
-	return _sensitive && (ev != _ghost_note) && ((_visible_channel < 0) || (ev->note()->channel() == _visible_channel));
+	return (!_midi_track || _midi_track->freeze_state() != Track::Frozen) && _sensitive && (ev != _ghost_note) && ((_visible_channel < 0) || (ev->note()->channel() == _visible_channel));
 }
 
 bool

@@ -43,8 +43,13 @@ class /*LIBARDOUR_API*/ DiskReader : public DiskIOProcessor
 {
 private:
 	WarpPreview _warp_preview;
+	uint32_t _frozen_audio_channels = 0;
 public:
 	WarpPreview& warp_preview () { return _warp_preview; }
+	void set_frozen_audio_channels (uint32_t n) { _frozen_audio_channels = n; }
+	uint32_t frozen_audio_channels () const { return _frozen_audio_channels; }
+	LIBARDOUR_API bool can_support_io_configuration (const ChanCount&, ChanCount&) override;
+	LIBARDOUR_API bool configure_io (ChanCount, ChanCount) override;
 	LIBARDOUR_API DiskReader (Session&, Track&, std::string const& name, Temporal::TimeDomainProvider const &, DiskIOProcessor::Flag f = DiskIOProcessor::Flag (0));
 	LIBARDOUR_API ~DiskReader ();
 

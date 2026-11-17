@@ -1960,7 +1960,7 @@ RouteUI::map_frozen ()
 {
 	ENSURE_GUI_THREAD (*this, &RouteUI::map_frozen)
 
-	AudioTrack* at = dynamic_cast<AudioTrack*>(_route.get());
+	Track* at = dynamic_cast<Track*>(_route.get());
 
 	if (at) {
 		check_rec_enable_sensitivity ();
@@ -2023,7 +2023,7 @@ RouteUI::check_rec_enable_sensitivity ()
 
 	if (_session->transport_rolling() && rec_enable_button->active_state() && Config->get_disable_disarm_during_roll()) {
 		rec_enable_button->set_sensitive (false);
-	} else if (is_audio_track () && track()->freeze_state() == AudioTrack::Frozen) {
+	} else if (is_track () && track()->freeze_state() == Track::Frozen) {
 		rec_enable_button->set_sensitive (false);
 	} else if (is_audio_track () && track()->triggerbox() && track()->triggerbox()->rec_enabled ()) {
 		rec_enable_button->set_sensitive (false);

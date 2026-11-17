@@ -626,6 +626,9 @@ protected:
 	samplecnt_t    _output_latency;
 
 	ProcessorList  _processors;
+	/* Baked MIDI freeze nodes retain their configuration but do not run.
+	 * Changed only while holding the engine process lock. */
+	std::set<Processor*> _midi_freeze_processors;
 	mutable PBD::RWLock _processor_lock;
 
 	std::shared_ptr<IO>               _input;

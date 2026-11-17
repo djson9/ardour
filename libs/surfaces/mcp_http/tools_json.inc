@@ -2,6 +2,12 @@ R"mcp(
 {
   "tools": [
     {
+      "name": "track_set_frozen",
+      "title": "Freeze or Unfreeze Track",
+      "description": "Render an eligible stopped track to frozen audio, or restore its original MIDI/audio and processors. Playback must be stopped. Long renders may continue after a request timeout; query frozen state before retrying.",
+      "inputSchema": {"type":"object","properties":{"id":{"type":"string"},"frozen":{"type":"boolean"}},"required":["id","frozen"],"additionalProperties":false}
+    },
+    {
       "name": "hello_world",
       "title": "Hello World",
       "description": "Return a greeting from Ardour.",
@@ -3756,6 +3762,7 @@ R"mcp(
           "shift": {
             "type": "boolean"
           },
+          "button": {"type": "integer", "enum": [1, 3], "description": "1 is left click (default), 3 is right click."},
           "buttonDown": {
             "type": "boolean"
           }

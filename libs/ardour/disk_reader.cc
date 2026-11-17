@@ -71,6 +71,26 @@ DiskReader::DiskReader (Session& s, Track& t, string const& str, Temporal::TimeD
 	_pending_overwrite.store (OverwriteReason (0));
 }
 
+bool
+DiskReader::can_support_io_configuration (const ChanCount& in, ChanCount& out)
+{
+	if (_frozen_audio_channels) {
+		out = ChanCount (DataType::AUDIO, _frozen_audio_channels);
+		return true;
+	}
+	return DiskIOProcessor::can_support_io_configuration (in, out);
+}
+
+bool
+DiskReader::configure_io (ChanCount in, ChanCount out)
+{
+	if (!_frozen_audio_channels) {
+		return DiskIOProcessor::configure_io (in, out);
+	}
+	/* Allocate audio playback channels, retaining the route's actual input. */
+	return DiskIOProcessor::configure_io (out, out) && Processor::configure_io (in, out);
+}
+
 DiskReader::~DiskReader ()
 {
 	DEBUG_TRACE (DEBUG::Destruction, string_compose ("DiskReader %1 @ %2 deleted\n", _name, this));

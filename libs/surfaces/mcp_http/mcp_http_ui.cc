@@ -135,18 +135,20 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
    }
    auto* canvas_target = dynamic_cast<ArdourCanvas::GtkCanvas*> (target);
    const bool grabbed = canvas_target && canvas_target->have_grab ();
-   double x=0,y=0;bool shift=false,down=false;std::istringstream coordinates (key_name);coordinates.imbue (std::locale::classic ());
+   double x=0,y=0;int button=1;bool shift=false,down=false;std::istringstream coordinates (key_name);coordinates.imbue (std::locale::classic ());
    if (!target || !target->get_window () || !(coordinates >> x >> y >> shift >> down) || x < 0 || y < 0 || (!grabbed && (x >= target->get_allocation ().get_width () || y >= target->get_allocation ().get_height ())) || (action_name != "move" && action_name != "press" && action_name != "release")) {
     out << "{\"error\":\"Invalid canvas, event, or local coordinates\"}";
    } else {
+    coordinates >> button;
+    if (button != 1 && button != 3) button = 1;
     const auto type = action_name == "move" ? GDK_MOTION_NOTIFY : action_name == "press" ? GDK_BUTTON_PRESS : GDK_BUTTON_RELEASE;
     auto* event = gdk_event_new (type);event->any.window = GDK_WINDOW (g_object_ref (target->get_window ()->gobj ()));event->any.send_event = true;
     int ox=0,oy=0;target->get_window ()->get_origin (ox, oy);
-    const guint state = (shift ? GDK_SHIFT_MASK : 0) | (down ? GDK_BUTTON1_MASK : 0);
+    const guint state = (shift ? GDK_SHIFT_MASK : 0) | (down ? (button == 3 ? GDK_BUTTON3_MASK : GDK_BUTTON1_MASK) : 0);
     if (type == GDK_MOTION_NOTIFY) {
      event->motion.time = guint32 (g_get_monotonic_time ()/1000);event->motion.x=x;event->motion.y=y;event->motion.x_root=x+ox;event->motion.y_root=y+oy;event->motion.state=state;event->motion.is_hint=false;
     } else {
-     event->button.time = guint32 (g_get_monotonic_time ()/1000);event->button.x=x;event->button.y=y;event->button.x_root=x+ox;event->button.y_root=y+oy;event->button.state=state;event->button.button=1;
+     event->button.time = guint32 (g_get_monotonic_time ()/1000);event->button.x=x;event->button.y=y;event->button.x_root=x+ox;event->button.y_root=y+oy;event->button.state=state;event->button.button=button;
     }
     const bool handled = gtk_widget_event (target->gobj (), event);gdk_event_free (event);
     out << "{\"delivered\":true,\"handled\":" << (handled ? "true" : "false") << "}";
@@ -204,7 +206,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 					gunichar character = gdk_keyval_to_unicode (key.key ());
 					event->key.length = character ? g_unichar_to_utf8 (character, text) : 0;
 					event->key.string = g_strdup (text);
-					gtk_main_do_event (event);
+					/* Queue native dispatch so modal actions can still service the
+					 * control-surface event source (e.g. Cancel Freeze). */
+					gdk_event_put (event);
 					gdk_event_free (event);
 				}
 				g_free (keymap_keys);

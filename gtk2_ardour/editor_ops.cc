@@ -3963,7 +3963,7 @@ Editor::freeze_thread ()
 	/* create event pool because we may need to talk to the session */
 	SessionEvent::create_per_thread_pool ("freeze events", 64);
 	/* create per-thread buffers for process() tree to use */
-	clicked_routeview->audio_track()->freeze_me (*current_interthread_info);
+	clicked_routeview->track()->freeze_me (*current_interthread_info);
 	current_interthread_info->done = true;
 	return 0;
 }
@@ -3994,11 +3994,21 @@ Editor::freeze_route ()
 		return;
 	}
 
-	if (clicked_routeview == 0 || !clicked_routeview->is_audio_track()) {
+	if (clicked_routeview == 0 || !clicked_routeview->is_track()) {
 		return;
 	}
 
-	if (!clicked_routeview->track()->bounceable (clicked_routeview->track()->main_outs(), true)) {
+	if (auto midi = clicked_routeview->midi_track()) {
+		std::string reason = midi->freeze_unavailable_reason();
+		if (!reason.empty()) {
+			ArdourMessageDialog d (reason);
+			d.set_title (_("Cannot freeze"));
+			d.run();
+			return;
+		}
+	}
+
+	if (clicked_routeview->is_audio_track() && !clicked_routeview->track()->bounceable (clicked_routeview->track()->main_outs(), true)) {
 		ArdourMessageDialog d (
 			_("This track/bus cannot be frozen because the signal adds or loses channels before reaching the outputs.\n"
 			  "This is typically caused by plugins that generate stereo output from mono input or vice versa.")

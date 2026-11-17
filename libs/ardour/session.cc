@@ -6441,7 +6441,7 @@ Session::write_one_track (Track& track, samplepos_t start, samplepos_t end,
 	diskstream_channels = track.bounce_get_output_streams (diskstream_channels, endpoint,
 			include_endpoint, for_export, for_freeze);
 
-	if (data_type == DataType::MIDI && endpoint && !for_export && !for_freeze && diskstream_channels.n(DataType::AUDIO) > 0) {
+	if (data_type == DataType::MIDI && endpoint && !for_export && diskstream_channels.n(DataType::AUDIO) > 0) {
 		data_type = DataType::AUDIO;
 	}
 

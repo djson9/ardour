@@ -40,6 +40,15 @@
 #include "evoral/midi_util.h"
 
 #include "ardour/amp.h"
+#include "ardour/audioengine.h"
+#include "ardour/audioplaylist.h"
+#include "ardour/audiofilesource.h"
+#include "ardour/playlist_factory.h"
+#include "ardour/plugin_insert.h"
+#include "ardour/plugin.h"
+#include "ardour/region_factory.h"
+#include "ardour/triggerbox.h"
+#include "ardour/interthread_info.h"
 #ifdef HAVE_BEATBOX
 #include "ardour/beatbox.h"
 #endif
@@ -276,10 +285,11 @@ MidiTrack::state(bool save_template) const
 		freeze_node->set_property ("playlist", _freeze_record.playlist->name());
 		freeze_node->set_property ("playlist-id", _freeze_record.playlist->id().to_s());
 		freeze_node->set_property ("state", _freeze_record.state);
+		freeze_node->set_property ("audio-channels", _disk_reader->frozen_audio_channels());
 
 		for (vector<FreezeRecordProcessorInfo*>::const_iterator i = _freeze_record.processor_info.begin(); i != _freeze_record.processor_info.end(); ++i) {
 			inode = new XMLNode (X_("processor"));
-			inode->set_property (X_("id"), id());
+			inode->set_property (X_("id"), (*i)->id.to_s());
 			inode->add_child_copy ((*i)->state);
 
 			freeze_node->add_child_nocopy (*inode);
@@ -341,8 +351,8 @@ MidiTrack::set_state_part_two ()
 		} else if ((prop = fnode->property (X_("playlist"))) != 0) {
 			freeze_pl = _session.playlists()->by_name (prop->value());
 		}
-		if (freeze_pl) {
-			_freeze_record.playlist = std::dynamic_pointer_cast<MidiPlaylist> (freeze_pl);
+		if (std::dynamic_pointer_cast<MidiPlaylist> (freeze_pl)) {
+			_freeze_record.playlist = freeze_pl;
 			_freeze_record.playlist->use();
 		} else {
 			_freeze_record.playlist.reset ();
@@ -370,6 +380,14 @@ MidiTrack::set_state_part_two ()
 										   std::shared_ptr<Processor>());
 			frii->id = str;
 			_freeze_record.processor_info.push_back (frii);
+		}
+		uint32_t channels = 0;
+		fnode->get_property ("audio-channels", channels);
+		if (_freeze_record.state == Frozen && channels && _playlists[DataType::AUDIO]) {
+			PBD::Mutex::Lock process_lock (_session.engine().process_lock());
+			configure_frozen_playback (channels);
+		} else {
+			unfreeze();
 		}
 	}
 
@@ -593,6 +611,9 @@ MidiTrack::snapshot_out_of_band_data (samplecnt_t nframes)
 void
 MidiTrack::write_out_of_band_data (BufferSet& bufs, samplecnt_t nframes) const
 {
+	if (!bufs.count().n_midi()) {
+		return;
+	}
 	MidiBuffer& buf (bufs.get_midi (0));
 	buf.merge_from (_immediate_event_buffer, nframes);
 	buf.merge_from (_user_immediate_event_buffer, nframes);
@@ -608,6 +629,21 @@ MidiTrack::export_stuff (BufferSet&                   buffers,
                          bool                         for_freeze,
                          MidiNoteTracker&            tracker)
 {
+	if (endpoint && !for_export) {
+		buffers.set_count (_disk_reader->output_streams());
+		if (_freeze_record.state == Frozen) {
+			std::shared_ptr<AudioPlaylist> audio = std::dynamic_pointer_cast<AudioPlaylist> (_playlists[DataType::AUDIO]);
+			if (!audio) { return -2; }
+			std::vector<Sample> mix (nframes);
+			std::vector<gain_t> gain (nframes);
+			PBD::RWLock::ReaderLock rlock (_processor_lock);
+			for (uint32_t c = 0; c < buffers.count().n_audio(); ++c) {
+				if (audio->read (buffers.get_audio(c).data(), mix.data(), gain.data(), timepos_t (start), timecnt_t (nframes), c) != nframes) { return -1; }
+			}
+			bounce_process (buffers, start, nframes, endpoint, include_endpoint, for_export, for_freeze);
+			return 0;
+		}
+	}
 	if (buffers.count().n_midi() == 0) {
 		return -1;
 	}
@@ -661,17 +697,149 @@ MidiTrack::bounceable (std::shared_ptr<Processor> endpoint, bool include_endpoin
 	return false; // a lie, Session::write_one_track can handle this.
 }
 
-void
-MidiTrack::freeze_me (InterThreadInfo& /*itt*/)
+std::string
+MidiTrack::freeze_unavailable_reason () const
 {
-	std::cerr << "MIDI freeze currently unsupported" << std::endl;
+	if (disk_io_point() != DiskIOPreFader) {
+		return _("MIDI freeze requires the standard pre-fader disk I/O position.");
+	}
+	if (!the_instrument()) {
+		return _("MIDI freeze requires an internal instrument with audio output.");
+	}
+	if (has_external_redirects()) {
+		return _("MIDI freeze does not support sends, external inserts or connected sidechains. Render the track instead.");
+	}
+	if (_triggerbox && !_triggerbox->empty()) {
+		return _("MIDI freeze requires an empty cue box. Move cue clips to the timeline first.");
+	}
+	ChanCount cc (_disk_reader->output_streams());
+	cc = bounce_get_output_streams (cc, main_outs(), false, false, true);
+	if (!cc.n_audio()) {
+		return _("The instrument chain has no audio output to freeze.");
+	}
+	return std::string();
+}
+
+bool
+MidiTrack::configure_frozen_playback (uint32_t channels)
+{
+	/* Caller holds the engine process lock; configure_processors takes the
+	 * processor writer lock. Original plugin I/O stays intact for unfreeze. */
+	_midi_freeze_processors.clear();
+	if (channels) {
+		if (_freeze_record.playlist) { _freeze_record.playlist->set_frozen (true); }
+		for (auto const& saved : _freeze_record.processor_info) {
+			for (auto const& proc : _processors) {
+				if (proc->id() == saved->id && proc != _amp && proc != _disk_reader && proc != _disk_writer && proc != main_outs() && !std::dynamic_pointer_cast<PeakMeter> (proc)) {
+					_midi_freeze_processors.insert (proc.get());
+				}
+			}
+		}
+	}
+	_disk_reader->set_frozen_audio_channels (channels);
+	return configure_processors (nullptr) == 0;
+}
+
+void
+MidiTrack::freeze_me (InterThreadInfo& itt)
+{
+	if (_freeze_record.state == Frozen || !freeze_unavailable_reason().empty() || !_session.transport_stopped()) {
+		return;
+	}
+	/* Snapshot before rendering: automation and MIDI program changes may
+	 * alter plugin state even if the render is subsequently cancelled. */
+	{
+		PBD::Mutex::Lock process_lock (_session.engine().process_lock());
+		_freeze_record.playlist = playlist();
+		_freeze_record.playlist->use();
+		for (auto* saved : _freeze_record.processor_info) { delete saved; }
+		_freeze_record.processor_info.clear();
+		for (auto const& proc : _processors) {
+			if (proc == main_outs()) { break; }
+			if (proc == _disk_reader || proc == _disk_writer || std::dynamic_pointer_cast<PeakMeter> (proc)) { continue; }
+			auto* saved = new FreezeRecordProcessorInfo (proc->get_state(), proc);
+			saved->id = proc->id();
+			_freeze_record.processor_info.push_back (saved);
+		}
+	}
+	std::vector<std::shared_ptr<Source> > srcs;
+	std::shared_ptr<Region> rendered = _session.write_one_track (*this, _session.current_start_sample(), _session.current_end_sample(),
+	                                                         true, srcs, itt, main_outs(), false, false, true, "");
+	if (!rendered || itt.cancel || srcs.empty() || srcs.front()->type() != DataType::AUDIO) {
+		unfreeze();
+		return;
+	}
+	std::shared_ptr<Playlist> frozen = PlaylistFactory::create (DataType::AUDIO, _session, name() + " (frozen)", false);
+	rendered->set_locked (true);
+	frozen->add_region (rendered, timepos_t (_session.current_start_sample()));
+	frozen->set_frozen (true);
+
+	{
+		PBD::Mutex::Lock process_lock (_session.engine().process_lock());
+		_freeze_record.playlist->set_frozen (true);
+		for (auto const& saved : _freeze_record.processor_info) {
+			const auto& proc = saved->processor;
+			/* Keep invisible nodes present in the serialized processor chain.
+			 * Deactivating polarity also removes it (and the triggerbox) from
+			 * that chain; their IDs would then change on reload. The frozen
+			 * execution mask skips them without changing their active state. */
+			if (auto insert = std::dynamic_pointer_cast<PluginInsert> (proc)) {
+				insert->deactivate();
+				/* Skipped inserts cannot perform deferred run()-time shutdown. */
+				for (uint32_t n = 0; n < insert->get_count(); ++n) { insert->plugin (n)->deactivate(); }
+			}
+		}
+		use_playlist (DataType::AUDIO, frozen);
+		gain_control()->set_value (GAIN_COEFF_UNITY, Controllable::NoGroup);
+		gain_control()->set_automation_state (Off);
+		_disk_writer->set_record_enabled (false);
+		_freeze_record.state = Frozen;
+		if (!configure_frozen_playback (srcs.size())) {
+			/* Leave restoration to the normal unfreeze path, outside this lock. */
+			_freeze_record.state = UnFrozen;
+		}
+	}
+	if (_freeze_record.state != Frozen) { unfreeze(); return; }
+	_session.set_dirty();
+	FreezeChange();
 }
 
 void
 MidiTrack::unfreeze ()
 {
-	_freeze_record.state = UnFrozen;
-	FreezeChange (); /* EMIT SIGNAL */
+	{
+		PBD::Mutex::Lock process_lock (_session.engine().process_lock());
+		_midi_freeze_processors.clear();
+		_disk_reader->set_frozen_audio_channels (0);
+		for (auto const& saved : _freeze_record.processor_info) {
+			for (auto const& proc : _processors) {
+				if (proc->id() == saved->id) {
+					proc->set_state (saved->state, Stateful::current_state_version);
+					/* A skipped processor never updates its realtime _active
+					 * flag. set_state compares that flag, not pending_active,
+					 * so explicitly restore the saved activation request. */
+					bool active = false;
+					if (saved->state.get_property ("active", active)) {
+						if (active && !_session.get_bypass_all_loaded_plugins()) { proc->activate(); }
+						else { proc->deactivate(); }
+					}
+					break;
+				}
+			}
+		}
+		if (_freeze_record.playlist) {
+			_freeze_record.playlist->set_frozen (false);
+			_freeze_record.playlist->release();
+			_freeze_record.playlist.reset();
+		}
+		for (auto* saved : _freeze_record.processor_info) { delete saved; }
+		_freeze_record.processor_info.clear();
+		_freeze_record.state = UnFrozen;
+		configure_processors (nullptr);
+		_disk_reader->playlist_modified();
+	}
+	_session.set_dirty();
+	FreezeChange();
 }
 
 void
@@ -1006,6 +1174,9 @@ MidiTrack::monitoring_changed (bool self, Controllable::GroupControlDisposition 
 MonitorState
 MidiTrack::monitoring_state () const
 {
+	if (_freeze_record.state == Frozen) {
+		return MonitoringDisk;
+	}
 	MonitorState ms = Track::monitoring_state();
 	if (ms == MonitoringSilence) {
 		/* MIDI always monitor input as fallback */
