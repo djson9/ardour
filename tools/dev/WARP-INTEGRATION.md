@@ -23,10 +23,12 @@ Run only in the disposable `Warp Verification` fixture. Helpers assert that sess
 
 MacBook CoreAudio validation (48 kHz, 1024 frames) passed all six long mono modes, short loop playback, long stereo Texture, both edges, beat snapping, reverse, cancellation and rapid request supersession with zero reported xruns or missed preview windows. Stereo committed output matched direct renders exactly. These are synthetic fixtures, not a guarantee for arbitrary sessions or hardware. Following input caching, one long stereo test measured initial/subsequent handovers of approximately 300/58 ms. Initial source preparation and reverse-tail readiness can take longer.
 
-## Outstanding
+## Limits and follow-up
 
 - Overlap/gain and twice-trimmed reversed stereo fixtures now pass. Broader region-effect and stressed-session coverage remains useful.
 - Replace `.ready` marker checks with a versioned capability handshake.
 - Improve initial preview latency. A universal latency guarantee is not established.
 - The user revised the iteration target to under ten seconds. Three measured build/deploy/restart cycles took 8.89, 8.89 and 8.25 seconds after splitting the adapter implementation and using incremental deployment. Larger/header changes and cold builds are not covered by those measurements.
-- Keep a rollback copy when promoting the validated app and private engines to the main installation.
+- The validated app and all six engines are installed in the main MacBook installation; rollback copies are retained. The latest playlist core iteration measured 18.05 seconds.
+
+`verify-installed-warp-modes.py --python <numpy-python>` validates all six installed stereo modes against direct renders and checks batch undo/redo has exactly the final playlist’s canvas view. Frozen playlist notifications now coalesce inverse add/remove events, preventing intermediate undo states from leaving ghost clips.

@@ -488,7 +488,12 @@ void
 Playlist::notify_region_removed (std::shared_ptr<Region> r)
 {
 	if (holding_state ()) {
-		pending_removes.insert (r);
+		/* A frozen transaction may add and remove the same region (for
+		 * example while undoing several replacements). Notify only the
+		 * net membership change, not intermediate regions. */
+		if (!pending_adds.erase (r)) {
+			pending_removes.insert (r);
+		}
 		pending_contents_change = true;
 	} else {
 		/* this might not be true, but we have to act
@@ -562,7 +567,9 @@ Playlist::notify_region_added (std::shared_ptr<Region> r)
 	 */
 
 	if (holding_state ()) {
-		pending_adds.insert (r);
+		if (!pending_removes.erase (r)) {
+			pending_adds.insert (r);
+		}
 		pending_contents_change = true;
 	} else {
 		r->clear_changes ();

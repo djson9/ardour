@@ -150,13 +150,17 @@ def iterate(args):
     timings['build']=time.perf_counter()-start
     prep = ['python3',remote_script,'prepare','--source',remote_source,'--app',args.remote_app]
     if args.all: prep += ['--all']
+    prepare_start=time.perf_counter()
     result = json.loads(subprocess.check_output(['ssh',*ssh_options,args.host,shlex.join(prep)],text=True).splitlines()[-1])
+    prepare_seconds=time.perf_counter()-prepare_start
+    transfer_start=time.perf_counter()
     local = Path(args.app).resolve()
     stage = local.parent/'.ardour-fast-iterate'
     stage.mkdir(exist_ok=True)
     archive = stage/'delta.tar'
     run(['rsync','-az','--no-whole-file','-e',shlex.join(['ssh',*ssh_options]),args.host+':'+result['archive'],archive])
-    timings['prepare_transfer']=time.perf_counter()-start-timings['build']
+    timings['prepare']=prepare_seconds
+    timings['transfer']=time.perf_counter()-transfer_start
     if not result['files'] and not args.restart:
         print(json.dumps(dict(changed=False,seconds=time.perf_counter()-start))); return
     if args.restart:
@@ -211,7 +215,7 @@ def main():
     p.add_argument('--host')
     p.add_argument('--remote-app')
     p.add_argument('--target')
-    p.add_argument('--fast-compile',action='store_true',help='Use -O0 for MCP surface development (not DSP code)')
+    p.add_argument('--fast-compile',action='store_true',help='Use development optimization for MCP, playlist transactions and warp adapter (not DSP)')
     p.add_argument('--jobs',type=int,default=8)
     p.add_argument('--restart',action='store_true')
     p.add_argument('--terminate-saved',action='store_true',help='Terminate the exact app process after verifying and saving its session; for authorized development restarts')

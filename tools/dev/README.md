@@ -107,7 +107,7 @@ python3 tools/dev/macos-fast-iterate.py iterate \
 Use `--all` to seed the deployment manifest the first time and whenever new
 binary targets are added. Subsequent runs reuse the discovered binary list. `--target
 libardour_mcp_http` restricts a surface edit to its target/dependencies; omit it
-for general changes. `--fast-compile` applies `-O0` to the MCP surface and `-O1` to the off-thread clip-warp adapter; audio DSP remains optimized. `--direct-launch` uses the bundle environment to
+for general changes. `--fast-compile` applies `-O0` to the MCP surface and playlist/model transactions, and `-O1` to the off-thread clip-warp adapter; audio DSP remains optimized. `--direct-launch` uses the bundle environment to
 launch the development executable directly. Omit these two flags for the normal
 optimized build and LaunchServices launch. The helper reports build, preparation/transfer, install,
 and launch-to-MCP-ready timings. The warp adapter implementation is compiled separately from the large editor sources. Three measured MacBook build/deploy/restart cycles for adapter/optimization changes took 8.89, 8.89 and 8.25 seconds, meeting the revised under-ten-second target for these cases. Compilation still depends on which code changed
@@ -334,3 +334,5 @@ samples, and fails if any measured round trip is 100 ms or longer. To include a
 cold selection, run immediately after restarting Ardour. Verified on 2026-11-17:
 macOS build/install, ten actual MCP arrow-key pairs, visible compact controls and
 All controls button, and opening Serum's full generic editor from that button.
+
+The playlist core rebuild/deploy/restart measured 18.05 seconds with development optimization (29.42 seconds previously). The under-ten-second measurements apply to adapter edits, not every core or header change.
