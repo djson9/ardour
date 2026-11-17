@@ -1249,6 +1249,7 @@ Session::butler_transport_work (bool have_process_lock)
 		if (!have_process_lock) {
 			lx.acquire ();
 		}
+		retire_anticipation_for_edit ();
 		std::shared_ptr<IOTaskList> tl = io_tasklist ();
 		for (auto const& i : *r) {
 			std::shared_ptr<Track> tr = std::dynamic_pointer_cast<Track> (i);
@@ -1317,7 +1318,9 @@ Session::butler_transport_work (bool have_process_lock)
 		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
 		if (!have_process_lock) { lock.acquire (); }
 		try {
-			anticipative_process ().prepare (_transport_sample, _anticipation_horizon.load (), ++_anticipation_generation);
+			if (_anticipation_priming && _anticipation_enabled.load () && !_exporting) {
+				anticipative_process ().prepare (_transport_sample, _anticipation_horizon.load (), ++_anticipation_generation);
+			}
 		} catch (std::exception const& e) {
 			error << string_compose (_("Cannot prepare anticipative processing: %1"), e.what ()) << endmsg;
 			_anticipation_prepare_failed.store (true);

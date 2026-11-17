@@ -33,6 +33,7 @@
 #include "ardour/midi_track.h"
 #include "ardour/process_thread.h"
 #include "ardour/session.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/track.h"
 #include "ardour/transport_fsm.h"
 
@@ -69,6 +70,11 @@ Session::get_export_status ()
 int
 Session::pre_export ()
 {
+	PBD::Mutex::Lock lock (_engine.process_lock ());
+	_anticipation_priming = false;
+	_anticipation_prepare_requested = false;
+	_anticipative_process->clear ();
+	_anticipation_edit_pending.store (false);
 	get_export_status (); // Init export_status
 
 	/* take everyone out of awrite to avoid disasters */

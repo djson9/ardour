@@ -543,7 +543,8 @@ midi:
 	if (bufs.count ().n_midi ()) {
 		MidiBuffer& dst (bufs.get_midi (0));
 
-		if (run_must_resolve || _pending_tracker_resolve.exchange (false)) {
+		const bool pending_resolve = _pending_tracker_resolve.exchange (false);
+		if (run_must_resolve || pending_resolve) {
 			resolve_tracker (dst, 0);
 			run_must_resolve = false;
 		}

@@ -414,15 +414,23 @@ Session::process_with_events (pframes_t nframes)
 		process_event (ev);
 	}
 
-	if (_anticipation_settings_dirty.load () && !non_realtime_work_pending () && !locate_pending () && !declick_in_progress ()) {
-		_anticipation_settings_dirty.store (false);
+	if (!non_realtime_work_pending () && !locate_pending () && !declick_in_progress () && _anticipation_settings_dirty.exchange (false)) {
 		if (_anticipative_process->bound ()) {
 			anticipation_edit_ready ();
 		} else if (_anticipation_enabled.load () && transport_rolling () && !_anticipation_priming) {
 			request_locate (_transport_sample, true, MustRoll);
+		} else if (!_anticipation_enabled.load ()) {
+			_anticipation_priming = false;
 		}
 	}
 	if (_anticipation_edit_pending.load ()) {
+		_silent = true;
+		return;
+	}
+	if (!_anticipation_priming && _anticipative_process->running () && _anticipative_process->faulted ()) {
+		/* An exception or invalid timeline cannot safely fall through to the
+		 * same DSP in realtime. Use the normal asynchronous stop/retire path. */
+		TFSM_STOP (false, false);
 		_silent = true;
 		return;
 	}
@@ -962,6 +970,16 @@ Session::process_event (SessionEvent* ev)
 	}
 
 	DEBUG_TRACE (DEBUG::SessionEvents, string_compose ("Processing event: %1 @ %2\n", enum_2_string (ev->type), _transport_sample));
+
+	const bool changes_loop = ev->type == SessionEvent::SetLoop && ev->yes_or_no != get_play_loop () && !(actively_recording () && ev->yes_or_no);
+	const bool overwrites_reader = !actively_recording () && (ev->type == SessionEvent::Overwrite || ev->type == SessionEvent::OverwriteAll);
+	if ((changes_loop || overwrites_reader) && !anticipation_edit_ready ()) {
+		/* Keep the original event, including its overwrite reason. In particular
+		 * a loop edit must still reset the disk reader's loop crossfades. */
+		immediate_events.push_back (ev);
+		_remove_event (ev);
+		return;
+	}
 
 	switch (ev->type) {
 	case SessionEvent::SetLoop:

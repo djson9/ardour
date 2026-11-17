@@ -3999,6 +3999,12 @@ Session::add_internal_send (std::shared_ptr<Route> dest, std::shared_ptr<Process
 void
 Session::remove_routes (std::shared_ptr<RouteList> routes_to_remove)
 {
+	/* Retire while the session still retains every route. Clearing the last
+	 * future reference after RCU removal could destroy an IO under process_lock. */
+	{
+		PBD::Mutex::Lock lock (_engine.process_lock ());
+		retire_anticipation_for_edit ();
+	}
 	bool mute_changed = false;
 	bool send_selected = false;
 

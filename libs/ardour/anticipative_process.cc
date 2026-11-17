@@ -116,6 +116,7 @@ struct AnticipativeProcess::RouteAdapter {
 	{
 		processing_channels = channels;
 		if (r->triggerbox () && !r->triggerbox ()->empty ()) { requires_live = true; }
+		if (r->surround_send () || r->is_surround_master ()) { requires_live = true; }
 		ChanCount packed = r->n_outputs ();
 		bool suffix = !track;
 		r->foreach_processor ([&] (std::weak_ptr<Processor> weak) {

@@ -452,16 +452,16 @@ Route::process_output_buffers (BufferSet& bufs,
 			}
 		}
 		if (own_amp) {
-		_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
-		_amp->setup_gain_automation (
+			_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
+			_amp->setup_gain_automation (
 				start_sample + _amp->output_latency () + output_latency,
 				end_sample + _amp->output_latency () + output_latency,
 				nframes, owned_render);
 		}
 
 		if (own_trim) {
-		_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
-		_trim->setup_gain_automation (
+			_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
+			_trim->setup_gain_automation (
 				start_sample + _trim->output_latency () + output_latency,
 				end_sample + _trim->output_latency () + output_latency,
 				nframes, owned_render);

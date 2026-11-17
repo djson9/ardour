@@ -194,6 +194,8 @@ AudioEngine::sample_rate_change (pframes_t nframes)
 	last_monitor_check = 0;
 
 	if (_session) {
+		PBD::Mutex::Lock lock (_process_lock);
+		_session->retire_anticipation_for_edit ();
 		_session->set_sample_rate (nframes);
 	} else {
 		Temporal::set_sample_rate (nframes);
