@@ -1962,7 +1962,7 @@ private:
 
 	void reset_record_status ();
 
-	int no_roll (pframes_t nframes, bool force_state_change = false);
+	int no_roll (pframes_t nframes);
 	int fail_roll (pframes_t nframes);
 
 	bool non_realtime_work_pending() const { return static_cast<bool>(post_transport_work()); }

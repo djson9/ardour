@@ -200,7 +200,7 @@ Session::fail_roll (pframes_t nframes)
 }
 
 int
-Session::no_roll (pframes_t nframes, bool force_state_change)
+Session::no_roll (pframes_t nframes)
 {
 	TimerRAII tr (dsp_stats[NoRoll]);
 
@@ -222,7 +222,7 @@ Session::no_roll (pframes_t nframes, bool force_state_change)
 	std::shared_ptr<GraphChain> graph_chain = _graph_chain;
 	if (graph_chain) {
 		DEBUG_TRACE(DEBUG::ProcessThreads,"calling graph/no-roll\n");
-		_process_graph->routes_no_roll(graph_chain, nframes, _transport_sample, end_sample, force_state_change || non_realtime_work_pending());
+		_process_graph->routes_no_roll(graph_chain, nframes, _transport_sample, end_sample, non_realtime_work_pending());
 	} else {
 		for (auto const& i : *r) {
 
@@ -230,7 +230,7 @@ Session::no_roll (pframes_t nframes, bool force_state_change)
 				continue;
 			}
 
-			if (i->no_roll (nframes, _transport_sample, end_sample, force_state_change || non_realtime_work_pending())) {
+			if (i->no_roll (nframes, _transport_sample, end_sample, non_realtime_work_pending())) {
 				error << string_compose(_("Session: error in no roll for %1"), i->name()) << endmsg;
 				ret = -1;
 				break;
@@ -416,7 +416,9 @@ Session::process_with_events (pframes_t nframes)
 		} else {
 			/* Immediate events above still run, so stop/seek can cancel priming.
 			 * Hold the project clock; no DSP is processed twice during prefill. */
-			no_roll (nframes, true);
+			/* Route::silence/no_roll also advances plugins. Silence only the
+			 * backend ports, via AudioEngine's existing Session::silent flag. */
+			_silent = true;
 			return;
 		}
 	}
