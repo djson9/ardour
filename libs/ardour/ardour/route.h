@@ -117,6 +117,16 @@ public:
 	Route (Session&, std::string name, PresentationInfo::Flag flags = PresentationInfo::Flag(0), DataType default_type = DataType::AUDIO);
 	virtual ~Route();
 
+	/** Install/remove only with a quiescent consumer and exclusive DSP ownership.
+	 * A true return owns delivery for this cycle, bypassing the normal DSP loop. */
+	using RenderConsumer = bool (*) (void*, BufferSet&, samplepos_t, samplepos_t, pframes_t, bool);
+	void set_render_consumer (RenderConsumer reader, void* context) { _render_consumer = reader; _render_consumer_context = context; }
+	/** Same normal processor loop, with disk capture left to the audible owner.
+	 * Caller provides owned Delivery buffers and exclusive processor ownership. */
+	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input);
+	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t);
+	void deliver_anticipative (BufferSet&, pframes_t);
+
 	virtual int init ();
 
 	DataType data_type () const {
@@ -607,7 +617,8 @@ protected:
 	                             samplepos_t start_sample, samplepos_t end_sample,
 	                             pframes_t nframes,
 	                             bool gain_automation_ok,
-	                             bool run_disk_processors);
+	                             bool run_disk_processors,
+	                             bool owned_render = false);
 
 	void flush_processor_buffers_locked (samplecnt_t nframes);
 
@@ -630,6 +641,8 @@ protected:
 	bool can_freeze_processor (std::shared_ptr<Processor>, bool allow_routing = false) const;
 
 	bool           _active;
+	RenderConsumer _render_consumer {nullptr};
+	void* _render_consumer_context {nullptr};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 

@@ -390,17 +390,17 @@ Route::ensure_track_or_route_name (string newname) const
 void
 Route::process_output_buffers (BufferSet& bufs,
 			       samplepos_t start_sample, samplepos_t end_sample, pframes_t nframes,
-			       bool gain_automation_ok, bool run_disk_reader)
+			       bool gain_automation_ok, bool run_disk_reader, bool owned_render)
 {
 	/* Caller must hold process lock */
-	assert (!AudioEngine::instance()->process_lock().trylock());
+	assert (owned_render || !AudioEngine::instance()->process_lock().trylock());
 
 	PBD::RWLock::ReaderLock lm (_processor_lock, PBD::RWLock::TryLock);
 	if (!lm.locked()) {
 		// can this actually happen?
 		// Places that need a WriterLock on (_processor_lock) must also take the process-lock.
 		bufs.silence (nframes, 0);
-		assert (0); // ...one way to find out.
+		assert (owned_render); // Normal callers hold the process lock.
 		return;
 	}
 
@@ -414,7 +414,7 @@ Route::process_output_buffers (BufferSet& bufs,
 		_pannable->automation_run (start_sample, nframes);
 	}
 
-	const int speed = (is_auditioner() ? 1 : _session.transport_speed (true));
+	const int speed = ((owned_render || is_auditioner()) ? 1 : _session.transport_speed (true));
 	assert (speed == -1 || speed == 0 || speed == 1);
 
 	const samplecnt_t output_latency = speed * _output_latency;
@@ -436,17 +436,31 @@ Route::process_output_buffers (BufferSet& bufs,
 
 	/* figure out if we're going to use gain automation */
 	if (gain_automation_ok) {
+		bool suffix = false;
+		bool own_amp = true, own_trim = true;
+		if (owned_render && _disk_reader) {
+		own_amp = own_trim = false;
+		for (auto const& proc : _processors) {
+			if (proc == _disk_reader) { suffix = true; }
+			if (suffix && proc == _amp) { own_amp = true; }
+			if (suffix && proc == _trim) { own_trim = true; }
+		}
+		}
+		if (own_amp) {
 		_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
 		_amp->setup_gain_automation (
 				start_sample + _amp->output_latency () + output_latency,
 				end_sample + _amp->output_latency () + output_latency,
-				nframes);
+				nframes, owned_render);
+		}
 
+		if (own_trim) {
 		_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
 		_trim->setup_gain_automation (
 				start_sample + _trim->output_latency () + output_latency,
 				end_sample + _trim->output_latency () + output_latency,
-				nframes);
+				nframes, owned_render);
+		}
 	}
 
 	/* We align the playhead to output. The user hears what the clock says:
@@ -531,8 +545,14 @@ Route::process_output_buffers (BufferSet& bufs,
 	   ----------------------------------------------------------------------------------------- */
 
 	samplecnt_t latency = 0;
+	bool suffix = !owned_render || !_disk_reader;
 
 	for (auto const & proc : _processors) {
+		if (proc == _disk_reader) { suffix = true; }
+		if (!suffix || (owned_render && proc == _disk_writer)) {
+			if (proc->active ()) { latency += proc->effective_latency (); }
+			continue;
+		}
 
 		if (_midi_freeze_processors.count (proc.get())) {
 			continue;
@@ -608,6 +628,56 @@ Route::process_output_buffers (BufferSet& bufs,
 		}
 #endif
 	}
+}
+
+void
+Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input)
+{
+	auto const* time = ProcessThread::render_time ();
+	samplepos_t continuous = time ? time->continuous_at (start) : start;
+	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
+	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
+	process_output_buffers (buffers, start, end, nframes, true, true, true);
+}
+
+void
+Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes)
+{
+	snapshot_out_of_band_data (nframes);
+	write_out_of_band_data (buffers, nframes);
+	if (!_disk_writer) { return; }
+	/* This prefix always belongs to the audible callback, including any custom
+	 * processors before DiskWriter. The producer begins at DiskReader. */
+	PBD::RWLock::ReaderLock lock (_processor_lock, PBD::RWLock::TryLock);
+	if (!lock.locked ()) { buffers.silence (nframes, 0); return; }
+	samplecnt_t offset = _signal_latency + _output_latency;
+	samplecnt_t latency = 0;
+	for (auto const& proc : _processors) {
+		if (proc == _disk_reader) { break; }
+		if (_midi_freeze_processors.count (proc.get ())) { continue; }
+		if (proc == _amp || proc == _trim) {
+			auto amp = std::static_pointer_cast<Amp> (proc);
+			amp->set_gain_automation_buffer (proc == _amp ? _session.gain_automation_buffer () : _session.trim_automation_buffer ());
+			amp->setup_gain_automation (start + amp->output_latency () + _output_latency,
+			                           end + amp->output_latency () + _output_latency, nframes);
+		}
+		if (proc->active ()) { latency += proc->effective_latency (); }
+		double speed = 1;
+		if (proc == _disk_writer && _session.remaining_latency_preroll () > nframes + offset &&
+		    end + offset - _disk_writer->input_latency () >= _session.transport_sample ()) { speed = 0; }
+		proc->run (buffers, start + offset - latency, end + offset - latency, speed, nframes, proc != _processors.back ());
+		buffers.set_count (proc->output_streams ());
+	}
+}
+
+void
+Route::deliver_anticipative (BufferSet& buffers, pframes_t nframes)
+{
+	update_controls (buffers);
+	for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+		if (buffers.count ().get (*type)) { _output->copy_to_outputs (buffers, *type, nframes, 0); }
+	}
+	_output->flush_buffers (nframes);
 }
 
 void
@@ -800,6 +870,10 @@ Route::run_route (samplepos_t start_sample, samplepos_t end_sample, pframes_t nf
 
 	/* filter captured data before meter sees it */
 	filter_input (bufs);
+
+	if (_render_consumer && _render_consumer (_render_consumer_context, bufs, start_sample, end_sample, nframes, run_disk_reader)) {
+		return;
+	}
 
 	if (is_monitor()) {
 		/* control/monitor bus ignores input ports when something is
@@ -6657,6 +6731,8 @@ operator& (const MonitorState& a, const MonitorState& b) {
 MonitorState
 Route::monitoring_state () const
 {
+	auto const* render = ProcessThread::render_time ();
+	if (render && render->monitoring_route == this) { return render->monitoring_override; }
 	if (!_disk_reader || !_monitoring_control) {
 		return MonitoringInput;
 	}

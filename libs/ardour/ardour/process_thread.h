@@ -30,6 +30,7 @@ namespace ARDOUR {
 
 class ThreadBuffers;
 class BufferSet;
+class Route;
 
 class LIBARDOUR_API ProcessThread
 {
@@ -48,6 +49,8 @@ public:
 	struct RenderTime {
 		samplepos_t project_start;
 		samplepos_t continuous_start;
+		Route const* monitoring_route;
+		MonitorState monitoring_override;
 		samplepos_t continuous_at (samplepos_t project) const {
 			return continuous_start + (project - project_start);
 		}
@@ -55,8 +58,8 @@ public:
 
 	class RenderScope {
 	public:
-		RenderScope (samplepos_t project, samplepos_t continuous)
-			: _time { project, continuous }, _previous (_render_time) { _render_time = &_time; }
+		RenderScope (samplepos_t project, samplepos_t continuous, Route const* route = nullptr, MonitorState monitoring = MonitoringSilence)
+			: _time { project, continuous, route, monitoring }, _previous (_render_time) { _render_time = &_time; }
 		~RenderScope () { _render_time = _previous; }
 		RenderScope (RenderScope const&) = delete;
 		RenderScope& operator= (RenderScope const&) = delete;

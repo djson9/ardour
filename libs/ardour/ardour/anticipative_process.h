@@ -21,6 +21,7 @@ class Session;
  */
 class LIBARDOUR_API AnticipativeProcess {
 public:
+	struct RouteAdapter;
 	using Queue = AnticipationQueue;
 	enum Reason : uint32_t {
 		Predictable = 0, Forced = 1, Recording = 2, Monitoring = 4,
@@ -35,6 +36,7 @@ public:
 		std::atomic<uint32_t> reason {Predictable};
 		std::vector<size_t> downstream;
 		bool unmanaged_upstream {false};
+		std::shared_ptr<RouteAdapter> adapter;
 	};
 
 	explicit AnticipativeProcess (Session&);
@@ -45,6 +47,8 @@ public:
 	/** Control thread, stopped plan. The route must belong to this Session. */
 	Node& add (std::shared_ptr<Route>, Queue::Configuration const&, Queue::Render,
 	           Queue::Range const&, Queue::NextRange = Queue::NextRange (), Queue::Ready = Queue::Ready ());
+	/** Bind the original registered route DSP and main output to the plan. */
+	Node& add_route (std::shared_ptr<Route>, Queue::Range const&, uint32_t blocks);
 	/** Control thread: snapshot existing direct edges, then start producers. */
 	void start (uint64_t generation);
 	/** Control thread, consumer quiescent: join all producers before mutation. */
