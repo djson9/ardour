@@ -244,3 +244,14 @@ clears this history. Access uses the existing bounded GUI dispatch and log mutex
 Validation: live MCP discovery/read succeeded, including a deliberately malformed
 hotkey XML error followed by restored bindings. The tail buffer passed overflow,
 latest-message retention, and UTF-8 line-boundary checks.
+
+### MIDI editor activation in Live layout
+
+A single MIDI clip selection or drag no longer opens the bottom panel or creates
+its piano roll. An explicit double-click opens the bottom panel's MIDI editor.
+An already visible device panel remains the selection/drag view, and this path
+does not close native plugin windows. An explicitly opened MIDI editor can remain
+open for its region; selecting a different region requires another double-click.
+The traditional layout retains its existing behavior. Native build/deployment
+passed; the piano roll was observed opening in the running app. Automated pointer
+regression checks were inconclusive because the app was being used concurrently.

@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <memory>
 #include <ytkmm/box.h>
 #include <ytkmm/label.h>
 #include <ytkmm/table.h>
@@ -29,6 +30,7 @@
 
 namespace ARDOUR {
 	class Session;
+	class Region;
 }
 
 class TimeInfoBox;
@@ -52,6 +54,7 @@ public:
 	~SelectionPropertiesBox ();
 
 	void set_session (ARDOUR::Session*);
+	void edit_midi_region (std::shared_ptr<ARDOUR::Region>);
 
 private:
 	void init ();
@@ -70,6 +73,7 @@ private:
 	RegionFxPropertiesBox* _region_fx_box;
 	DispositionMask _disposition;
 	Pianoroll*              _pianoroll;
+	std::weak_ptr<ARDOUR::Region> _explicit_midi_region;
 
 	PBD::ScopedConnection _region_connection;
 	PBD::ScopedConnection _editor_connection;

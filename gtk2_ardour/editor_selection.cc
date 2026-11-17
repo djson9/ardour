@@ -1744,8 +1744,15 @@ Editor::region_selection_changed ()
 }
 
 void
-Editor::maybe_edit_region_in_bottom_pane (RegionView&)
+Editor::maybe_edit_region_in_bottom_pane (RegionView& rv)
 {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" &&
+	    std::dynamic_pointer_cast<MidiRegion> (rv.region ())) {
+		/* Selection and drags retain the current panel. Explicit edit_region()
+		 * opens the MIDI editor on double-click. */
+		return;
+	}
+
 	switch (UIConfiguration::instance().get_region_edit_disposition()) {
 	case OpenBottomPane:
 		show_att_bottom (true);

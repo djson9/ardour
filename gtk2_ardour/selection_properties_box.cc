@@ -19,6 +19,7 @@
  */
 
 #include <vector>
+#include <glibmm/miscutils.h>
 #include <set>
 
 #include "pbd/compose.h"
@@ -173,6 +174,13 @@ SelectionPropertiesBox::delete_region_editor ()
 }
 
 void
+SelectionPropertiesBox::edit_midi_region (std::shared_ptr<ARDOUR::Region> region)
+{
+	_explicit_midi_region = region;
+	selection_changed ();
+}
+
+void
 SelectionPropertiesBox::selection_changed ()
 {
 	if (!_session || _session->inital_connect_or_deletion_in_progress () || !get_mapped ()) {
@@ -234,6 +242,19 @@ SelectionPropertiesBox::selection_changed ()
 		if (rfx) {
 			rs.push_back (&rfx->region_view());
 		}
+	}
+
+	if (rs.empty () || !dynamic_cast<MidiRegionView*> (rs.back ())) {
+		_explicit_midi_region.reset ();
+	}
+
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !rs.empty () &&
+	    dynamic_cast<MidiRegionView*> (rs.back ()) &&
+	    _explicit_midi_region.lock () != rs.back ()->region ()) {
+		/* Selection alone must not open a new piano roll. */
+		delete_region_editor ();
+		_explicit_midi_region.reset ();
+		rs.clear ();
 	}
 
 	if (!rs.empty() && 0 != (_disposition & ShowRegions)) {

@@ -61,6 +61,7 @@
 #include "actions.h"
 #include "ardour_ui.h"
 #include "editor.h"
+#include "selection_properties_box.h"
 #include "time_axis_view.h"
 #include "audio_time_axis.h"
 #include "audio_region_view.h"
@@ -1964,6 +1965,12 @@ Editor::can_remove_control_point (ArdourCanvas::Item* item)
 void
 Editor::edit_region (RegionView* rv)
 {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && dynamic_cast<MidiRegionView*> (rv)) {
+		show_att_bottom (true);
+		_properties_box->edit_midi_region (rv->region ());
+		return;
+	}
+
 	if (UIConfiguration::instance().get_use_double_click_to_zoom_to_selection()) {
 		temporal_zoom_selection (Both);
 		return;
