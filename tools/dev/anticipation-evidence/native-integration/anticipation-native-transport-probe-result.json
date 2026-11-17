@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "native_transport_retirements": 2,
+  "automatic_edit_rebuilds": 2,
+  "stalled_worker_callback_progress": true,
+  "concurrent_dsp_resets": 0,
+  "stopped_processing_restored": true,
+  "source_commit": "e0b7bd865a0571acecc5cdd0f81b87e15b8080b3",
+  "linked_source_commit": "e0b7bd865a0571acecc5cdd0f81b87e15b8080b3",
+  "library_sha256": "83654ad40c27908a1f890eb600fbe358a060b222187c256ef13a050ef3f09a36",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "c9b3e722c2261f126b1447e2dde2dfaf08777e36c70236c08311dacad0d471d6",
+    "anticipation_capacity_probe.cc": "c0637dcea67ec316e4857ce1e89ef4894952cadd45f90c12b1ae12061ee5a11c",
+    "anticipation_eligibility_probe.cc": "103a8a5c7f3bacafc5aa563dbf9f3fbd0f37e565b9033fb6f5ead193f76c45e3",
+    "anticipation_engine_graph_probe.cc": "fab779463e578da739165b735134132d338817fbb8447e96451a6f869d56bfca",
+    "anticipation_engine_queue_probe.cc": "8a51fa952089a65fdf7ad514deb31a9ac0683737b9644d1a8c4bcaff82291195",
+    "anticipation_graph_probe.cc": "af44ad61643168cb0e7f50dc64fb9c72babc27bf571de923b8837b571ce6376c",
+    "anticipation_loop_probe.cc": "377c74aa2df3ed53f132b0913992fba2381fdbca6f3c620a97701b55929b0010",
+    "anticipation_midi_boundary_probe.cc": "1378a4b5348aa06a200ab415e0515e3032b1633d746ad06d2d32040eaea041f2",
+    "anticipation_native_route_probe.cc": "895b9536c63438ad78cd4062b8d820f999b4291595e22b942810a8ec1c54e90a",
+    "anticipation_native_transport_probe.cc": "e2c01cb90806a4599f71448582d3b264a5133f79be69e15dce888ff586366e06",
+    "anticipation_pdc_probe.cc": "d0b56a32d43c72c0a66e23d42fe79cf34f803f2531f547cf9757857cee3c2fdc",
+    "anticipation_plan_probe.cc": "8a026b1e3607d5f697ec356e9c31e05d9f754a3e8a1e069410b38e755a2c6c10",
+    "anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+    "anticipation_queue_contract_probe.cc": "c19438b34d40de1b020b51e756980c048b6449f18987120e1e5c28541105bc3e",
+    "anticipation_record_probe.cc": "3c83958a66ed74a4d736345950797050e9aa47dd06638fbb495ae0b1cf18a56c",
+    "anticipation_seek_probe.cc": "75fa4afe8b2c04498d6aea780e2123d9e566c809804fb6d174e95dfdc51d767c",
+    "run-anticipation-probe.py": "f29ade53a711b499425ebcec8e04552e8517c514473f69d48975efa2f2e6c1a3"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_AUTOMATIC": "1",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-native-transport-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "compressor_plugin_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+  "working_tree_status": [
+    " M tools/dev/run-anticipation-probe.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_engine_graph_probe.cc",
+    "?? tools/dev/anticipation_engine_queue_probe.cc",
+    "?? tools/dev/anticipation_native_route_probe.cc",
+    "?? tools/dev/anticipation_native_transport_probe.cc",
+    "?? tools/dev/anticipation_plan_probe.cc",
+    "?? tools/dev/anticipation_queue_contract_probe.cc"
+  ]
+}

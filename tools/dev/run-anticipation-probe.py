@@ -6,7 +6,7 @@ import ast, hashlib, json, os, pathlib, shlex, subprocess, sys, tempfile, plistl
 root=pathlib.Path(__file__).resolve().parents[2]
 base=pathlib.Path(sys.argv[1]).resolve()
 source=sys.argv[2] if len(sys.argv)>2 else 'anticipation_probe.cc'
-assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc','anticipation_graph_probe.cc','anticipation_eligibility_probe.cc','anticipation_pdc_probe.cc','anticipation_seek_probe.cc','anticipation_record_probe.cc','anticipation_loop_probe.cc','anticipation_midi_boundary_probe.cc')
+assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc','anticipation_graph_probe.cc','anticipation_eligibility_probe.cc','anticipation_pdc_probe.cc','anticipation_seek_probe.cc','anticipation_record_probe.cc','anticipation_loop_probe.cc','anticipation_midi_boundary_probe.cc','anticipation_engine_queue_probe.cc','anticipation_queue_contract_probe.cc','anticipation_plan_probe.cc','anticipation_engine_graph_probe.cc','anticipation_native_route_probe.cc','anticipation_native_transport_probe.cc','anticipation_native_midi_probe.cc')
 out=root/'artifacts'/source.replace('.cc','').replace('_','-');out.mkdir(parents=True,exist_ok=True)
 (out/'result.json').unlink(missing_ok=True)
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None

@@ -1,16 +1,56 @@
-# Anticipation feasibility probes
+# Anticipative processing integration and probes
 
-These standalone macOS probes link the existing Ardour build. They reuse real
-Routes, PluginInsert/LV2 effects, sends, returns and (in the callback probe) the
-normal Session processing path. They are experiments, not an enabled DAW feature.
-The branch has narrow hooks for cached InternalReturn and SideChain input,
-independent InternalSend cycle ownership, private MainDelivery output buffers,
-and automation evaluation before the audible transport rolls. The coordinator
-and fixtures still live in standalone experiments; this is not a finished feature.
+`jay/anticipation-integration` moves the validated scheduling mechanism into
+libardour. `AnticipationQueue` supplies bounded audio/MIDI storage, exclusive DSP
+ownership and retained fan-out readers; Session owns `AnticipativeProcess`, which
+binds the original registered route processors and their main/send/meter outputs.
+The ordinary Graph remains the audible callback graph.
 
-The current engine diff is 177 insertions and 24 deletions across 16 files. That
-is the host-boundary support, not the complete feature's code size: queueing,
-ownership, eligibility and transport coordination also need production code.
+This branch is still experimental and default off. The engine API
+`Session::set_anticipative_processing(true, milliseconds)` prepares ordinary routes
+on the Butler at playback start. It primes while backend ports are silent, then
+consumes cached ranges at the original hardware buffer size. Actual recording and
+monitoring controls propagate a live dependency closure. A route can opt out with
+`Route::set_anticipative_processing_disabled(true)`; an active queue drains before
+its original DSP runs live. No plugin clone or private test DSP chain is required.
+
+Transport events wait asynchronously for producer cancellation before resetting
+DSP. The Butler removes bindings and the ordinary stop/locate path restores state.
+Processor/port changes have retirement hooks; pending RT reorders/meter changes are
+deferred until retirement. Structural-edit coverage, persistent UI controls and
+production capacity/lifecycle validation remain unfinished. Do not enable this in
+an installed user DAW or interpret focused tests as release certification.
+
+## Native integration evidence
+
+- `anticipation_queue_contract_probe.cc`: fourteen deterministic queue checks,
+  including partial MIDI ranges, cancellation, exceptions and slow fan-out readers.
+- `anticipation_plan_probe.cc`: eligibility and dependency closure from real controls.
+- `anticipation_native_route_probe.cc`: original registered track and bus DSP,
+  actual LV2 delays/compressor, main routing or sends, native DiskReader/Butler,
+  nonaligned loops, automatic PDC and arm/disarm. `ARDOUR_PROBE_AUTOMATIC=1` exercises
+  normal playback-start construction. Combined disk/loop/PDC/send/sidechain output
+  matches an independent normal-route reference exactly, with zero cache misses.
+- `anticipation_native_transport_probe.cc`: a deliberately held producer cannot
+  block callbacks or race a transport reset. Stop and seek restore normal stopped
+  processing. Automatic mode additionally verifies restart, live insertion of a
+  257-sample latent processor and RT meter relocation/rebuild.
+- `anticipation_native_midi_probe.cc`: native MidiTracks and real synth/effects,
+  four held-note events across arm/disarm, and exactly-once immediate MIDI delivery
+  after ownership transfer. Output matches the normal synth reference exactly.
+
+All probes use an isolated GLib home and check that real Ardour preferences remain
+unchanged. Dummy backend evidence establishes correctness, not physical latency or
+hardware deadline guarantees. The transport test explicitly waits for backend
+warmup: Ardour calls Session during warmup without advancing processed_samples, so
+that counter is not a valid callback-progress witness until warmup ends.
+
+`anticipation_engine_graph_probe.cc` retains an unsuccessful earlier adapter: it
+cached before the original main output gain/panner and failed exact comparisons.
+It is not a passing integration case. Native adapters capture the complete original
+output instead. Earlier tests and the capacity evidence below describe the
+`jay/anticipation-spike` feasibility branch; its 177 insertions/24 deletions were
+host-boundary hooks, not the full engine implementation's size.
 
 ## CoreAudio capacity breakthrough
 

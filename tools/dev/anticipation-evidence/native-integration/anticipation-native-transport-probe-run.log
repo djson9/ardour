@@ -1,0 +1,5 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+RETIRE pass=0 device_progress=6656 nodes=1 quiescent=0 resets=0
+RETIRE pass=1 device_progress=7104 nodes=1 quiescent=0 resets=0
+: [WARNING]: Pool AudioEngine 1 has no trash collector; a memory leak has therefore occurred
+RESULT {"passed":true,"native_transport_retirements":2,"automatic_edit_rebuilds":2,"stalled_worker_callback_progress":true,"concurrent_dsp_resets":0,"stopped_processing_restored":true}
