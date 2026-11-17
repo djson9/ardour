@@ -22,18 +22,23 @@ struct Bridge : Processor {
  std::shared_ptr<AudioTrack> reader_track;bool follow_record_arm=false;
  std::atomic<unsigned> completed_blocks{0};unsigned request_block=0,release_block=0,reader_monitor_blocks=0;
  std::function<void(unsigned)> after_render;
+ std::function<bool(unsigned)> ready_for_render;
  std::atomic<unsigned>* extra_reader=nullptr;
+ std::atomic<unsigned>* extra_reader2=nullptr;
  Bridge(Session& s,Fixture& f,unsigned n,bool cached=true,bool handoffs=true):Processor(s,"Cache bridge",s),source(f),block(n),capacity((horizon_samples+n-1)/n),cache_enabled(cached),transitions(handoffs),slots(capacity,std::vector<float>(2*n)){if(!cached)mode=Live;}
  bool can_support_io_configuration(const ChanCount& in,ChanCount& out) override {out=in;return true;}
  void start_worker(){worker=std::thread([&]{
   Temporal::TempoMap::fetch();ProcessThread pt;pt.get_buffers();BufferSet b;prepare(b,block);
+  b.ensure_buffers(DataType::AUDIO,std::max(2u,source.route->max_processor_streams().n_audio()),block);
   while(!quit.load(std::memory_order_acquire)){
    auto m=mode.load(std::memory_order_acquire);
    if(m==Drain){acknowledged.store(true,std::memory_order_release);std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
    if(m!=Ahead){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
    const auto w=write.load();auto r=read.load(std::memory_order_acquire);
    if(extra_reader)r=std::min(r,extra_reader->load(std::memory_order_acquire));
+   if(extra_reader2)r=std::min(r,extra_reader2->load(std::memory_order_acquire));
    if(w>=total_blocks||w-r>=capacity){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
+   if(ready_for_render&&!ready_for_render(w)){std::this_thread::sleep_for(std::chrono::microseconds(50));continue;}
    source.run(b,w*block,block);
    if(after_render)after_render(w);
    for(unsigned c=0;c<2;++c)std::copy_n(b.get_audio(c).data(),block,slots[w%capacity].begin()+c*block);
@@ -121,15 +126,15 @@ struct TapCache {
  }
 };
 struct CachedTapReturn {
- Session& session;InternalSend const* send;std::shared_ptr<TapCache> cache;unsigned k=0,misses=0;
- CachedTapReturn(Session& s,InternalSend const* input,std::shared_ptr<TapCache> c):session(s),send(input),cache(c){}
+ Session& session;InternalSend const* send;std::shared_ptr<TapCache> cache;unsigned k=0,misses=0;bool require_rolling;
+ CachedTapReturn(Session& s,InternalSend const* input,std::shared_ptr<TapCache> c,bool rolling=true):session(s),send(input),cache(c),require_rolling(rolling){}
  static bool read(void* context,InternalSend const* input,BufferSet& b,samplepos_t start,pframes_t n){
   auto& self=*static_cast<CachedTapReturn*>(context);
   if(input!=self.send)return false;
   self.mix(b,start,n);return true;
  }
  void mix(BufferSet& b,samplepos_t start,pframes_t n){
-  if(!session.transport_rolling()||k>=total_blocks)return;
+  if((require_rolling&&!session.transport_rolling())||k>=total_blocks)return;
   need(n==cache->block&&start==samplepos_t(k*n),"tap timeline mismatch");
   if(cache->write.load(std::memory_order_acquire)>k){
    for(unsigned c=0;c<2;++c)b.get_audio(c).accumulate_from(cache->slots[k%cache->capacity].data()+c*n,n);

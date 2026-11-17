@@ -1,0 +1,47 @@
+{
+  "passed": true,
+  "normal_session_callback": true,
+  "backend": "Dummy Realtime",
+  "blocks": [
+    64
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "engine_mean_us": 841.622,
+  "engine_max_us": 71820,
+  "source_cutover": 662,
+  "bus_cutover": 662,
+  "peak": 0.304773,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 1333.3333333333333,
+  "observed_engine_max_us": 71820,
+  "measured_callback_budget_met": false,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [],
+  "source_commit": "416b181be0a01615f8a3506fc937d1e2732d1ef2",
+  "linked_source_commit": "416b181be0a01615f8a3506fc937d1e2732d1ef2",
+  "library_sha256": "d7ad1962e08eca3dad6a785b36be58b0e5f8b7154acb67aa5a4c25d7448cfbc5",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "1a5625eb62db87689a591872535731af43dc7f61c42d340c9df2139ccc1a1d3d",
+    "anticipation_capacity_probe.cc": "3ab81353f88d8df634dccfb17e0a43e85ebe787fdf7b29a685420e079b729b56",
+    "anticipation_graph_probe.cc": "441f117cc06a6d61538f95ce83ea1ba92a23fe87637de6e9b4c5127096791d80",
+    "anticipation_probe.cc": "fec85d4085115489bac6de4029910a0c744cb00ab56ee7d1217b187a7db5d4cf",
+    "run-anticipation-probe.py": "c07e375de6c4d39333d25cc4db839b4b03fddb986e546ee145b0bfe277de9cbc"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-graph-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/run-anticipation-probe.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_graph_probe.cc"
+  ]
+}

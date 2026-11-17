@@ -6,9 +6,12 @@ import ast, hashlib, json, os, pathlib, shlex, subprocess, sys, tempfile, plistl
 root=pathlib.Path(__file__).resolve().parents[2]
 base=pathlib.Path(sys.argv[1]).resolve()
 source=sys.argv[2] if len(sys.argv)>2 else 'anticipation_probe.cc'
-assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc')
+assert source in ('anticipation_probe.cc','anticipation_callback_probe.cc','anticipation_capacity_probe.cc','anticipation_graph_probe.cc')
 out=root/'artifacts'/source.replace('.cc','').replace('_','-');out.mkdir(parents=True,exist_ok=True)
 (out/'result.json').unlink(missing_ok=True)
+def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
+library_path=base/'build/libs/ardour/libardour.dylib'
+library_before=digest(library_path)
 def run(args,**kw):return subprocess.check_output(args,text=True,**kw)
 head=run(['git','rev-parse','HEAD'],cwd=root).strip()
 base_head=run(['git','rev-parse','HEAD'],cwd=base).strip()
@@ -27,7 +30,7 @@ incs+=list((root/'libs').iterdir())+list((root/'libs/tk').iterdir())
 incs+=list((base/'build/libs').iterdir())
 for k,v in cache.items():
  if k.startswith('INCLUDES') and isinstance(v,list):incs.extend(map(pathlib.Path,v))
-cmd=['/usr/bin/clang++',*flags,'-std=c++17','-Wno-deprecated-declarations']
+cmd=['/usr/bin/clang++',*flags,'-std=c++17','-Wno-deprecated-declarations','-Wno-unused-function','-Wno-inconsistent-missing-override']
 cmd += ['-I'+str(p) for p in incs if p.is_dir()]
 cmd += [str(root/'tools/dev'/source),str(base/'build/libs/ardour/test/test_ui.cc.4.o'),str(base/'build/libs/ardour/test/dummy_lxvst.cc.4.o')]
 deps=[]
@@ -38,8 +41,8 @@ cmd+=deps+['-framework','CoreFoundation','-framework','AppKit','-o',str(out/'pro
 (out/'compile-command.json').write_text(json.dumps(cmd,indent=2))
 built=subprocess.run(cmd)
 if built.returncode:raise SystemExit(built.returncode)
+if digest(library_path)!=library_before:raise SystemExit('Library changed while compiling; finish its build, then rerun')
 pref=pathlib.Path.home()/'Library/Preferences/Ardour9/config'
-def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
 before=digest(pref)
 session=str(pathlib.Path(tempfile.mkdtemp(prefix='run-',dir=out))/'session')
 # Interpose GLib's home lookup only inside our executable, leaving HOME and
@@ -77,6 +80,7 @@ else:
  code=p.returncode;output=(out/'run.log').read_text()
 print(output)
 if digest(pref)!=before:raise SystemExit('User config changed during probe')
+if digest(library_path)!=library_before:raise SystemExit('Library changed during probe; result discarded')
 if code:raise SystemExit(code)
 result=json.loads(next(x[7:] for x in output.splitlines() if x.startswith('RESULT ')))
 if result.get('normal_session_callback') and 'blocks' in result:
@@ -87,7 +91,7 @@ if result.get('normal_session_callback') and 'blocks' in result:
  result['observed_engine_max_us']=max(observed+[result['engine_max_us']])
  result['measured_callback_budget_met']=result['observed_engine_max_us']<=period and result['bridge_deadline_overruns']==0
  result['timing_limitation']='Dummy backend pacing does not establish hardware deadlines or input/output latency.'
- result['routing_and_input_evidence']=[line for line in output.splitlines() if line.startswith(('PLAYLIST ','MIDCHAIN TAP ','BUS INPUT ERROR ','MIDI ','DISK_READER ','READER INPUT ','READER PREFILL '))]
+ result['routing_and_input_evidence']=[line for line in output.splitlines() if line.startswith(('PLAYLIST ','MIDCHAIN TAP ','BUS INPUT ERROR ','MIDI ','DISK_READER ','READER INPUT ','READER PREFILL ','CACHED GRAPH ','SIDECHAIN '))]
 for line in output.splitlines():
  if line.startswith('REAL_PLUGIN_RESULT '):result['real_plugins']=json.loads(line[len('REAL_PLUGIN_RESULT '):])
 result.update(source_commit=head,linked_source_commit=base_head,library_sha256=digest(base/'build/libs/ardour/libardour.dylib'),user_config_unchanged=True)
@@ -95,5 +99,6 @@ result['source_sha256']={p.name:digest(p) for p in [*sorted((root/'tools/dev').g
 result['probe_settings']={k:v for k,v in env.items() if k.startswith('ARDOUR_PROBE_')}
 result['delay_plugin_sha256']=digest(base/'build/libs/LV2/a-delay.lv2/a-delay.dylib')
 result['synth_plugin_sha256']=digest(base/'build/libs/LV2/reasonablesynth.lv2/reasonablesynth.dylib')
+result['compressor_plugin_sha256']=digest(base/'build/libs/LV2/a-comp.lv2/a-comp.dylib')
 result['working_tree_status']=run(['git','status','--short'],cwd=root).splitlines()
 (out/'result.json').write_text(json.dumps(result,indent=2))
