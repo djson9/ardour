@@ -86,6 +86,7 @@ private:
 	NextRange const _next_range;
 	std::vector<std::unique_ptr<Slot>> _slots;
 	BufferSet _scratch;
+	BufferSet _live_input;
 	std::thread _worker;
 	std::atomic<State> _state;
 	std::atomic<bool> _quit;

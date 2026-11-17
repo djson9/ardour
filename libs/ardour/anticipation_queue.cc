@@ -33,6 +33,7 @@ AnticipationQueue::AnticipationQueue (Configuration const& config, Render render
 		throw std::invalid_argument ("Invalid anticipation queue configuration");
 	}
 	allocate (_scratch);
+	allocate (_live_input);
 	for (uint32_t i = 0; i < config.blocks; ++i) {
 		std::unique_ptr<Slot> slot (new Slot);
 		allocate (slot->buffers);
@@ -199,7 +200,11 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 		state = State::Live;
 	}
 	if (state == State::Live) {
-		render (output, requested, true);
+		try {
+			render (output, requested, true);
+		} catch (...) {
+			return fault (output, requested.frames);
+		}
 		_consumer_next += requested.frames;
 		_next = next (requested);
 		if (!want_live) {
@@ -208,12 +213,48 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 		return Result::Live;
 	}
 
+	_live_input.set_count (output.count ());
+	_live_input.read_from (output, requested.frames);
 	output.set_count (_config.channels);
 	output.silence (requested.frames, 0);
 	pframes_t copied = 0;
+	uint32_t remaining_slots = _config.blocks;
 	while (copied < requested.frames) {
 		uint64_t r = _read.load (std::memory_order_relaxed);
-		if (r == _write.load (std::memory_order_acquire)) {
+		if (_state.load (std::memory_order_acquire) == State::Drained &&
+		    r == _write.load (std::memory_order_acquire)) {
+			Range remaining { requested.project + copied, requested.continuous + copied, requested.frames - copied };
+			if (_next.continuous != remaining.continuous || _next.project != remaining.project) {
+				return fault (output, requested.frames);
+			}
+			/* The drain cursor may fall inside a consumer subcycle. Transfer
+			 * ownership there, preserving the current input for the live suffix. */
+			_state.store (State::Live, std::memory_order_release);
+			_live_handoffs.fetch_add (1, std::memory_order_relaxed);
+			_scratch.set_count (_live_input.count ());
+			for (DataType::iterator t = DataType::begin (); t != DataType::end (); ++t) {
+				for (uint32_t c = 0; c < _live_input.count ().get (*t); ++c) {
+					_scratch.get_available (*t, c).read_from (_live_input.get_available (*t, c), remaining.frames, 0, copied);
+				}
+			}
+			try {
+				render (_scratch, remaining, true);
+			} catch (...) {
+				return fault (output, requested.frames);
+			}
+			for (DataType::iterator t = DataType::begin (); t != DataType::end (); ++t) {
+				for (uint32_t c = 0; c < _scratch.count ().get (*t); ++c) {
+					output.get_available (*t, c).read_from (_scratch.get_available (*t, c), remaining.frames, copied, 0);
+				}
+			}
+			_consumer_next += requested.frames;
+			_next = next (remaining);
+			if (!want_live) {
+				_state.store (State::Ahead, std::memory_order_release);
+			}
+			return Result::Live;
+		}
+		if (!remaining_slots-- || r == _write.load (std::memory_order_acquire)) {
 			/* Never execute lagging DSP on the consumer as a fallback. It must
 			 * catch up on its owner thread, or be reset off the audio thread. */
 			_underruns.fetch_add (1, std::memory_order_relaxed);
