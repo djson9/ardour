@@ -75,6 +75,12 @@ public:
 	void suspend ();
 	bool quiescent () const;
 	bool owns (Route const*) const;
+	/** Non-RT, consumer quiescent: prepare ordinary active session routes. */
+	void prepare (samplepos_t start, uint32_t milliseconds, uint64_t generation);
+	bool primed () const;
+	bool faulted () const;
+	/** Diagnostic lookup; hold the process lock while a plan can be rebuilt. */
+	Node const* find_node (Route const*) const;
 
 	/** RT, before the normal route graph: recompute the live dependency closure. */
 	void begin_cycle ();

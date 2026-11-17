@@ -343,6 +343,9 @@ public:
 	 * Register route adapters before starting it; clear it before route mutation. */
 	AnticipativeProcess& anticipative_process ();
 	bool transport_change_ready () override;
+	/** Control thread: opt in to native plan preparation at transport start.
+	 * Experimental engine API; UI enablement awaits structural-edit barriers. */
+	void set_anticipative_processing (bool, uint32_t milliseconds = 200);
 
 	std::shared_ptr<RTTaskList> rt_tasklist () { return _rt_tasklist; }
 	std::shared_ptr<IOTaskList> io_tasklist () { return _io_tasklist; }
@@ -1302,7 +1305,8 @@ public:
 		PostTransportClearSubstate      = 0x80,
 		PostTransportAdjustPlaybackBuffering  = 0x100,
 		PostTransportAdjustCaptureBuffering   = 0x200,
-		PostTransportLoopChanged        = 0x400
+		PostTransportLoopChanged        = 0x400,
+		PostTransportPrepareAnticipation = 0x800
 	};
 
 	std::shared_ptr<SessionPlaylists> playlists () const { return _playlists; }
@@ -1958,7 +1962,7 @@ private:
 
 	void reset_record_status ();
 
-	int no_roll (pframes_t nframes);
+	int no_roll (pframes_t nframes, bool force_state_change = false);
 	int fail_roll (pframes_t nframes);
 
 	bool non_realtime_work_pending() const { return static_cast<bool>(post_transport_work()); }
@@ -2394,6 +2398,12 @@ private:
 	 */
 	GraphEdges _current_route_graph;
 	std::unique_ptr<AnticipativeProcess> _anticipative_process;
+	std::atomic<bool> _anticipation_enabled {false};
+	std::atomic<uint32_t> _anticipation_horizon {200};
+	std::atomic<bool> _anticipation_preparing {false};
+	std::atomic<bool> _anticipation_prepare_failed {false};
+	bool _anticipation_priming {false}; // process callback only
+	uint64_t _anticipation_generation {0}; // Butler only, under process lock
 
 	friend class IOPlug;
 	std::shared_ptr<Graph>      _process_graph;

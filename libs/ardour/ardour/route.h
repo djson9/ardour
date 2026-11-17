@@ -128,6 +128,8 @@ public:
 	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input, bool run_disk_reader);
 	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t);
 	void deliver_anticipative (BufferSet&, pframes_t);
+	void set_anticipative_processing_disabled (bool disabled) { _anticipation_disabled.store (disabled); }
+	bool anticipative_processing_disabled () const { return _anticipation_disabled.load (); }
 
 	virtual int init ();
 
@@ -648,6 +650,7 @@ protected:
 	RenderObserver _render_observer {nullptr};
 	void* _render_observer_context {nullptr};
 	std::atomic<bool> _render_declick {false};
+	std::atomic<bool> _anticipation_disabled {false};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 

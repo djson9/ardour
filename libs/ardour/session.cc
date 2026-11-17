@@ -611,6 +611,19 @@ Session::anticipative_process ()
 	return *_anticipative_process;
 }
 
+void
+Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
+{
+	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
+	PBD::Mutex::Lock lock (_engine.process_lock ());
+	_anticipation_horizon.store (milliseconds);
+	_anticipation_enabled.store (enabled);
+	if (transport_rolling () || (_anticipative_process && _anticipative_process->size ())) {
+		/* Reuse the normal reset/locate lifecycle before replacing the plan. */
+		request_locate (_transport_sample, true, transport_rolling () ? MustRoll : MustStop);
+	}
+}
+
 unsigned int
 Session::next_name_id ()
 {

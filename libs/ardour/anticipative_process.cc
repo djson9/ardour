@@ -311,6 +311,47 @@ AnticipativeProcess::cached_send (void* context, InternalSend const* send, Buffe
 AnticipativeProcess::AnticipativeProcess (Session& session) : _session (session) {}
 AnticipativeProcess::~AnticipativeProcess () { clear (); }
 
+void
+AnticipativeProcess::prepare (samplepos_t position, uint32_t milliseconds, uint64_t generation)
+{
+	clear ();
+	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
+	auto timeline = std::make_shared<Timeline> (_session, position);
+	uint32_t block = _session.engine ().samples_per_cycle ();
+	uint32_t blocks = std::max (uint32_t (2), uint32_t ((_session.sample_rate () * milliseconds / 1000 + block - 1) / block));
+	try {
+		for (auto const& route : *_session.get_routes ()) {
+			if (!route->active () || route->anticipative_processing_disabled ()) { continue; }
+			add_route (route, timeline->first (*route), blocks, [timeline] (Queue::Range const& range) { return timeline->next (range); });
+		}
+		start (generation);
+	} catch (...) { clear (); throw; }
+}
+
+bool
+AnticipativeProcess::primed () const
+{
+	if (!running ()) { return false; }
+	for (auto const& node : _nodes) {
+		if (node->reason.load () == Predictable && !node->queue->primed ()) { return false; }
+	}
+	return true;
+}
+
+bool
+AnticipativeProcess::faulted () const
+{
+	for (auto const& node : _nodes) { if (node->queue->state () == Queue::State::Fault) { return true; } }
+	return false;
+}
+
+AnticipativeProcess::Node const*
+AnticipativeProcess::find_node (Route const* route) const
+{
+	for (auto const& node : _nodes) { if (node->route.get () == route) { return node.get (); } }
+	return nullptr;
+}
+
 AnticipativeProcess::Node&
 AnticipativeProcess::add_route (std::shared_ptr<Route> route, Queue::Range const& first, uint32_t blocks, Queue::NextRange next)
 {
@@ -436,7 +477,7 @@ AnticipativeProcess::begin_cycle ()
 	size_t head = 0, tail = 0;
 	for (size_t i = 0; i < _nodes.size (); ++i) {
 		Node& node = *_nodes[i];
-		uint32_t reason = node.forced.load (std::memory_order_relaxed) ? Forced : Predictable;
+		uint32_t reason = (node.forced.load (std::memory_order_relaxed) || node.route->anticipative_processing_disabled ()) ? Forced : Predictable;
 		if (node.requires_live) { reason |= RequiredLive; }
 		if (node.unmanaged_upstream) { reason |= UnmanagedUpstream; }
 		if (node.route->is_master () || node.route->is_monitor () || node.route->is_auditioner ()) {

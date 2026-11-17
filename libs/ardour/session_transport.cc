@@ -89,6 +89,7 @@ using namespace Temporal;
 bool
 Session::transport_change_ready ()
 {
+	_anticipation_priming = false;
 	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
 	_anticipative_process->suspend ();
 	return _anticipative_process->quiescent ();
@@ -621,6 +622,15 @@ Session::start_transport (bool after_loop)
 		}
 	}
 
+	if (!after_loop && _anticipation_enabled.load () &&
+	    (!_anticipative_process || !_anticipative_process->size ()) &&
+	    _transport_fsm->transport_speed () == 1.0 && !_count_in_samples && !_exporting && !transport_master_is_external ()) {
+		_anticipation_priming = true;
+		_anticipation_prepare_failed.store (false);
+		_anticipation_preparing.store (true);
+		add_post_transport_work (PostTransportPrepareAnticipation);
+		TFSM_EVENT (TransportFSM::ButlerRequired);
+	}
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("send TSC4 with speed = %1\n", transport_speed()));
 
 	if (!after_loop) {
@@ -1292,6 +1302,18 @@ Session::butler_transport_work (bool have_process_lock)
 
 	if (ptw & PostTransportAudition) {
 		non_realtime_set_audition ();
+	}
+
+	if (ptw & PostTransportPrepareAnticipation) {
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		try {
+			anticipative_process ().prepare (_transport_sample, _anticipation_horizon.load (), ++_anticipation_generation);
+		} catch (std::exception const& e) {
+			error << string_compose (_("Cannot prepare anticipative processing: %1"), e.what ()) << endmsg;
+			_anticipation_prepare_failed.store (true);
+		}
+		_anticipation_preparing.store (false);
 	}
 
 	(void) PBD::atomic_dec_and_test (_butler->should_do_transport_work);

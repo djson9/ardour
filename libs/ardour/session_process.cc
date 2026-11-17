@@ -200,7 +200,7 @@ Session::fail_roll (pframes_t nframes)
 }
 
 int
-Session::no_roll (pframes_t nframes)
+Session::no_roll (pframes_t nframes, bool force_state_change)
 {
 	TimerRAII tr (dsp_stats[NoRoll]);
 
@@ -222,7 +222,7 @@ Session::no_roll (pframes_t nframes)
 	std::shared_ptr<GraphChain> graph_chain = _graph_chain;
 	if (graph_chain) {
 		DEBUG_TRACE(DEBUG::ProcessThreads,"calling graph/no-roll\n");
-		_process_graph->routes_no_roll(graph_chain, nframes, _transport_sample, end_sample, non_realtime_work_pending());
+		_process_graph->routes_no_roll(graph_chain, nframes, _transport_sample, end_sample, force_state_change || non_realtime_work_pending());
 	} else {
 		for (auto const& i : *r) {
 
@@ -230,7 +230,7 @@ Session::no_roll (pframes_t nframes)
 				continue;
 			}
 
-			if (i->no_roll (nframes, _transport_sample, end_sample, non_realtime_work_pending())) {
+			if (i->no_roll (nframes, _transport_sample, end_sample, force_state_change || non_realtime_work_pending())) {
 				error << string_compose(_("Session: error in no roll for %1"), i->name()) << endmsg;
 				ret = -1;
 				break;
@@ -405,6 +405,20 @@ Session::process_with_events (pframes_t nframes)
 		SessionEvent *ev = immediate_events.front ();
 		immediate_events.pop_front ();
 		process_event (ev);
+	}
+
+	if (_anticipation_priming) {
+		if (_anticipation_prepare_failed.load () || (_anticipative_process && _anticipative_process->faulted ())) {
+			_anticipation_priming = false;
+			TFSM_STOP (false, false);
+		} else if (!_anticipation_preparing.load () && _anticipative_process && _anticipative_process->primed ()) {
+			_anticipation_priming = false;
+		} else {
+			/* Immediate events above still run, so stop/seek can cancel priming.
+			 * Hold the project clock; no DSP is processed twice during prefill. */
+			no_roll (nframes, true);
+			return;
+		}
 	}
 
 	/* only count-in when going to roll at speed 1.0 */
