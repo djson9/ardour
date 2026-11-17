@@ -40,8 +40,15 @@ AnticipativeProcess::start (uint64_t generation)
 	stop ();
 	_generation = generation;
 	_work.resize (_nodes.size ());
+	auto routes = _session.get_routes ();
 	for (auto& from : _nodes) {
 		from->downstream.clear ();
+		from->unmanaged_upstream = false;
+		for (auto const& route : *routes) {
+			bool managed = false;
+			for (auto const& node : _nodes) { if (node->route == route) { managed = true; break; } }
+			if (!managed && route->feeds (from->route)) { from->unmanaged_upstream = true; }
+		}
 		for (size_t i = 0; i < _nodes.size (); ++i) {
 			if (from.get () != _nodes[i].get () && from->route->direct_feeds_according_to_graph (_nodes[i]->route)) {
 				from->downstream.push_back (i);
@@ -84,6 +91,7 @@ AnticipativeProcess::begin_cycle ()
 	for (size_t i = 0; i < _nodes.size (); ++i) {
 		Node& node = *_nodes[i];
 		uint32_t reason = node.forced.load (std::memory_order_relaxed) ? Forced : Predictable;
+		if (node.unmanaged_upstream) { reason |= UnmanagedUpstream; }
 		if (node.route->is_master () || node.route->is_monitor () || node.route->is_auditioner ()) {
 			reason |= OutputRoute;
 		}

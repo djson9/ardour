@@ -24,7 +24,7 @@ public:
 	using Queue = AnticipationQueue;
 	enum Reason : uint32_t {
 		Predictable = 0, Forced = 1, Recording = 2, Monitoring = 4,
-		UpstreamLive = 8, OutputRoute = 16
+		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32
 	};
 
 	struct Node {
@@ -34,6 +34,7 @@ public:
 		std::atomic<bool> forced {false};
 		std::atomic<uint32_t> reason {Predictable};
 		std::vector<size_t> downstream;
+		bool unmanaged_upstream {false};
 	};
 
 	explicit AnticipativeProcess (Session&);
