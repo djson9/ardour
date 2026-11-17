@@ -206,6 +206,24 @@ ARDOUR_UI::install_actions ()
 	ActionManager::write_sensitive_actions.push_back (act);
 	ActionManager::rec_sensitive_actions.push_back (act);
 
+	act = ActionManager::register_action (main_actions, X_("AddAudioTrack"), _("Add Audio Track"), [this] {
+		if (!_session) return;
+		session_add_audio_route (true, 2, 2, ARDOUR::Normal, std::shared_ptr<RouteGroup> (),
+		                         1, _("Audio"), Config->get_strict_io (), PresentationInfo::max_order, false);
+	});
+	ActionManager::session_sensitive_actions.push_back (act);
+	ActionManager::write_sensitive_actions.push_back (act);
+	ActionManager::rec_sensitive_actions.push_back (act);
+
+	act = ActionManager::register_action (main_actions, X_("AddMidiTrack"), _("Add MIDI Track"), [this] {
+		if (!_session) return;
+		session_add_midi_route (true, std::shared_ptr<RouteGroup> (), 1, _("MIDI"),
+		                        Config->get_strict_io (), PluginInfoPtr (), nullptr, PresentationInfo::max_order, false);
+	});
+	ActionManager::session_sensitive_actions.push_back (act);
+	ActionManager::write_sensitive_actions.push_back (act);
+	ActionManager::rec_sensitive_actions.push_back (act);
+
 	act = ActionManager::register_action (main_actions, X_("duplicate-routes"), _("Duplicate Tracks/Busses..."),
 	                                      sigc::mem_fun(*this, &ARDOUR_UI::start_duplicate_routes));
 	ActionManager::session_sensitive_actions.push_back (act);

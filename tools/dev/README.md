@@ -261,3 +261,27 @@ length/position or time-domain change. This covers movement and trimming without
 requiring a new selection, including model changes from undo/redo or MCP. The
 subscription follows the session lifetime and does not activate the piano roll.
 Native build and deployment passed; interactive drag verification remains pending.
+
+### Direct track and loop shortcuts
+
+The `Main/AddAudioTrack` and `Main/AddMidiTrack` actions create one track directly
+without the Add dialog. Audio is stereo; MIDI starts without an instrument. Both
+append to the session and use the existing guarded route-creation helpers. They
+are disabled without a session, in read-only sessions, and while recording.
+
+Use these bindings in the normal per-user keys document (replace conflicting
+keys/actions in the same group rather than adding duplicates):
+
+```xml
+<!-- Global / Press -->
+<Binding key="Primary-t" action="Main/AddAudioTrack"/>
+<Binding key="Primary-Tertiary-t" action="Main/AddMidiTrack"/>
+<!-- Editor / Press -->
+<Binding key="Primary-l" action="Region/loop-region"/>
+<Binding key="Primary-Tertiary-l" action="Editor/show-editor-props"/>
+```
+
+On macOS these are Cmd+T, Cmd+Shift+T, Cmd+L, and Cmd+Shift+L. Loop uses the selected
+region span and starts loop playback. The bottom-panel toggle shows/hides the
+current piano roll or device view. N continues to open the full Add dialog.
+Native build/deployment and all four live binding/action checks passed.
