@@ -34,12 +34,19 @@
 #include "ardour/monitor_control.h"
 #include "ardour/rc_configuration.h"
 #include "ardour/disk_reader.h"
+#include "ardour/butler.h"
 #include "ardour/amp.h"
 #include "ardour/pannable.h"
 #include "ardour/port.h"
 #include "test_ui.h"
 using namespace ARDOUR;
 static void need(bool b, const char* s) { if (!b) throw std::runtime_error(s); }
+struct FixtureSession : Session {
+ using Session::Session;
+ // Inspect only while holding the engine process lock. Locate completion alone
+ // does not mean deferred startup buffer-adjustment/stop events have finished.
+ bool setup_settled(){return pending_events.read_space()==0&&immediate_events.empty()&&!butler()->transport_work_requested()&&!locate_pending();}
+};
 
 // A deliberately stateful in-place processor: signal depends on supplied time
 // AND recursive history. Its class is hosted by the real Ardour Route chain.
@@ -56,7 +63,7 @@ struct Probe : Processor {
   --entered;
  }
 };
-struct RouteAccess : Route { static auto bounce() { return &RouteAccess::bounce_process; } };
+struct RouteAccess : Route { static auto bounce() { return &RouteAccess::render_process; } };
 struct Fixture {
  std::shared_ptr<Route> route;std::shared_ptr<Probe> probe;std::shared_ptr<Processor> endpoint;
  std::function<void(BufferSet&,samplepos_t,unsigned)> render_override;

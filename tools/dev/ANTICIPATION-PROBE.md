@@ -8,16 +8,17 @@ independent InternalSend cycle ownership, private MainDelivery output buffers,
 and automation evaluation before the audible transport rolls. The coordinator
 and fixtures still live in standalone experiments; this is not a finished feature.
 
-The current engine diff is 117 insertions and 22 deletions across 12 files. That
+The current engine diff is 147 insertions and 23 deletions across 13 files. That
 is the host-boundary support, not the complete feature's code size: queueing,
 ownership, eligibility and transport coordination also need production code.
 
 ## Expanded graph and latency evidence
 
-The eleven-case validation matrix passes after the Delivery changes. It includes
+The fifteen-case validation matrix passes after the Delivery and render-time changes. It includes
 the original disk/monitoring/MIDI/send cases, cached buses with an actual active
 compressor sidechain, private main output at 64/128 frames, automatic latency
-compensation at both sizes, and six eligibility decisions using real controls.
+compensation at both sizes, six eligibility decisions using real controls,
+ongoing disk refill at both sizes, and seek/edit generations at both sizes.
 All audio comparisons have zero final-output error and zero queue underruns.
 Most dummy runs exceed their nominal callback period; correctness is reported
 separately from deadline success. Physical I/O latency remains unmeasured.
@@ -36,13 +37,34 @@ existing compensation supplies 320/384 samples of startup preroll and initial
 samples, never the 9,600-sample anticipation horizon. Both output comparisons
 are exact. Independent oracle instances are flushed on their first moving call
 because stopped callbacks otherwise advance only the normal route's plugin
-smoothing. The synthetic delay does not exercise a third-party latent plugin's
-own host-time interpretation; `bounce_process` and normal processing currently
-apply a processor's own latency on opposite sides of its call.
+smoothing. A timestamp-dependent gain on the latent processor then exposed the
+opposite placement of own-processor latency in `bounce_process` and normal
+playback: before-fix output error was 0.00185462. `Route::render_process` now reuses
+the same processing loop with normal playback timestamps, retaining the existing
+bounce timing for export. Both 64/128-frame time-sensitive tests pass exactly.
+This checks the render entry point; format-specific host-clock fields such as
+VST3 continuous time remain an adapter integration concern.
 
 `anticipation_eligibility_probe.cc` reuses `Route::feeds` and existing graph edges
 for record-arm, explicit input monitoring, forced-live buses, sidechain propagation
 and disconnection. It validates the classification, not a shipped coordinator.
+
+`ARDOUR_PROBE_REFILL=1` sets a custom half-second playback buffer after Session
+construction, checks the Butler's actual 24,000-sample buffer setting, and refills
+real private AudioTrack readers on a background thread using existing refill
+methods and their thread-local scratch allocation. Tests require repeated buffer
+increases and zero DiskReader underruns as well as exact input/output. The 128
+frame standalone run observed 60 refills. Production can wake the existing Butler;
+the helper thread only supplies otherwise unregistered fixture tracks.
+
+`anticipation_seek_probe.cc` discards outstanding future blocks, completes actual
+Session locates to 0, 240000 and 48000, and inserts another actual plugin before
+the third generation. It stops/join workers only off the callback after suspending
+consumption, reuses the same DSP instances, and verifies exact output in all
+generations. It uses a stopped-transport barrier and does not measure rolling-seek
+gaps or seamless looping. A stronger startup barrier checks deferred events and
+Butler work as well as locate completion: Session buffering setup can queue Stop
+events that otherwise execute after the test begins rolling.
 
 ## Run
 

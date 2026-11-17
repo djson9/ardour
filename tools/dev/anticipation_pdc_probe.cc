@@ -1,7 +1,18 @@
 // Compare a cached processing slice with a normal Route under automatic PDC.
 #define ANTICIPATION_CALLBACK_HELPERS_ONLY
 #include "anticipation_callback_probe.cc"
-struct SessionAccess : Session {static auto update_latency(){return &SessionAccess::update_latency_compensation;}};
+#include "pbd/debug.h"
+#include <execinfo.h>
+#include "ardour/butler.h"
+struct SessionAccess : Session {
+ using Session::Session;
+ static auto update_latency(){return &SessionAccess::update_latency_compensation;}
+ bool setup_settled(){return pending_events.read_space()==0&&immediate_events.empty()&&!butler()->transport_work_requested();}
+ void stop_transport(bool abort=false,bool clear=false)override{
+  if(getenv("ARDOUR_PROBE_DEBUG")){std::cerr<<"STOP REQUEST"<<std::endl;void* frames[30];int count=backtrace(frames,30);backtrace_symbols_fd(frames,count,2);}
+  Session::stop_transport(abort,clear);
+ }
+};
 struct TimelineInput : Processor {
  std::vector<samplepos_t> starts;
  std::vector<std::shared_ptr<PluginInsert>> reset_inserts;
@@ -35,18 +46,24 @@ struct ReportedDelay : Processor {
  ReportedDelay(Session& s,unsigned n):Processor(s,"Declared sample delay",s),delay(n),history(2*n,0){}
  bool can_support_io_configuration(const ChanCount& in,ChanCount& out)override{out=in;return true;}
  samplecnt_t signal_latency()const override{return delay;}
- void run(BufferSet& b,samplepos_t,samplepos_t,double speed,pframes_t n,bool)override{
+ void run(BufferSet& b,samplepos_t start,samplepos_t,double speed,pframes_t n,bool)override{
   for(unsigned i=0;i<n;++i){for(unsigned c=0;c<2;++c){auto& memory=history[c*delay+cursor];auto& sample=b.get_audio(c).data()[i];std::swap(memory,sample);}cursor=(cursor+1)%delay;}
+  // Deliberately depend on the host-provided output timestamp as well as the
+  // audio delay. An ordinary delay alone cannot detect the wrong time context.
+  if(getenv("ARDOUR_PROBE_HOST_TIME"))for(unsigned i=0;i<n;++i)for(unsigned c=0;c<2;++c)b.get_audio(c).data()[i]*=.75+.25*std::sin((start+i)*.003);
   if(speed==1)trace.insert(trace.end(),b.get_audio(0).data(),b.get_audio(0).data()+n);
  }
 };
 int main(int argc,char** argv){try{
  need(argc==2,"session path");need(std::string(g_get_home_dir())==getenv("ARDOUR_PROBE_HOME"),"preferences isolation");
  need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();auto ui=std::make_unique<TestUI>();
+ if(getenv("ARDOUR_PROBE_DEBUG"))PBD::parse_debug_options("transport,tfsm");
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","PDCProbe","");
  const unsigned block=getenv("ARDOUR_PROBE_BLOCK")?std::stoul(getenv("ARDOUR_PROBE_BLOCK")):64;
  need(bool(backend)&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
- auto* s=new Session(*engine,argv[1],"pdc-probe",nullptr,"",true);engine->set_session(nullptr);
+ auto* s=new SessionAccess(*engine,argv[1],"pdc-probe",nullptr,"",true);engine->set_session(nullptr);
+ PBD::ScopedConnection debug_connection;
+ if(getenv("ARDOUR_PROBE_DEBUG"))s->TransportStateChange.connect_same_thread(debug_connection,[&]{std::cerr<<"TRANSPORT speed="<<s->transport_speed(true)<<" sample="<<s->transport_sample()<<std::endl;void* frames[30];int count=backtrace(frames,30);backtrace_symbols_fd(frames,count,2);});
  double error=0,peak=0;unsigned misses=0,late=0;samplepos_t origin=0;samplecnt_t preroll=0,route_latency=0,live_delay=0;
  {
   constexpr unsigned latency=257;
@@ -83,14 +100,16 @@ int main(int argc,char** argv){try{
   std::cerr<<"PDC chunks="<<bridge->render_plan[0].frames<<","<<bridge->render_plan[1].frames<<","<<bridge->render_plan[2].frames<<" frames="<<elapsed<<std::endl;
   auto tap=std::make_shared<SampleTap>(*s,elapsed),reference_tap=std::make_shared<SampleTap>(*s,elapsed);
   need(bus.route->add_processor(tap,PostFader)==0&&bus_reference.route->add_processor(reference_tap,PostFader)==0,"capture");s->resort_routes();
-  engine->set_session(s);
-  for(unsigned wait=0;wait<5000;++wait){bool ready;{PBD::Mutex::Lock lock(engine->process_lock());ready=!s->global_locate_pending();}if(ready)break;std::this_thread::sleep_for(std::chrono::milliseconds(1));}
-  engine->set_session(nullptr);need(!s->global_locate_pending(),"initial locate incomplete");
+  std::atomic<bool> located{false};PBD::ScopedConnection locate_connection;
+  s->Located.connect_same_thread(locate_connection,[&]{located=true;});s->request_locate(0,true,MustStop);engine->set_session(s);
+  bool ready=false;for(unsigned wait=0;wait<5000;++wait){{PBD::Mutex::Lock lock(engine->process_lock());ready=located&&s->setup_settled()&&!s->locate_pending()&&!s->global_locate_pending();}if(ready)break;std::this_thread::sleep_for(std::chrono::milliseconds(1));}
+  engine->set_session(nullptr);locate_connection.disconnect();need(ready,"initial locate incomplete");
   source.route->flush_processors();reference.route->flush_processors();
   bridge->start_worker();while(bridge->write.load()<bridge->capacity)std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  s->request_roll();engine->set_session(s);const auto deadline=Clock::now()+std::chrono::seconds(45);
+  s->request_locate(0,true,MustRoll);engine->set_session(s);const auto deadline=Clock::now()+std::chrono::seconds(12);
   while(!bridge->done.load(std::memory_order_acquire)&&Clock::now()<deadline)std::this_thread::sleep_for(std::chrono::milliseconds(2));
   engine->set_session(nullptr);bridge->stop_worker();
+  std::cerr<<"PDC completed="<<bridge->k<<" published="<<bridge->write.load()<<" bad_size="<<bridge->bad_size<<" transport="<<s->transport_sample()<<" rolling="<<s->transport_rolling()<<" end="<<s->current_end_sample()<<" stop_at_end="<<Config->get_stop_at_session_end()<<std::endl;
   need(bridge->done&&bridge->bad_size==0&&tap->cursor==elapsed&&reference_tap->cursor==elapsed,"PDC callback incomplete");
   unsigned first=0;for(unsigned i=0;i<tap->captured.size();++i){auto difference=double(std::abs(tap->captured[i]-reference_tap->captured[i]));if(difference>1e-6&&!first)first=i/2;error=std::max(error,difference);}
   std::cerr<<"PDC first_difference_frame="<<first<<" cache="<<tap->captured[2*first]<<" reference="<<reference_tap->captured[2*first]<<std::endl;

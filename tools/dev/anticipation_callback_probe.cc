@@ -179,7 +179,6 @@ static std::shared_ptr<InternalSend> configure_midchain_send(Session& s,Fixture&
 int main(int argc,char** argv){try{
  need(argc==2,"session path");need(std::string(g_get_home_dir())==getenv("ARDOUR_PROBE_HOME"),"preferences isolation");
  need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();auto ui=std::make_unique<TestUI>();
- if(getenv("ARDOUR_PROBE_DISK_READER"))Config->set_audio_playback_buffer_seconds(12);
  std::string backend_name=getenv("ARDOUR_PROBE_BACKEND")?getenv("ARDOUR_PROBE_BACKEND"):"None (Dummy)";
  auto* engine=AudioEngine::create();auto backend=engine->set_backend(backend_name,"AnticipationCallback","");
  need(bool(backend),"backend");
@@ -193,8 +192,13 @@ int main(int argc,char** argv){try{
  unsigned selected_block=getenv("ARDOUR_PROBE_BLOCK")?std::stoul(getenv("ARDOUR_PROBE_BLOCK")):64;
  for(unsigned block:{selected_block}){
   need(backend->set_buffer_size(block)==0,"block size");need(engine->start()==0,"start");
-  auto* s=new Session(*engine,std::string(argv[1])+"-"+std::to_string(block),"callback-probe",nullptr,"",true);
+  auto* s=new FixtureSession(*engine,std::string(argv[1])+"-"+std::to_string(block),"callback-probe",nullptr,"",true);
   engine->set_session(nullptr);need(engine->session()==nullptr,"detach");
+  // Session/Butler construction applies the selected buffering preset. Set
+  // this experiment's limits afterward, before constructing private readers.
+  if(getenv("ARDOUR_PROBE_DISK_READER")){Config->set_buffering_preset(Custom);Config->set_audio_playback_buffer_seconds(getenv("ARDOUR_PROBE_REFILL")?.5:12);}
+  if(getenv("ARDOUR_PROBE_REFILL"))DiskReader::set_chunk_samples(8192);
+  if(getenv("ARDOUR_PROBE_REFILL"))need(s->butler()->audio_playback_buffer_size()==24000,"actual playback buffer is not half a second");
   {
    const bool reader_test=getenv("ARDOUR_PROBE_DISK_READER");
    Fixture source(*s,"Private worker source",true,true,false,4,reader_test),reference(*s,"Private reference",true,true,false,4,reader_test);
@@ -267,7 +271,7 @@ int main(int argc,char** argv){try{
     // waiting with the Session detached can leave a stale true value forever.
     engine->set_session(s);bool ready=false;const auto setup_deadline=Clock::now()+std::chrono::seconds(5);
     while(!ready&&Clock::now()<setup_deadline){
-     {PBD::Mutex::Lock lock(engine->process_lock());ready=!s->global_locate_pending()&&!DiskReader::no_disk_output()&&reader_source->monitoring_control()->get_value()==MonitorDisk&&reader_reference->monitoring_control()->get_value()==MonitorDisk;}
+     {PBD::Mutex::Lock lock(engine->process_lock());ready=s->setup_settled()&&!s->global_locate_pending()&&!DiskReader::no_disk_output()&&reader_source->monitoring_control()->get_value()==MonitorDisk&&reader_reference->monitoring_control()->get_value()==MonitorDisk;}
      if(!ready)std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     engine->set_session(nullptr);need(ready,"initial track controls/locate did not settle");
@@ -280,6 +284,18 @@ int main(int argc,char** argv){try{
     // graph latency propagation is a separate test from this boundary test.
     const auto delay=std::stoul(getenv("ARDOUR_PROBE_SEND_DELAY"));
     mid_send->set_delay_in(delay);reference_mid_send->set_delay_in(delay);
+   }
+   std::atomic<bool> refill_quit{false};std::atomic<unsigned> refill_increases{0};std::thread refill_thread;
+   std::atomic<unsigned> disk_underruns{0};PBD::ScopedConnection disk_underrun_connection;
+   if(getenv("ARDOUR_PROBE_REFILL")){
+    need(reader_test,"refill requires actual DiskReader");
+    DiskReader::Underrun.connect_same_thread(disk_underrun_connection,[&]{++disk_underruns;});
+    refill_thread=std::thread([&]{Temporal::TempoMap::fetch();DiskReader::allocate_working_buffers();
+     while(!refill_quit.load()){
+      for(auto& track:{reader_source,reader_reference}){const auto before=track->playback_buffer_load();need(track->do_refill()==0,"background disk refill");if(track->playback_buffer_load()>before+.01)++refill_increases;}
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+     }DiskReader::free_working_buffers();
+    });
    }
    bridge->start_worker();while(bridge->write.load()<bridge->capacity)std::this_thread::sleep_for(std::chrono::milliseconds(1));
    engine->dsp_stats[AudioEngine::ProcessCallback].queue_reset();s->request_roll();engine->set_session(s);
@@ -294,6 +310,7 @@ int main(int argc,char** argv){try{
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
    }
    engine->set_session(nullptr);bridge->stop_worker();
+   if(refill_thread.joinable()){refill_quit=true;refill_thread.join();std::cerr<<"DISK_REFILL increases="<<refill_increases.load()<<" underruns="<<disk_underruns.load()<<" configured_buffer_seconds="<<Config->get_audio_playback_buffer_seconds()<<std::endl;need(refill_increases>4&&disk_underruns==0,"ongoing refill incomplete or underrun");}
    if(cached_return)bus.route->internal_return()->set_cached_input_reader(nullptr,nullptr);
    std::cerr<<"CALLBACK wall_seconds="<<std::chrono::duration<double>(Clock::now()-run_start).count()<<" sample_rate="<<backend->sample_rate()<<" buffer="<<backend->buffer_size()<<" backend="<<backend_name<<std::endl;
    double error=0;unsigned error_index=0;double phases[4]={0,0,0,0};

@@ -19,9 +19,13 @@ cases = [(name, flags, 'anticipation_callback_probe.cc') for name, flags in case
 cases += [
     ('main-output-sidechain-64', dict(MAIN_OUTPUT=1, SIDECHAIN=1, AUTOMATION=1), 'anticipation_graph_probe.cc'),
     ('main-output-sidechain-128', dict(MAIN_OUTPUT=1, SIDECHAIN=1, AUTOMATION=1, BLOCK=128), 'anticipation_graph_probe.cc'),
-    ('automatic-pdc-64', dict(AUTOMATION=1), 'anticipation_pdc_probe.cc'),
-    ('automatic-pdc-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_pdc_probe.cc'),
+    ('automatic-pdc-64', dict(AUTOMATION=1, HOST_TIME=1), 'anticipation_pdc_probe.cc'),
+    ('automatic-pdc-128', dict(AUTOMATION=1, BLOCK=128, HOST_TIME=1), 'anticipation_pdc_probe.cc'),
     ('actual-eligibility-controls', {}, 'anticipation_eligibility_probe.cc'),
+    ('ongoing-disk-refill-64', dict(DISK_READER=1, TAP=1, AUTOMATION=1, REFILL=1), 'anticipation_callback_probe.cc'),
+    ('ongoing-disk-refill-128', dict(DISK_READER=1, TAP=1, AUTOMATION=1, REFILL=1, BLOCK=128), 'anticipation_callback_probe.cc'),
+    ('seek-edit-64', dict(AUTOMATION=1), 'anticipation_seek_probe.cc'),
+    ('seek-edit-128', dict(AUTOMATION=1, BLOCK=128), 'anticipation_seek_probe.cc'),
 ]
 results = []
 for name, flags, probe in cases:

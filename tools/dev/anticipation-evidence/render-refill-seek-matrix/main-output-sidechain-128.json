@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "normal_session_callback": true,
+  "backend": "Dummy Realtime",
+  "blocks": [
+    128
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "engine_mean_us": 197.419,
+  "engine_max_us": 1238,
+  "source_cutover": 587,
+  "bus_cutover": 587,
+  "peak": 0.197417,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 2666.6666666666665,
+  "observed_engine_max_us": 1238.0,
+  "measured_callback_budget_met": true,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [
+    "CACHED GRAPH source_cutover=587 bus_cutover=587 cached_return_blocks=2048 error=0 misses=0",
+    "SIDECHAIN blocks=2048 reference_blocks=2048 misses=0 peak=0.0223797 peak_gain_reduction_db=19.6553,19.6553",
+    "MAIN OUTPUT cached_blocks=2048 reference_blocks=2048 backend_leak_peak=0"
+  ],
+  "source_commit": "2e8c6e6d6469f417b9b51f5a7707bffc53060de6",
+  "linked_source_commit": "2e8c6e6d6469f417b9b51f5a7707bffc53060de6",
+  "library_sha256": "c86d50bb382d3f38bd3615e02310ae2b647230881f073e22f473b30dd125234b",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "25c124308fc3569e94af32cda0a1d8e3bbe09c8ed12c845eca76da34b2578e51",
+    "anticipation_capacity_probe.cc": "3ab81353f88d8df634dccfb17e0a43e85ebe787fdf7b29a685420e079b729b56",
+    "anticipation_eligibility_probe.cc": "103a8a5c7f3bacafc5aa563dbf9f3fbd0f37e565b9033fb6f5ead193f76c45e3",
+    "anticipation_graph_probe.cc": "af44ad61643168cb0e7f50dc64fb9c72babc27bf571de923b8837b571ce6376c",
+    "anticipation_pdc_probe.cc": "d0583548b8ee965b84cea0280d109f8ee2260e37787effe2d837a3edec0f05a6",
+    "anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+    "anticipation_seek_probe.cc": "75fa4afe8b2c04498d6aea780e2123d9e566c809804fb6d174e95dfdc51d767c",
+    "run-anticipation-probe.py": "f49955d8e2067c34dd79ec1e3a208b42f0e50b445886d0ab6299d42418f1a55d"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_MAIN_OUTPUT": "1",
+    "ARDOUR_PROBE_SIDECHAIN": "1",
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_BLOCK": "128",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-graph-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "compressor_plugin_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/anticipation_pdc_probe.cc",
+    " M tools/dev/anticipation_probe.cc",
+    " M tools/dev/run-anticipation-probe.py",
+    " M tools/dev/validate-anticipation.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation-evidence/host-time-before-fix.log",
+    "?? tools/dev/anticipation_seek_probe.cc",
+    "?? tools/dev/package-probe.py"
+  ]
+}
