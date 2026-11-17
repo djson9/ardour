@@ -54,10 +54,12 @@ struct AnticipativeProcess::RouteAdapter {
 	bool wired {false};
 	bool track;
 	samplepos_t continuous;
+	pframes_t max_frames;
 
 	RouteAdapter (AnticipativeProcess& p, std::shared_ptr<Route> r, Queue::Range const& first)
 		: plan (p), route (r), channels (ChanCount::max (r->max_processor_streams (), ChanCount::max (r->n_inputs (), r->n_outputs ()))),
-		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous)
+		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous),
+		  max_frames (p._session.engine ().samples_per_cycle ())
 	{
 		processing_channels = channels;
 		ChanCount packed = r->n_outputs ();
@@ -75,12 +77,12 @@ struct AnticipativeProcess::RouteAdapter {
 			Tap tap; tap.processor = proc; tap.send = send; tap.offset = packed;
 			tap.count = send ? send->get_buffers ().count () : proc->input_streams ();
 			tap.data.reset (new BufferSet); tap.delivery.reset (new BufferSet);
-			allocate (*tap.data, tap.count, first.frames); allocate (*tap.delivery, tap.count, first.frames);
+			allocate (*tap.data, tap.count, max_frames); allocate (*tap.delivery, tap.count, max_frames);
 			packed += tap.count; taps.push_back (std::move (tap));
 		});
 		channels = ChanCount::max (channels, packed);
-		allocate (work, processing_channels, first.frames); allocate (future_input, processing_channels, first.frames);
-		allocate (main, r->n_outputs (), first.frames); allocate (audible, channels, first.frames);
+		allocate (work, processing_channels, max_frames); allocate (future_input, processing_channels, max_frames);
+		allocate (main, r->n_outputs (), max_frames); allocate (audible, channels, max_frames);
 		main.set_count (r->n_outputs ());
 	}
 	~RouteAdapter () {
@@ -95,7 +97,7 @@ struct AnticipativeProcess::RouteAdapter {
 	size_t feed_for (Node& source) {
 		for (size_t i = 0; i < feeds.size (); ++i) { if (feeds[i].source == &source) { return i; } }
 		Feed f; f.source = &source; f.reader = &source.queue->add_reader (); f.input.reset (new BufferSet);
-		allocate (*f.input, source.adapter->channels, node->first.frames); feeds.push_back (std::move (f)); return feeds.size () - 1;
+		allocate (*f.input, source.adapter->channels, max_frames); feeds.push_back (std::move (f)); return feeds.size () - 1;
 	}
 	void wire () {
 		if (wired) { return; }
@@ -126,7 +128,7 @@ struct AnticipativeProcess::RouteAdapter {
 							for (; feed < feeds.size () && feeds[feed].source != candidate.get (); ++feed) {}
 							if (feed == feeds.size ()) {
 								Feed f; f.source = candidate.get (); f.reader = &candidate->queue->add_reader (); f.input.reset (new BufferSet);
-								allocate (*f.input, candidate->adapter->channels, node->first.frames); feeds.push_back (std::move (f));
+									allocate (*f.input, candidate->adapter->channels, max_frames); feeds.push_back (std::move (f));
 							}
 							target.push_back ({feed, *type, source, destination});
 						}
@@ -246,14 +248,14 @@ AnticipativeProcess::AnticipativeProcess (Session& session) : _session (session)
 AnticipativeProcess::~AnticipativeProcess () { clear (); }
 
 AnticipativeProcess::Node&
-AnticipativeProcess::add_route (std::shared_ptr<Route> route, Queue::Range const& first, uint32_t blocks)
+AnticipativeProcess::add_route (std::shared_ptr<Route> route, Queue::Range const& first, uint32_t blocks, Queue::NextRange next)
 {
 	if (running () || !route) { throw std::logic_error ("Route binding requires a stopped plan"); }
 	for (auto const& node : _nodes) { if (node->route == route) { throw std::invalid_argument ("Duplicate anticipation owner"); } }
 	auto adapter = std::make_shared<RouteAdapter> (*this, route, first);
-	Node& node = add (route, {adapter->channels, first.frames, blocks, 8192},
+	Node& node = add (route, {adapter->channels, adapter->max_frames, blocks, 8192},
 	                 [adapter] (BufferSet& b, Queue::Range const& r, bool live) { adapter->render (b, r, live); }, first,
-	                 Queue::NextRange (), [adapter] (Queue::Range const& r) { return adapter->ready (r); });
+	                 std::move (next), [adapter] (Queue::Range const& r) { return adapter->ready (r); });
 	node.adapter = adapter; adapter->node = &node; node.requires_live = adapter->requires_live;
 	for (auto& tap : adapter->taps) { if (tap.send) { tap.send->set_manual_cycle_start (true); } }
 	for (auto& side : adapter->side_inputs) { side->sidechain->set_cached_input_reader (&RouteAdapter::side_input, side.get ()); }

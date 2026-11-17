@@ -50,7 +50,8 @@ public:
 	Node& add (std::shared_ptr<Route>, Queue::Configuration const&, Queue::Render,
 	           Queue::Range const&, Queue::NextRange = Queue::NextRange (), Queue::Ready = Queue::Ready ());
 	/** Bind the original registered route DSP and main output to the plan. */
-	Node& add_route (std::shared_ptr<Route>, Queue::Range const&, uint32_t blocks);
+	Node& add_route (std::shared_ptr<Route>, Queue::Range const&, uint32_t blocks,
+	                 Queue::NextRange = Queue::NextRange ());
 	/** Control thread: snapshot existing direct edges, then start producers. */
 	void start (uint64_t generation);
 	/** Control thread, consumer quiescent: join all producers before mutation. */

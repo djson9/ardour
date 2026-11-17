@@ -397,6 +397,9 @@ Route::process_output_buffers (BufferSet& bufs,
 
 	PBD::RWLock::ReaderLock lm (_processor_lock, PBD::RWLock::TryLock);
 	if (!lm.locked()) {
+		if (owned_render) {
+			throw std::logic_error ("Anticipative route changed before its owner retired");
+		}
 		// can this actually happen?
 		// Places that need a WriterLock on (_processor_lock) must also take the process-lock.
 		bufs.silence (nframes, 0);
@@ -439,12 +442,12 @@ Route::process_output_buffers (BufferSet& bufs,
 		bool suffix = false;
 		bool own_amp = true, own_trim = true;
 		if (owned_render && _disk_reader) {
-		own_amp = own_trim = false;
-		for (auto const& proc : _processors) {
-			if (proc == _disk_reader) { suffix = true; }
-			if (suffix && proc == _amp) { own_amp = true; }
-			if (suffix && proc == _trim) { own_trim = true; }
-		}
+			own_amp = own_trim = false;
+			for (auto const& proc : _processors) {
+				if (proc == _disk_reader) { suffix = true; }
+				if (suffix && proc == _amp) { own_amp = true; }
+				if (suffix && proc == _trim) { own_trim = true; }
+			}
 		}
 		if (own_amp) {
 		_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
