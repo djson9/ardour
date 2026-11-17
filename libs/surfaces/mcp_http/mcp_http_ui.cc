@@ -9,6 +9,7 @@
 #include "gtkmm2ext/bindings.h"
 #include "pbd/event_loop.h"
 #include <ytkmm/window.h>
+#include <ytkmm/treeview.h>
 
 namespace {
 std::string quote (std::string const& s) {
@@ -73,6 +74,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 			if (!target || !KeyboardKey::make_key (key_name, key)) {
 				out << "{\"error\":\"Invalid key or window title\"}";
 			} else {
+				GdkKeymapKey* keymap_keys = nullptr;
+				gint n_keys = 0;
+				gdk_keymap_get_entries_for_keyval (gdk_keymap_get_default (), key.key (), &keymap_keys, &n_keys);
 				for (GdkEventType type : {GDK_KEY_PRESS, GDK_KEY_RELEASE}) {
 					GdkEvent* event = gdk_event_new (type);
 					event->key.window = GDK_WINDOW (g_object_ref (target->get_window ()->gobj ()));
@@ -80,9 +84,18 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 					event->key.time = GDK_CURRENT_TIME;
 					event->key.state = key.state ();
 					event->key.keyval = key.key ();
+					if (n_keys > 0) {
+						event->key.hardware_keycode = keymap_keys[0].keycode;
+						event->key.group = keymap_keys[0].group;
+					}
+					gchar text[7] = {};
+					gunichar character = gdk_keyval_to_unicode (key.key ());
+					event->key.length = character ? g_unichar_to_utf8 (character, text) : 0;
+					event->key.string = g_strdup (text);
 					gtk_main_do_event (event);
 					gdk_event_free (event);
 				}
+				g_free (keymap_keys);
 				out << "{\"delivered\":true}";
 			}
 		} else if (tool == "ui/activate_action") {
@@ -114,7 +127,19 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 				    << ",\"textEntry\":" << (w->get_focus () && GTK_IS_ENTRY (w->get_focus ()->gobj ()) ? "true" : "false")
 				    << ",\"modal\":" << (w->get_modal () ? "true" : "false")
 				    << ",\"focusName\":" << quote (w->get_focus () ? w->get_focus ()->get_name () : "")
-				    << ",\"focus\":" << quote (w->get_focus () ? G_OBJECT_TYPE_NAME (w->get_focus ()->gobj ()) : "") << "}";
+				    << ",\"focus\":" << quote (w->get_focus () ? G_OBJECT_TYPE_NAME (w->get_focus ()->gobj ()) : "");
+				if (w->get_focus () && GTK_IS_ENTRY (w->get_focus ()->gobj ())) {
+					out << ",\"focusText\":" << quote (gtk_entry_get_text (GTK_ENTRY (w->get_focus ()->gobj ())));
+				}
+				if (auto* view = dynamic_cast<Gtk::TreeView*> (w->get_focus ())) {
+					auto row = view->get_selection ()->get_selected ();
+					if (row && gtk_tree_model_get_column_type (view->get_model ()->gobj (), 0) == G_TYPE_STRING) {
+						std::string selected;
+						row->get_value (0, selected);
+						out << ",\"selectedChoice\":" << quote (selected);
+					}
+				}
+				out << "}";
 			}
 			out << "]}";
 		}

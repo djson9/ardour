@@ -24,6 +24,8 @@
  */
 
 #include <cmath>
+#include <ydk/gdkkeysyms.h>
+#include <ytkmm/cellrenderertext.h>
 
 #include <sigc++/bind.h>
 
@@ -37,6 +39,7 @@
 #include "pbd/convert.h"
 
 #include "gtkmm2ext/utils.h"
+#include "gtkmm2ext/keyboard.h"
 #include "gtkmm2ext/doi.h"
 
 #include "widgets/tooltips.h"
@@ -214,6 +217,44 @@ AddRouteDialog::AddRouteDialog ()
 	trk_template_model = TreeStore::create (track_template_columns);
 	trk_template_chooser.set_model (trk_template_model);
 	trk_template_chooser.append_column (_("Template/Type"), track_template_columns.name);
+	trk_template_chooser.set_name (X_("AddRouteDialogTypeChooser"));
+	/* Display shortcut hints without changing names used as template/type IDs. */
+	auto* type_renderer = dynamic_cast<Gtk::CellRendererText*> (trk_template_chooser.get_column_cell_renderer (0));
+	trk_template_chooser.get_column (0)->set_cell_data_func (*type_renderer,
+	    [this] (Gtk::CellRenderer* renderer, Gtk::TreeModel::iterator const& iter) {
+		std::string name = (*iter)[track_template_columns.name];
+		for (size_t i = 0; i < builtin_types.size (); ++i) {
+			if (name == builtin_types[i].first && std::string ((*iter)[track_template_columns.path]).empty ()) {
+				name = string_compose ("%1. %2", i + 1, name);
+				break;
+			}
+		}
+		static_cast<Gtk::CellRendererText*> (renderer)->property_text () = name;
+	    });
+	ArdourWidgets::set_tooltip (trk_template_chooser, _("Press 1–6 to choose a track type. Use Tab to edit its settings."));
+	signal_key_press_event ().connect ([this] (GdkEventKey* event) -> bool {
+		/* Names and quantities must still accept ordinary numeric input. */
+		Gtk::Widget* focus = get_focus ();
+		if ((focus && (GTK_IS_EDITABLE (focus->gobj ()) || GTK_IS_TEXT_VIEW (focus->gobj ()))) ||
+		    (event->state & (Keyboard::RelevantModifierKeyMask & ~Keyboard::CapsLockModifier))) {
+			return false;
+		}
+		guint key = event->keyval;
+		if (key >= GDK_KP_1 && key <= GDK_KP_6) key = GDK_1 + key - GDK_KP_1;
+		if (key < GDK_1 || key > GDK_6) return false;
+		std::string const& name = builtin_types[key - GDK_1].first;
+		for (auto const& row : trk_template_model->children ()) {
+			if (std::string (row[track_template_columns.name]) == name && std::string (row[track_template_columns.path]).empty ()) {
+				Gtk::TreeModel::Path path = trk_template_model->get_path (row);
+				trk_template_chooser.set_cursor (path);
+				trk_template_chooser.scroll_to_row (path);
+				trk_template_chooser.grab_focus ();
+				return true;
+			}
+		}
+		return false;
+	}, false);
+
 #ifdef MIXBUS
 	trk_template_chooser.append_column (_("Modified With"), track_template_columns.modified_with);
 #endif
@@ -904,13 +945,13 @@ AddRouteDialog::channels ()
 void
 AddRouteDialog::on_show ()
 {
-	routes_spinner.grab_focus ();
 	reset_name_edited ();
 
 	refill_route_groups ();
 	refill_channel_setups ();
 
 	Dialog::on_show ();
+	trk_template_chooser.grab_focus ();
 }
 
 void

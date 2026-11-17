@@ -31,6 +31,28 @@ The Keyboard Shortcuts window refreshes after a successful reload. Saving an
 invalid file and then restarting does not preserve the previous in-memory copy;
 fix the file before restarting.
 
+## Numbered track types
+
+Press N with an ordinary track selected to open Add Track/Bus/VCA. The chooser
+receives focus immediately, and the displayed numbers select these types without
+creating a route:
+
+1. Audio Tracks
+2. MIDI Tracks
+3. Audio Busses
+4. MIDI Busses
+5. VCA Masters
+6. Foldback Busses
+
+The number pad works too. Enter retains the existing Add and Close behavior.
+Numbers entered in the quantity/name fields remain text input. The underlying
+names used for templates and saved type preferences are unchanged.
+
+`verify-track-type-shortcuts.py --session-name 'Hotkey Verification'` checks the
+six choices, number pad, input fields, route counts, and reopening focus through
+MCP. On macOS it briefly activates Ardour for GTK's normal focus/navigation rules;
+leave the keyboard and mouse idle during this check.
+
 ## MCP
 
 Build with `libwebsockets` installed at configure time. Enable **MCP HTTP Server
