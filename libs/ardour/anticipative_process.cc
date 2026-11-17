@@ -481,6 +481,7 @@ AnticipativeProcess::clear ()
 	stop ();
 	for (auto const& route : _return_routes) { route->internal_return ()->set_cached_input_reader (nullptr, nullptr); }
 	_return_routes.clear ();
+	for (auto const& node : _nodes) { node->route->set_anticipative_status (Unbound, node->queue->underruns ()); }
 	_nodes.clear ();
 	_work.clear ();
 	_bound.store (false, std::memory_order_release);
@@ -516,6 +517,11 @@ AnticipativeProcess::begin_cycle ()
 				_work[tail++] = target;
 			}
 		}
+	}
+	for (auto const& node : _nodes) {
+		uint32_t reason = node->reason.load (std::memory_order_relaxed);
+		if (node->queue->state () == Queue::State::Fault) { reason |= RenderFault; }
+		node->route->set_anticipative_status (reason, node->queue->underruns ());
 	}
 }
 

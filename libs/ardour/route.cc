@@ -91,6 +91,7 @@
 #include "ardour/profile.h"
 #include "ardour/revision.h"
 #include "ardour/route.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/route_group.h"
 #include "ardour/scale.h"
 #include "ardour/send.h"
@@ -641,6 +642,30 @@ Route::process_output_buffers (BufferSet& bufs,
 		}
 #endif
 	}
+}
+
+void
+Route::set_anticipative_processing_disabled (bool disabled)
+{
+	if (_anticipation_disabled.exchange (disabled) == disabled) { return; }
+	_session.set_dirty ();
+	if (!disabled && !has_anticipative_owner ()) { _session.request_anticipative_refresh (); }
+}
+
+std::string
+Route::anticipative_status () const
+{
+	uint32_t reason = _anticipation_reason.load ();
+	if (reason & AnticipativeProcess::Unbound) { return _("Direct processing"); }
+	if (reason & AnticipativeProcess::RenderFault) { return _("Anticipation render error"); }
+	if (reason & AnticipativeProcess::Forced) { return _("Realtime: track override"); }
+	if (reason & AnticipativeProcess::Recording) { return _("Realtime: record armed"); }
+	if (reason & AnticipativeProcess::Monitoring) { return _("Realtime: input monitoring"); }
+	if (reason & AnticipativeProcess::ImmediateMidi) { return _("Realtime: immediate MIDI"); }
+	if (reason & AnticipativeProcess::OutputRoute) { return _("Realtime: output route"); }
+	if (reason & AnticipativeProcess::RequiredLive) { return _("Realtime: external or interactive processor"); }
+	if (reason & (AnticipativeProcess::UpstreamLive | AnticipativeProcess::UnmanagedUpstream)) { return _("Realtime: live upstream input"); }
+	return _("Rendering ahead");
 }
 
 void
@@ -2798,6 +2823,7 @@ Route::state (bool save_template) const
 
 	node->set_property (X_("active"), _active);
 	node->set_property (X_("denormal-protection"), _denormal_protection);
+	node->set_property (X_("anticipation-disabled"), anticipative_processing_disabled ());
 	node->set_property (X_("meter-point"), _meter_point);
 	node->set_property (X_("disk-io-point"), _disk_io_point);
 
@@ -3029,6 +3055,9 @@ Route::set_state (const XMLNode& node, int version)
 	}
 
 	bool denormal_protection;
+	bool anticipation_disabled = false;
+	node.get_property (X_("anticipation-disabled"), anticipation_disabled);
+	_anticipation_disabled.store (anticipation_disabled);
 	if (node.get_property (X_("denormal-protection"), denormal_protection)) {
 		set_denormal_protection (denormal_protection);
 	}

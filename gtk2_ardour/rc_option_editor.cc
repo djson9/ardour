@@ -5242,6 +5242,19 @@ These settings will only take effect after %1 is restarted.\n\
 	add_option (_("Performance"), dm);
 
 
+	add_option (_("Performance"), new OptionEditorHeading (_("Anticipative Processing")));
+	bo = new BoolOption (
+		"anticipative-processing", _("Render eligible playback tracks ahead (experimental)"),
+		sigc::mem_fun (*_rc_config, &RCConfiguration::get_anticipative_processing),
+		sigc::mem_fun (*_rc_config, &RCConfiguration::set_anticipative_processing));
+	bo->set_note (_("Keeps monitored tracks on the hardware buffer. Enabling monitoring waits for already rendered audio to finish."));
+	add_option (_("Performance"), bo);
+	add_option (_("Performance"), new SpinOption<uint32_t> (
+		"anticipation-milliseconds", _("Render ahead (milliseconds)"),
+		sigc::mem_fun (*_rc_config, &RCConfiguration::get_anticipation_milliseconds),
+		sigc::mem_fun (*_rc_config, &RCConfiguration::set_anticipation_milliseconds),
+		10, 1000, 10, 50));
+
 	add_option (_("Performance"), new OptionEditorHeading (_("Disk I/O Buffering"))); //ToDo: this changed, needs translation.  disambiguated from soundcard i/o buffering
 
 	add_option (_("Performance"), new BufferingOptions (_rc_config));

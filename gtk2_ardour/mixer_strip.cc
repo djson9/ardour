@@ -1158,6 +1158,16 @@ MixerStrip::build_route_ops_menu ()
 		items.push_back (CheckMenuElem (_("Protect Against Denormals"), sigc::mem_fun (*this, &RouteUI::toggle_denormal_protection)));
 		denormal_menu_item = dynamic_cast<Gtk::CheckMenuItem *> (&items.back());
 		denormal_menu_item->set_active (_route->denormal_protection());
+		items.push_back (CheckMenuElem (_("Force Realtime Processing")));
+		Gtk::CheckMenuItem* realtime = dynamic_cast<Gtk::CheckMenuItem*> (&items.back ());
+		realtime->set_active (_route->anticipative_processing_disabled ());
+		realtime->signal_activate ().connect (sigc::bind (
+			sigc::mem_fun (*_route, &Route::set_anticipative_processing_disabled),
+			!_route->anticipative_processing_disabled ()));
+		items.push_back (MenuElem (_route->anticipative_status ()));
+		items.back ().set_sensitive (false);
+		items.push_back (MenuElem (string_compose (_("Anticipation cache underruns: %1"), _route->anticipation_underruns ())));
+		items.back ().set_sensitive (false);
 	}
 
 	if (active && !_route->presentation_info().special (false)) {

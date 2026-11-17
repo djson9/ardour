@@ -128,9 +128,12 @@ public:
 	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input, bool run_disk_reader, bool include_oob, bool gain_automation);
 	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool include_oob);
 	void deliver_anticipative (BufferSet&, pframes_t);
-	void set_anticipative_processing_disabled (bool disabled) { _anticipation_disabled.store (disabled); }
+	void set_anticipative_processing_disabled (bool disabled);
 	bool anticipative_processing_disabled () const { return _anticipation_disabled.load (); }
 	bool has_anticipative_owner () const { return _render_consumer != nullptr; }
+	std::string anticipative_status () const;
+	uint64_t anticipation_underruns () const { return _anticipation_underruns.load (); }
+	void set_anticipative_status (uint32_t reason, uint64_t misses) { _anticipation_reason.store (reason); _anticipation_underruns.store (misses); }
 
 	virtual int init ();
 
@@ -652,6 +655,8 @@ protected:
 	void* _render_observer_context {nullptr};
 	std::atomic<bool> _render_declick {false};
 	std::atomic<bool> _anticipation_disabled {false};
+	std::atomic<uint32_t> _anticipation_reason {0x80000000u};
+	std::atomic<uint64_t> _anticipation_underruns {0};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 

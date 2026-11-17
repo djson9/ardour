@@ -366,6 +366,9 @@ Session::Session (AudioEngine &eng,
 	, tb_with_filled_slots (0)
 	, _global_quantization (Config->get_default_quantization())
 {
+	_anticipative_process.reset (new AnticipativeProcess (*this));
+	_anticipation_enabled.store (Config->get_anticipative_processing ());
+	_anticipation_horizon.store (std::max (1u, std::min (2000u, Config->get_anticipation_milliseconds ())));
 	_suspend_save.store (0);
 	_playback_load.store (0);
 	_capture_load.store (0);
@@ -643,14 +646,9 @@ void
 Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
 {
 	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
-	PBD::Mutex::Lock lock (_engine.process_lock ());
-	anticipative_process (); // publish a stable coordinator before enabling callbacks
 	_anticipation_horizon.store (milliseconds);
 	_anticipation_enabled.store (enabled);
-	if (transport_rolling () || (_anticipative_process && _anticipative_process->size ())) {
-		/* Reuse the normal reset/locate lifecycle before replacing the plan. */
-		request_locate (_transport_sample, true, transport_rolling () ? MustRoll : MustStop);
-	}
+	request_anticipative_refresh ();
 }
 
 unsigned int
@@ -6513,6 +6511,7 @@ Session::write_one_track (Track& track, samplepos_t start, samplepos_t end,
 	 * are available here.
 	 */
 	block_processing ();
+	retire_anticipation_for_edit ();
 
 	_bounce_processing_active = true;
 

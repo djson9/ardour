@@ -346,6 +346,7 @@ public:
 	/** Control thread: opt in to native plan preparation at transport start.
 	 * Experimental engine API; UI enablement awaits structural-edit barriers. */
 	void set_anticipative_processing (bool, uint32_t milliseconds = 200);
+	void request_anticipative_refresh () { _anticipation_settings_dirty.store (true); }
 	/** Non-RT, process lock held, before taking a route/IO mutation lock. */
 	void retire_anticipation_for_edit ();
 	/** RT, process lock held. False defers a pending structural mutation. */
@@ -2409,6 +2410,7 @@ private:
 	std::atomic<bool> _anticipation_prepare_failed {false};
 	std::atomic<bool> _anticipation_edit_pending {false};
 	std::atomic<bool> _anticipation_external_edit {false};
+	std::atomic<bool> _anticipation_settings_dirty {false};
 	bool _anticipation_retirement_scheduled {false}; // process lock held
 	bool _anticipation_priming {false}; // process callback only
 	bool _anticipation_prepare_requested {false}; // process callback only

@@ -414,6 +414,14 @@ Session::process_with_events (pframes_t nframes)
 		process_event (ev);
 	}
 
+	if (_anticipation_settings_dirty.load () && !non_realtime_work_pending () && !locate_pending () && !declick_in_progress ()) {
+		_anticipation_settings_dirty.store (false);
+		if (_anticipative_process->bound ()) {
+			anticipation_edit_ready ();
+		} else if (_anticipation_enabled.load () && transport_rolling () && !_anticipation_priming) {
+			request_locate (_transport_sample, true, MustRoll);
+		}
+	}
 	if (_anticipation_edit_pending.load ()) {
 		_silent = true;
 		return;
