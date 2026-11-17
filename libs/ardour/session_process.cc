@@ -92,6 +92,7 @@ Session::process (pframes_t nframes)
 	samplepos_t transport_at_start = _transport_sample;
 
 	setup_thread_local_variables ();
+	_transport_fsm->retry_pending_events ();
 
 	if (non_realtime_work_pending()) {
 		DEBUG_TRACE (DEBUG::Butler, string_compose ("non-realtime work pending: %1 (%2%3%4)\n", enum_2_string (post_transport_work()), std::hex, post_transport_work(), std::dec));
@@ -164,6 +165,12 @@ Session::process (pframes_t nframes)
 	 * 2) is the transport FSM waiting to be told this
 	 */
 
+	if (_anticipative_process && _anticipative_process->size () &&
+	    !_anticipative_process->running () && _anticipative_process->quiescent ()) {
+		/* Queues were cancelled before the transport event entered the FSM.
+		 * Their future DiskReader fade state is not an audible declick. */
+		one_or_more_routes_declicking = false;
+	}
 	if (!one_or_more_routes_declicking && declick_in_progress()) {
 		/* end of the declick has been reached by all routes */
 		TFSM_EVENT (TransportFSM::DeclickDone);

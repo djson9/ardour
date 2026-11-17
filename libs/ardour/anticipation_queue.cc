@@ -75,8 +75,15 @@ AnticipationQueue::start (Range const& first, uint64_t generation, bool initiall
 	_discontinuities.store (0);
 	_live_handoffs.store (0);
 	_quit.store (false);
+	_exited.store (false, std::memory_order_release);
 	_state.store (initially_live ? State::Live : State::Ahead, std::memory_order_release);
-	_worker = std::thread (&AnticipationQueue::worker, this);
+	try {
+		_worker = std::thread (&AnticipationQueue::worker, this);
+	} catch (...) {
+		_exited.store (true, std::memory_order_release);
+		_state.store (State::Stopped, std::memory_order_release);
+		throw;
+	}
 }
 
 void
@@ -175,6 +182,7 @@ AnticipationQueue::worker ()
 		}
 	}
 	process_thread.drop_buffers ();
+	_exited.store (true, std::memory_order_release);
 }
 
 AnticipationQueue::Result

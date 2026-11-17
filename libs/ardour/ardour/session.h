@@ -342,6 +342,7 @@ public:
 	/** Control thread, consumer quiescent: obtain the session-owned render plan.
 	 * Register route adapters before starting it; clear it before route mutation. */
 	AnticipativeProcess& anticipative_process ();
+	bool transport_change_ready () override;
 
 	std::shared_ptr<RTTaskList> rt_tasklist () { return _rt_tasklist; }
 	std::shared_ptr<IOTaskList> io_tasklist () { return _io_tasklist; }

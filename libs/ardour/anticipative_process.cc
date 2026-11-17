@@ -101,12 +101,14 @@ struct AnticipativeProcess::RouteAdapter {
 	samplepos_t continuous;
 	pframes_t max_frames;
 	samplecnt_t reader_start;
+	samplepos_t last_project_end;
 
 	RouteAdapter (AnticipativeProcess& p, std::shared_ptr<Route> r, Queue::Range const& first)
 		: plan (p), route (r), channels (ChanCount::max (r->max_processor_streams (), ChanCount::max (r->n_inputs (), r->n_outputs ()))),
 		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous),
 		  max_frames (p._session.engine ().samples_per_cycle ()),
-		  reader_start (track ? std::max (samplecnt_t (0), p._session.worst_latency_preroll_buffer_size_ceil () - r->playback_latency ()) : 0)
+		  reader_start (track ? std::max (samplecnt_t (0), p._session.worst_latency_preroll_buffer_size_ceil () - r->playback_latency ()) : 0),
+		  last_project_end (first.project)
 	{
 		processing_channels = channels;
 		ChanCount packed = r->n_outputs ();
@@ -225,6 +227,8 @@ struct AnticipativeProcess::RouteAdapter {
 	void render (BufferSet& b, Queue::Range const& range, bool live) {
 		struct Scope { RouteAdapter* previous; Scope(RouteAdapter* self):previous(current){current=self;} ~Scope(){current=previous;} } scope(this);
 		rendering_future = !live;
+		if (range.project != last_project_end) { route->realtime_locate (true); }
+		last_project_end = range.project + range.frames;
 		work.set_count (processing_channels); work.silence (range.frames, 0);
 		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { work.get_midi (c).clear (); }
 		work.read_from (live ? b : future_input, range.frames);
@@ -250,8 +254,13 @@ struct AnticipativeProcess::RouteAdapter {
 	}
 	static bool consume (void* context, BufferSet& input, samplepos_t start, samplepos_t end, pframes_t nframes, bool moving) {
 		auto& self = *static_cast<RouteAdapter*> (context);
-		if ((!moving && !self.plan._session.remaining_latency_preroll ()) || !self.plan.running ()) { self.route->output ()->silence (nframes); return true; }
+		if (!moving && !self.plan._session.remaining_latency_preroll ()) { self.route->output ()->silence (nframes); return true; }
 		self.route->capture_anticipative_input (input, start, end, nframes);
+		if (!self.plan.running ()) {
+			self.audible.silence (nframes, 0);
+			for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
+			self.route->output ()->silence (nframes); return true;
+		}
 		for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
 		self.audible.read_from (input, nframes);
 		self.plan.process (*self.node, self.audible, {start, self.continuous, nframes});
@@ -347,7 +356,7 @@ AnticipativeProcess::start (uint64_t generation)
 	_generation = generation;
 	_work.resize (_nodes.size ());
 	for (auto& node : _nodes) {
-		if (node->adapter) { node->adapter->wire (); node->adapter->continuous = node->first.continuous; }
+		if (node->adapter) { node->adapter->wire (); node->adapter->continuous = node->first.continuous; node->adapter->last_project_end = node->first.project; }
 	}
 	auto routes = _session.get_routes ();
 	if (_return_routes.empty ()) {
@@ -382,9 +391,30 @@ AnticipativeProcess::start (uint64_t generation)
 }
 
 void
-AnticipativeProcess::stop ()
+AnticipativeProcess::suspend ()
 {
 	_running.store (false, std::memory_order_release);
+	for (auto& node : _nodes) { node->queue->request_stop (); }
+}
+
+bool
+AnticipativeProcess::quiescent () const
+{
+	for (auto const& node : _nodes) { if (!node->queue->quiescent ()) { return false; } }
+	return true;
+}
+
+bool
+AnticipativeProcess::owns (Route const* route) const
+{
+	for (auto const& node : _nodes) { if (node->adapter && node->route.get () == route) { return true; } }
+	return false;
+}
+
+void
+AnticipativeProcess::stop ()
+{
+	suspend ();
 	/* Readiness predicates never wait inside DSP; stopping any source cannot
 	 * deadlock a downstream queue waiting for an unpublished range. */
 	for (auto& node : _nodes) { node->queue->stop (); }

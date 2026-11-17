@@ -58,6 +58,10 @@ public:
 	void start (Range const&, uint64_t generation, bool initially_live = false);
 	/** Non-RT; joins the producer before allowing DSP mutation/destruction. */
 	void stop ();
+	/** RT cancellation. The owner must stop consuming before requesting this.
+	 * quiescent() acknowledges the final job without joining on the callback. */
+	void request_stop () { _quit.store (true, std::memory_order_release); }
+	bool quiescent () const { return _exited.load (std::memory_order_acquire); }
 	/** RT; false live request resumes ahead rendering after the last live call. */
 	Result process (BufferSet&, Range const&, bool want_live, uint64_t generation);
 
@@ -111,6 +115,7 @@ private:
 	std::thread _worker;
 	std::atomic<State> _state;
 	std::atomic<bool> _quit;
+	std::atomic<bool> _exited {true};
 	std::atomic<uint64_t> _read;
 	std::atomic<uint64_t> _write;
 	std::atomic<uint64_t> _underruns;

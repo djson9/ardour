@@ -192,6 +192,7 @@ struct TransportFSM
 	bool will_roll_forwards() const;
 
 	void enqueue (Event* ev);
+	void retry_pending_events () { if (!processing) { process_events (); } }
 
   private:
 

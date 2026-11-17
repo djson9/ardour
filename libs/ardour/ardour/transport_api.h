@@ -33,6 +33,9 @@ class LIBARDOUR_API TransportAPI
 
   private:
 	friend struct TransportFSM;
+	/** RT guard before a discontinuity. False leaves the event queued, without
+	 * changing transport state or waiting for asynchronous DSP owners. */
+	virtual bool transport_change_ready () { return true; }
 
 	virtual void locate (samplepos_t, bool with_loop=false, bool force=false, bool with_mmc=true) = 0;
 	virtual bool should_stop_before_locate () const = 0;

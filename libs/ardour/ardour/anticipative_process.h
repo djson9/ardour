@@ -71,6 +71,10 @@ public:
 	/** Control thread, consumer quiescent: join all producers before mutation. */
 	void stop ();
 	void clear ();
+	/** RT: cancel future work; acknowledgement precedes transport DSP mutation. */
+	void suspend ();
+	bool quiescent () const;
+	bool owns (Route const*) const;
 
 	/** RT, before the normal route graph: recompute the live dependency closure. */
 	void begin_cycle ();

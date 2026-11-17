@@ -77,12 +77,22 @@ using namespace Temporal;
 #define TFSM_EVENT(evtype) { _transport_fsm->enqueue (new TransportFSM::Event (evtype)); }
 #define TFSM_ROLL() { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::StartTransport)); }
 #define TFSM_STOP(abort,clear) { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::StopTransport,abort,clear)); }
+#include "ardour/anticipative_process.h"
+
 #define TFSM_LOCATE(target,ltd,loop,force) { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::Locate,target,ltd,loop,force)); }
 #define TFSM_SPEED(speed) { _transport_fsm->enqueue (new TransportFSM::Event (speed)); }
 
 /* *****************************************************************************
  * REALTIME ACTIONS (to be called on state transitions)
  * ****************************************************************************/
+
+bool
+Session::transport_change_ready ()
+{
+	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
+	_anticipative_process->suspend ();
+	return _anticipative_process->quiescent ();
+}
 
 void
 Session::realtime_stop (bool abort, bool clear_state)
@@ -212,7 +222,11 @@ Session::locate (samplepos_t target_sample, bool for_loop_end, bool force, bool 
 
 	std::shared_ptr<RouteList const> r = routes.reader ();
 	for (auto const& i : *r) {
-		i->realtime_locate (for_loop_end);
+		/* A predictable loop belongs to the route's DSP owner. Its future
+		 * MidiTrack/DiskReader has already crossed this boundary. */
+		if (!for_loop_end || !_anticipative_process || !_anticipative_process->owns (i.get ())) {
+			i->realtime_locate (for_loop_end);
+		}
 	}
 
 	if (force || !for_loop_end) {
@@ -1194,6 +1208,15 @@ Session::butler_transport_work (bool have_process_lock)
 	int on_entry = _butler->should_do_transport_work.load();
 	bool finished = true;
 	PostTransportWork ptw = post_transport_work();
+	if (_anticipative_process && _anticipative_process->size () &&
+	    (ptw & (PostTransportStop | PostTransportLocate | PostTransportReverse))) {
+		/* The callback cancels producers and waits for acknowledgement through
+		 * the FSM guard. Reclaim bindings here, before existing disk/plugin reset.
+		 * The backend only try-locks this mutex; it never joins a producer. */
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		_anticipative_process->clear ();
+	}
 #ifndef NDEBUG
 	uint64_t before = g_get_monotonic_time();
 #endif
