@@ -49,8 +49,10 @@
 
 #include "ardour/amp.h"
 #include "ardour/audio_track.h"
+#include "ardour/audioengine.h"
 #include "ardour/audioregion.h"
 #include "ardour/dB.h"
+#include "ardour/disk_reader.h"
 #include "ardour/internal_send.h"
 #include "ardour/location.h"
 #include "ardour/midi_model.h"
@@ -462,6 +464,8 @@ session_info_json (ARDOUR::Session& session)
 	ss << "{\"sessionName\":\"" << json_escape (session.name ()) << "\""
 	   << ",\"sessionPath\":\"" << json_escape (session.path ()) << "\""
 	   << ",\"sampleRate\":" << session.nominal_sample_rate ()
+       << ",\"audioEngine\":{\"backend\":\"" << json_escape (session.engine ().current_backend_name ()) << "\",\"bufferFrames\":" << session.engine ().samples_per_cycle ()
+       << ",\"dspLoad\":" << session.engine ().get_dsp_load () << ",\"xruns\":" << session.get_xrun_count () << "}"
 	   << ",\"tempoBpm\":" << transport_tempo_bpm (session)
 	   << ",\"transport\":" << transport_state_json (session)
 	   << "}";
@@ -3288,6 +3292,14 @@ handle_track_get_info_tool (ARDOUR::Session& session, const pt::ptree& root, con
 	}
 
 	std::string structured = track_info_json (route);
+ route->foreach_processor ([&] (std::weak_ptr<ARDOUR::Processor> weak) {
+  if (auto reader = std::dynamic_pointer_cast<ARDOUR::DiskReader> (weak.lock ())) {
+   const auto stats = reader->warp_preview ().statistics ();
+   std::ostringstream out;out << ",\"warpPreview\":{\"requestedGeneration\":" << stats.requested << ",\"activeGeneration\":" << stats.active
+    << ",\"switches\":" << stats.switches << ",\"processedFrames\":" << stats.frames << ",\"changedSamples\":" << stats.changed_samples << ",\"missedWindows\":" << stats.missed_windows << "}";
+   structured.insert (structured.size ()-1, out.str ());
+  }
+ });
 	return jsonrpc_result (
 	    id,
 	    std::string ("{\"content\":[{\"type\":\"text\",\"text\":\"Route info\"}],\"structuredContent\":") + structured + "}");
@@ -8055,11 +8067,19 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 
 	if (method == "tools/call") {
 		std::string tool_name = canonical_tool_name (root.get<std::string> ("params.name", ""));
-		if (tool_name == "ui/get_logs" || tool_name == "ui/get_state" || tool_name == "ui/activate_action" || tool_name == "ui/press_key" || tool_name == "ui/close_dialog") {
+        if (tool_name == "ui/canvas_pointer") {
+            const double x = root.get<double> ("params.arguments.x", -1), y = root.get<double> ("params.arguments.y", -1);
+            if (!std::isfinite (x) || !std::isfinite (y) || x < 0 || y < 0) return jsonrpc_error (id, -32602, "Invalid canvas coordinates");
+            std::ostringstream coordinates; coordinates.imbue (std::locale::classic ());
+            coordinates << std::setprecision (17) << x << ' ' << y << ' ' << root.get<bool> ("params.arguments.shift", false) << ' ' << root.get<bool> ("params.arguments.buttonDown", false);
+            const auto result = mcp_ui_call (_event_loop, tool_name, root.get<std::string> ("params.arguments.event", ""), root.get<std::string> ("params.arguments.canvas", ""), coordinates.str (), root.get<std::string> ("params.arguments.window", ""));
+            return jsonrpc_result (id, "{\"structuredContent\":" + result + ",\"content\":[{\"type\":\"text\",\"text\":\"Canvas pointer event\"}]}");
+        }
+		if (tool_name == "ui/set_warp_control" || tool_name == "ui/get_logs" || tool_name == "ui/get_state" || tool_name == "ui/activate_action" || tool_name == "ui/press_key" || tool_name == "ui/close_dialog") {
 			std::string result = mcp_ui_call (_event_loop, tool_name,
-			    root.get<std::string> ("params.arguments.action", ""),
+			    root.get<std::string> (tool_name == "ui/set_warp_control" ? "params.arguments.control" : "params.arguments.action", ""),
 			    root.get<std::string> ("params.arguments.group", "Global"),
-			    root.get<std::string> ("params.arguments.key", ""),
+			    root.get<std::string> (tool_name == "ui/set_warp_control" ? "params.arguments.value" : "params.arguments.key", ""),
 			    root.get<std::string> ("params.arguments.window", ""));
 			return jsonrpc_result (id, "{\"content\":[{\"type\":\"text\",\"text\":" + std::string ("\"") + json_escape (result) + "\"}],\"structuredContent\":" + result + "}");
 		}
@@ -8079,6 +8099,38 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 		std::string track_tool_response;
 		if (dispatch_track_tool_call (_session, tool_name, root, id, track_tool_response)) {
 			return track_tool_response;
+		}
+
+		/* Undo commands can change editor selection and destroy region views.
+		 * Execute their entire history transaction on the GUI event loop. */
+		if (tool_name == "session/undo" || tool_name == "session/redo") {
+			if (!_event_loop) return jsonrpc_error (id, -32000, "UI event loop unavailable");
+			struct HistoryReply {
+				std::mutex mutex;
+				std::condition_variable cv;
+				bool done = false;
+				bool cancelled = false;
+				std::string response;
+			};
+			auto reply = std::make_shared<HistoryReply> ();
+			const bool queued = _event_loop->call_slot (MISSING_INVALIDATOR, [this, reply, tool_name, root, id] {
+				std::lock_guard<std::mutex> lock (reply->mutex);
+				if (reply->cancelled) return;
+				try {
+					dispatch_session_tool_call (_session, tool_name, root, id, reply->response);
+				} catch (std::exception const& e) {
+					reply->response = jsonrpc_error (id, -32000, e.what ());
+				}
+				reply->done = true;
+				reply->cv.notify_one ();
+			});
+			if (!queued) return jsonrpc_error (id, -32000, "Cannot queue history operation");
+			std::unique_lock<std::mutex> lock (reply->mutex);
+			if (!reply->cv.wait_for (lock, std::chrono::seconds (2), [&] { return reply->done; })) {
+				reply->cancelled = true;
+				return jsonrpc_error (id, -32000, "UI history operation timed out");
+			}
+			return reply->response;
 		}
 
 		std::string session_tool_response;

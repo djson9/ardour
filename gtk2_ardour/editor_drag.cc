@@ -67,6 +67,8 @@
 #include "cue_editor.h"
 #include "debug.h"
 #include "editor.h"
+#include "clip_warp.h"
+#include "clip_warp_preview.h"
 #include "editor_cursors.h"
 #include "editor_drag.h"
 #include "gui_thread.h"
@@ -5439,12 +5441,15 @@ RubberbandSelectDrag::aborted (bool)
 	editing_context.rubberband_rect->hide ();
 }
 
-TimeFXDrag::TimeFXDrag (Editor& e, ArdourCanvas::Item* i, RegionView* p, std::list<RegionView*> const& v, Temporal::TimeDomain td)
+TimeFXDrag::TimeFXDrag (Editor& e, ArdourCanvas::Item* i, RegionView* p, std::list<RegionView*> const& v, Temporal::TimeDomain td, bool clip_warp)
 	: RegionDrag (e, i, p, v, td)
 {
 	DEBUG_TRACE (DEBUG::Drags, "New TimeFXDrag\n");
+	_clip_warp = clip_warp;
 	_preview_video = false;
 }
+
+TimeFXDrag::~TimeFXDrag () {}
 
 void
 TimeFXDrag::start_grab (GdkEvent* event, Gdk::Cursor* cursor)
@@ -5458,6 +5463,10 @@ TimeFXDrag::start_grab (GdkEvent* event, Gdk::Cursor* cursor)
 	timepos_t clicked_pos = adjusted_current_time (event);
 	show_verbose_cursor_duration (where, clicked_pos, 0);
 	_dragging_start = clicked_pos < _primary->region ()->position () + _primary->region ()->length ().scale(ratio_t(1, 2));
+ if (_clip_warp && editing_context.session ()) {
+  if (auto* axis = dynamic_cast<RouteTimeAxisView*> (&_primary->get_time_axis_view ()))
+   _warp_preview.reset (new ClipWarpPreview (*editing_context.session (), _primary->region (), axis->route ()));
+ }
 }
 
 void
@@ -5471,7 +5480,8 @@ TimeFXDrag::motion (GdkEvent* event, bool)
 	int       layers = tv.first->layer_display () == Overlaid ? 1 : cv->layers ();
 	timepos_t pf (editing_context.canvas_event_time (event) + snap_delta (event->button.state));
 
-	editing_context.snap_to_with_modifier (pf, event);
+	if (_clip_warp) editing_context.snap_to (pf, Temporal::RoundNearest, ARDOUR::SnapToGrid_Scaled, true);
+	else editing_context.snap_to_with_modifier (pf, event);
 	pf.shift_earlier (snap_delta (event->button.state));
 
 	if (_dragging_start) {
@@ -5485,6 +5495,16 @@ TimeFXDrag::motion (GdkEvent* event, bool)
 		}
 	}
 
+ if (_warp_preview) {
+  const auto region = _primary->region ();
+  const auto length = _dragging_start ? pf.distance (region->end_position ()) : region->position ().distance (pf);
+  const double ratio = double (length.samples ()) / region->length_samples ();
+  if (ratio > 0. && region->stretch ()*ratio >= .25 && region->stretch ()*ratio <= 4.) {
+   const double tempo = Temporal::TempoMap::use ()->tempo_at (region->position ()).quarter_notes_per_minute ();
+   auto settings = ClipWarpSettings::read (*region, tempo);settings.bpm *= ratio;
+   _warp_preview->update (settings, ratio, _dragging_start);
+  }
+ }
 	show_verbose_cursor_duration (_primary->region ()->position (), pf);
 }
 
@@ -5501,6 +5521,7 @@ TimeFXDrag::finished (GdkEvent* event, bool movement_occurred)
 		return;
 	}
 
+	if (!movement_occurred && _clip_warp) { _primary->get_time_axis_view ().hide_timestretch (); return; }
 	if (!movement_occurred) {
 		_primary->get_time_axis_view ().hide_timestretch ();
 
@@ -5517,6 +5538,11 @@ TimeFXDrag::finished (GdkEvent* event, bool movement_occurred)
 	_primary->get_time_axis_view ().hide_timestretch ();
 
 	timepos_t adjusted_pos = adjusted_current_time (event);
+	if (_clip_warp) {
+	 adjusted_pos = editing_context.canvas_event_time (event) + snap_delta (event->button.state);
+	 editing_context.snap_to (adjusted_pos, Temporal::RoundNearest, ARDOUR::SnapToGrid_Scaled, true);
+	 adjusted_pos.shift_earlier (snap_delta (event->button.state));
+	}
 	timecnt_t newlen;
 
 	if (_dragging_start) {
@@ -5524,7 +5550,7 @@ TimeFXDrag::finished (GdkEvent* event, bool movement_occurred)
 			/* forwards drag of the right edge - not usable */
 			return;
 		}
-		newlen = _primary->region ()->end_position ().distance (adjusted_pos);
+		newlen = adjusted_pos.distance (_primary->region ()->end_position ());
 	} else {
 		if (adjusted_pos < _primary->region ()->position ()) {
 			/* backwards drag of the left edge - not usable */
@@ -5546,6 +5572,15 @@ TimeFXDrag::finished (GdkEvent* event, bool movement_occurred)
 	   selection.
 	*/
 
+	if (_clip_warp) {
+	 auto region = _primary->region ();
+	 const double tempo = Temporal::TempoMap::use ()->tempo_at (region->position ()).quarter_notes_per_minute ();
+	 auto settings = ClipWarpSettings::read (*region, tempo);
+	 settings.bpm *= ratio.to_double ();
+	 _editor.apply_clip_warp (region, settings, ratio.to_double (), _dragging_start);
+	 _warp_preview.reset ();
+	 return;
+	}
 	if (_editor.time_stretch (editing_context.get_selection ().regions, ratio, _dragging_start) == -1) {
 		error << _("An error occurred while executing time stretch operation") << endmsg;
 	}
@@ -5554,6 +5589,7 @@ TimeFXDrag::finished (GdkEvent* event, bool movement_occurred)
 void
 TimeFXDrag::aborted (bool)
 {
+ _warp_preview.reset ();
 	_primary->get_time_axis_view ().hide_timestretch ();
 }
 

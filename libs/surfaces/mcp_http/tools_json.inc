@@ -3700,6 +3700,75 @@ R"mcp(
         "properties": {},
         "additionalProperties": false
       }
+    },
+    {
+      "name": "ui_set_warp_control",
+      "description": "Set one visible clip Warp control by its stable warp-* control ID. Values are strings: true/false for toggles, a number for spinners, or a zero-based mode/choice index. The clip must be selected and its properties visible. Changes render asynchronously; inspect ui_get_state and region_get_info afterward.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "control": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "window": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "control",
+          "value",
+          "window"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ui_canvas_pointer",
+      "description": "Send one pointer event to the named visible Ardour canvas through its normal GTK handler. Coordinates are canvas-local pixels. For a drag send move, press, move(s) with buttonDown=true, then release. Shift requests the normal Shift modifier. Inspect canvas dimensions via ui_get_state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string"
+          },
+          "canvas": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "move",
+              "press",
+              "release"
+            ]
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0
+          },
+          "shift": {
+            "type": "boolean"
+          },
+          "buttonDown": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "window",
+          "canvas",
+          "event",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

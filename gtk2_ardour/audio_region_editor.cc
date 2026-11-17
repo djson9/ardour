@@ -37,6 +37,7 @@
 
 #include "audio_region_editor.h"
 #include "audio_region_view.h"
+#include "editor.h"
 #include "gui_thread.h"
 #include "public_editor.h"
 
@@ -126,10 +127,13 @@ AudioRegionEditor::AudioRegionEditor (Session* s, AudioRegionView* arv)
 	UI::instance()->set_tip (_fade_before_fx_toggle, _("Apply region effects after the region fade.\nThis is useful if the effect(s) have tail, which would otherwise be faded out by the region fade (e.g. reverb, delay)"));
 	UI::instance()->set_tip (_show_on_touch, _("When touching a control in a region effect plugin UI, the corresponding region-automation line is shown the editor, and edit mode is set to 'draw'."));
 
+	setup_warp_controls ();
 	gain_changed ();
 	fade_before_fx_changed ();
 	refill_region_line ();
 	_table_main.show_all ();
+	warp_controls_changed ();
+	_warp_updating = false;
 
 	_gain_adjustment.signal_value_changed ().connect (sigc::mem_fun (*this, &AudioRegionEditor::gain_adjustment_changed));
 	_polarity_toggle.signal_toggled ().connect (sigc::mem_fun (*this, &AudioRegionEditor::gain_adjustment_changed));
@@ -153,6 +157,7 @@ AudioRegionEditor::AudioRegionEditor (Session* s, AudioRegionView* arv)
 AudioRegionEditor::~AudioRegionEditor ()
 {
 	void* v;
+	_warp_pending.disconnect ();
 	_peak_amplitude_connection.disconnect ();
 	_peak_channel.deliver ('t');
 	Progress::cancel ();
@@ -375,4 +380,108 @@ void
 AudioRegionEditor::on_unmap ()
 {
 	_show_on_touch.set_active (false);
+}
+
+void
+AudioRegionEditor::setup_warp_controls ()
+{
+ _warp_enabled.set_name ("warp-enabled");
+ _warp_reverse.set_name ("warp-reverse");
+ _warp_mode.set_name ("warp-mode");
+ _warp_bpm.set_name ("warp-bpm");
+ _warp_pitch.set_name ("warp-pitch");
+ _warp_cents.set_name ("warp-cents");
+ _warp_grain.set_name ("warp-grain");
+ _warp_flux.set_name ("warp-flux");
+ _warp_formants.set_name ("warp-formants");
+ _warp_envelope.set_name ("warp-envelope");
+ _warp_transient.set_name ("warp-transient-envelope");
+ _warp_preserve.set_name ("warp-preserve");
+ _warp_loop.set_name ("warp-loop");
+ const double tempo = Temporal::TempoMap::use ()->tempo_at (_audio_region->position ()).quarter_notes_per_minute ();
+ _warp_settings = ClipWarpSettings::read (*_audio_region, tempo);
+ _warp_box.set_spacing (6); _warp_box.set_border_width (8);
+ _warp_enabled.set_label (_("Warp")); _warp_enabled.set_active (_warp_settings.enabled);
+ _warp_reverse.set_label (_("Reverse")); _warp_reverse.set_active (_warp_settings.reverse);
+ const char* modes[] = {"beats", "tones", "texture", "repitch", "complex", "complex-pro"};
+ const char* labels[] = {"Beats", "Tones", "Texture", "Re-Pitch", "Complex", "Complex Pro"};
+ int active = 5;
+ for (int i = 0; i < 6; ++i) { _warp_mode.append_text (labels[i]); if (_warp_settings.mode == modes[i]) active = i; }
+ _warp_mode.set_active (active);
+ auto add = [] (Gtk::HBox& box, const char* label, Gtk::Widget& control) {
+  box.set_spacing (5); box.pack_start (*Gtk::manage (new Gtk::Label (label)), false, false); box.pack_start (control, false, false);
+ };
+ auto spin = [] (Gtk::SpinButton& button, double lo, double hi, double step, int digits, double value) {
+  button.set_range (lo, hi); button.set_increments (step, step * 10); button.set_digits (digits); button.set_numeric (true); button.set_width_chars (5); button.set_value (value);
+ };
+ spin (_warp_bpm, 1., 999., .1, 2, _warp_settings.bpm);
+ const double semitones = std::trunc (_warp_settings.pitch);
+ spin (_warp_pitch, -24., 24., 1., 0, semitones);
+ spin (_warp_cents, -99., 99., 1., 0, (_warp_settings.pitch - semitones) * 100.);
+ spin (_warp_grain, 2., 500., 1., 1, _warp_settings.grain);
+ spin (_warp_flux, 0., 100., 1., 0, _warp_settings.flux);
+ spin (_warp_formants, 0., 100., 1., 0, _warp_settings.formants);
+ spin (_warp_envelope, 16., 512., 1., 0, _warp_settings.envelope);
+ spin (_warp_transient, 0., 100., 1., 0, _warp_settings.transient_envelope);
+ Gtk::HBox* row = Gtk::manage (new Gtk::HBox);
+ row->set_spacing (6); row->pack_start (_warp_enabled, false, false); row->pack_start (_warp_mode, false, false); row->pack_start (_warp_reverse, false, false);
+ _warp_box.pack_start (*row, false, false);
+ row = Gtk::manage (new Gtk::HBox); add (*row, _("Source BPM"), _warp_bpm);
+ Gtk::Button* half = Gtk::manage (new Gtk::Button ("÷2")); Gtk::Button* twice = Gtk::manage (new Gtk::Button ("×2"));
+ row->pack_start (*half, false, false); row->pack_start (*twice, false, false); _warp_box.pack_start (*row, false, false);
+ half->signal_clicked ().connect ([this] () { _warp_bpm.set_value (_warp_bpm.get_value () / 2.); });
+ twice->signal_clicked ().connect ([this] () { _warp_bpm.set_value (_warp_bpm.get_value () * 2.); });
+ row = Gtk::manage (new Gtk::HBox); add (*row, _("Pitch"), _warp_pitch); add (*row, _("cents"), _warp_cents); _warp_box.pack_start (*row, false, false);
+ add (_warp_grain_row, _("Grain ms"), _warp_grain); add (_warp_grain_row, _("Flux %"), _warp_flux); _warp_box.pack_start (_warp_grain_row, false, false);
+ add (_warp_pro_row, _("Formants %"), _warp_formants); add (_warp_pro_row, _("Envelope"), _warp_envelope); _warp_box.pack_start (_warp_pro_row, false, false);
+ for (const char* p : {"Transients", "1/4", "1/8", "1/16", "1/32"}) _warp_preserve.append_text (p);
+ _warp_preserve.set_active (_warp_settings.preserve);
+ for (const char* p : {"Off", "Forward", "Back-and-forth"}) _warp_loop.append_text (p);
+ _warp_loop.set_active (_warp_settings.loop);
+ add (_warp_beats_row, _("Preserve"), _warp_preserve); add (_warp_beats_row, _("Loop"), _warp_loop); add (_warp_beats_row, _("Envelope %"), _warp_transient);
+ _warp_box.pack_start (_warp_beats_row, false, false);
+ _warp_status.set_alignment (0, .5); _warp_status.set_line_wrap (true); _warp_status.set_size_request (260, -1); _warp_box.pack_start (_warp_status, false, false);
+ _table_main.attach (_warp_box, 4, 5, 0, 7, Gtk::FILL, Gtk::FILL);
+ _warp_enabled.signal_toggled ().connect (sigc::mem_fun (*this, &AudioRegionEditor::warp_controls_changed));
+ _warp_reverse.signal_toggled ().connect (sigc::mem_fun (*this, &AudioRegionEditor::warp_controls_changed));
+ for (auto* c : {&_warp_mode, &_warp_preserve, &_warp_loop}) c->signal_changed ().connect (sigc::mem_fun (*this, &AudioRegionEditor::warp_controls_changed));
+ for (auto* c : {&_warp_bpm, &_warp_pitch, &_warp_cents, &_warp_grain, &_warp_flux, &_warp_formants, &_warp_envelope, &_warp_transient}) c->signal_value_changed ().connect (sigc::mem_fun (*this, &AudioRegionEditor::warp_controls_changed));
+ Glib::signal_idle ().connect (sigc::mem_fun (*this, &AudioRegionEditor::finish_warp_setup));
+}
+
+bool
+AudioRegionEditor::finish_warp_setup ()
+{
+ const bool was_updating = _warp_updating; _warp_updating = true;
+ warp_controls_changed (); _warp_updating = was_updating; return false;
+}
+
+void
+AudioRegionEditor::warp_controls_changed ()
+{
+ const char* modes[] = {"beats", "tones", "texture", "repitch", "complex", "complex-pro"};
+ const int mode = _warp_mode.get_active_row_number ();
+ if (mode < 0 || mode > 5) return;
+ _warp_settings.mode = modes[mode]; _warp_settings.enabled = _warp_enabled.get_active (); _warp_settings.reverse = _warp_reverse.get_active ();
+ _warp_settings.bpm = _warp_bpm.get_value (); _warp_settings.pitch = std::max (-24., std::min (24., _warp_pitch.get_value () + _warp_cents.get_value () / 100.));
+ _warp_settings.grain = _warp_grain.get_value (); _warp_settings.flux = _warp_flux.get_value ();
+ _warp_settings.formants = _warp_formants.get_value (); _warp_settings.envelope = _warp_envelope.get_value_as_int ();
+ _warp_settings.preserve = _warp_preserve.get_active_row_number (); _warp_settings.loop = _warp_loop.get_active_row_number (); _warp_settings.transient_envelope = _warp_transient.get_value ();
+ _warp_beats_row.set_visible (mode == 0); _warp_grain_row.set_visible (mode == 1 || mode == 2); _warp_flux.set_sensitive (mode == 2); _warp_pro_row.set_visible (mode == 5);
+ _warp_bpm.set_sensitive (_warp_settings.enabled);
+ // Re-Pitch derives pitch from playback speed; transposition is unavailable.
+ _warp_pitch.set_sensitive (mode != 3); _warp_cents.set_sensitive (mode != 3);
+ _warp_status.set_text (_warp_settings.available () ? _("Original engine · changes render automatically") : _("Original engine not installed for this mode"));
+ if (_warp_updating) return;
+ _warp_pending.disconnect ();
+ const auto region = _audio_region; const auto options = _warp_settings;
+ Editor* editor = dynamic_cast<Editor*> (&PublicEditor::instance ());
+ _warp_pending = Glib::signal_timeout ().connect ([region, options, editor] () {
+  if (editor && region->playlist ()) {
+   const double tempo = Temporal::TempoMap::use ()->tempo_at (region->position ()).quarter_notes_per_minute ();
+   const double stretch = options.enabled ? options.bpm / tempo : 1.;
+   editor->apply_clip_warp (region, options, stretch / region->stretch ());
+  }
+  return false;
+ }, 350);
 }

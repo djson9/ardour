@@ -153,6 +153,7 @@ class GridLines;
 class TimeAxisView;
 class TimeInfoBox;
 class TimeFXDialog;
+struct ClipWarpSettings;
 class TimeSelection;
 class RegionLayeringOrderEditor;
 class VerboseCursor;
@@ -160,6 +161,7 @@ class VerboseCursor;
 class Editor : public PublicEditor, public PBD::ScopedConnectionList
 {
 public:
+	void apply_clip_warp (std::shared_ptr<ARDOUR::Region>, ClipWarpSettings const&, double ratio, bool fixed_end = false);
 	Editor ();
 	~Editor ();
 
@@ -2199,7 +2201,7 @@ private:
 	void toggle_show_touched_automation ();
 	void set_show_touched_automation (bool);
 
-	int time_fx (ARDOUR::RegionList&, Temporal::ratio_t ratio, bool pitching, bool fixed_end);
+	int time_fx (ARDOUR::RegionList&, Temporal::ratio_t ratio, bool pitching, bool fixed_end, ClipWarpSettings const* warp = nullptr);
 	void toggle_sound_midi_notes ();
 
 	/** Flag for a bit of a hack wrt control point selection; see set_selected_control_point_from_click */

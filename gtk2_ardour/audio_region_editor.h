@@ -45,6 +45,8 @@
 #include "ardour_dialog.h"
 #include "audio_clock.h"
 #include "region_editor.h"
+#include "clip_warp.h"
+#include <ytkmm/comboboxtext.h>
 
 namespace ARDOUR {
 	class AudioRegion;
@@ -64,6 +66,22 @@ public:
 
 private:
 	void region_changed (PBD::PropertyChange const&);
+
+	void setup_warp_controls ();
+	bool finish_warp_setup ();
+	void warp_controls_changed ();
+	ClipWarpSettings _warp_settings;
+	bool _warp_updating = true;
+	sigc::connection _warp_pending;
+	Gtk::VBox _warp_box;
+	Gtk::CheckButton _warp_enabled;
+	Gtk::CheckButton _warp_reverse;
+	Gtk::ComboBoxText _warp_mode;
+	Gtk::ComboBoxText _warp_preserve;
+	Gtk::ComboBoxText _warp_loop;
+	Gtk::SpinButton _warp_bpm, _warp_pitch, _warp_cents, _warp_grain, _warp_flux, _warp_formants, _warp_envelope, _warp_transient;
+	Gtk::HBox _warp_beats_row, _warp_grain_row, _warp_pro_row;
+	Gtk::Label _warp_status;
 
 	void gain_changed ();
 	void gain_adjustment_changed ();

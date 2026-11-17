@@ -50,6 +50,8 @@
 #include "editor_regions.h"
 #include "region_selection.h"
 #include "time_fx_dialog.h"
+#include "clip_warp_filter.h"
+#include <ytkmm/messagedialog.h>
 
 #include <rubberband/RubberBandStretcher.h>
 using namespace RubberBand;
@@ -163,7 +165,7 @@ Editor::pitch_shift (RegionSelection& regions, float fraction)
  *  @param pitching true to pitch shift, false to time stretch.
  *  @return -1 in case of error, otherwise number of regions processed */
 int
-Editor::time_fx (RegionList& regions, Temporal::ratio_t ratio, bool pitching, bool fixed_end)
+Editor::time_fx (RegionList& regions, Temporal::ratio_t ratio, bool pitching, bool fixed_end, ClipWarpSettings const* warp)
 {
 	delete current_timefx;
 
@@ -179,6 +181,7 @@ Editor::time_fx (RegionList& regions, Temporal::ratio_t ratio, bool pitching, bo
 	current_timefx = new TimeFXDialog (*this, pitching, oldlen, newlen, ratio, pos, fixed_end);
 	current_timefx->regions = regions;
 
+	if (!warp) {
 	switch (current_timefx->run ()) {
 	case RESPONSE_ACCEPT:
 		break;
@@ -322,6 +325,19 @@ Editor::time_fx (RegionList& regions, Temporal::ratio_t ratio, bool pitching, bo
 	current_timefx->request.antialias = !current_timefx->antialias_button.get_active();
 #endif
 
+	} else {
+		current_timefx->clip_warp = true;
+		current_timefx->warp_settings = *warp;
+		current_timefx->request.time_fraction = ratio;
+		current_timefx->request.pitch_fraction = 1.;
+		current_timefx->status = 0;
+		current_timefx->set_title (_("Warp Audio Clip"));
+		current_timefx->set_modal (true);
+		current_timefx->show ();
+		current_timefx->upper_button_box.hide ();
+		gtk_widget_hide (gtk_dialog_get_widget_for_response (current_timefx->gobj (), Gtk::RESPONSE_ACCEPT));
+	}
+
 	current_timefx->request.done = false;
 	current_timefx->request.cancel = false;
 
@@ -385,7 +401,9 @@ Editor::do_timefx (bool fixed_end)
 
 		Filter* fx;
 
-		if (current_timefx->pitching) {
+		if (current_timefx->clip_warp) {
+			fx = new ClipWarpFilter (*_session, current_timefx->request, current_timefx->warp_settings, current_timefx->warp_error);
+		} else if (current_timefx->pitching) {
 			fx = new Pitch (*_session, current_timefx->request);
 		} else {
 			switch (current_timefx->request.algorithm) {
@@ -433,6 +451,7 @@ Editor::do_timefx (bool fixed_end)
 			std::shared_ptr<Region> new_region = i->second;
 			std::shared_ptr<Playlist> playlist = region->playlist();
 
+			current_timefx->warp_results.push_back (new_region);
 			playlist->clear_changes ();
 			if (fixed_end)
 				playlist->replace_region (region, new_region, region->end_position ().earlier(new_region->length ()));
@@ -469,4 +488,33 @@ Editor::timefx_thread (void *arg)
 	*/
 	Glib::usleep(G_USEC_PER_SEC / 5);
 	return 0;
+}
+
+void
+Editor::apply_clip_warp (std::shared_ptr<Region> region, ClipWarpSettings const& settings, double fraction, bool fixed_end)
+{
+ if (!_session || !region || !region->playlist () || region->locked () || !std::isfinite (fraction) || fraction <= 0.) return;
+ RegionList regions; regions.push_back (region);
+ begin_reversible_command (_("Warp audio clip"));
+ const int status = time_fx (regions, Temporal::ratio_t (llround (fraction * 1000000000.), 1000000000), false, fixed_end, &settings);
+ if (status > 0) {
+  commit_reversible_command ();
+  const auto output = current_timefx->warp_results;
+  /* Playlist changes arrive asynchronously from the render worker. Wait for
+   * its replacement view before restoring selection and the clip inspector. */
+  Glib::signal_timeout ().connect ([this, output, attempts = 0] () mutable {
+   if (!_session || output.empty () || !output.front ()->playlist ()) return false;
+   if (RegionView* view = regionview_from_region (output.front ())) {
+    selection->set (view);
+    return false;
+   }
+   return ++attempts < 100;
+  }, 20);
+ } else {
+  abort_reversible_command ();
+  if (current_timefx && !current_timefx->warp_error.empty () && current_timefx->warp_error != "Warp cancelled") {
+   Gtk::MessageDialog message (current_timefx->warp_error, false, Gtk::MESSAGE_ERROR, Gtk::BUTTONS_OK, true);
+   message.run ();
+  }
+ }
 }

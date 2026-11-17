@@ -61,6 +61,7 @@
 #include "actions.h"
 #include "ardour_ui.h"
 #include "editor.h"
+#include "clip_warp.h"
 #include "selection_properties_box.h"
 #include "time_axis_view.h"
 #include "audio_time_axis.h"
@@ -681,6 +682,23 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 		} else if (item_type == EndSelectionTrimItem) {
 			_drags->set (new SelectionDrag (*this, item, SelectionDrag::SelectionEndTrim), event);
 		}
+	}
+
+	/* Shift at an enabled audio clip edge stretches with the clip's engine. */
+	if (clicked_regionview && event->button.button == 1 && (event->button.state & GDK_SHIFT_MASK)
+	    && dynamic_cast<AudioRegionView*> (clicked_regionview) && !clicked_regionview->region ()->locked ()
+	    && (item_type == RegionItem || item_type == RegionViewNameHighlight || item_type == RegionViewName
+	        || item_type == LeftFrameHandle || item_type == RightFrameHandle
+	        || item_type == FadeInHandleItem || item_type == FadeOutHandleItem
+	        || item_type == FadeInTrimHandleItem || item_type == FadeOutTrimHandleItem)) {
+	 auto region = clicked_regionview->region ();
+	 if (ClipWarpSettings::read (*region).enabled) {
+	  const samplepos_t at = canvas_event_time (event).samples ();
+	  if (std::min (std::abs (at - region->position_sample ()), std::abs (at - region->end_position ().samples ())) <= 10 * samples_per_pixel) {
+	   _drags->set (new TimeFXDrag (*this, item, clicked_regionview, selection->regions.by_layer (), drag_time_domain (region), true), event, cursors ()->time_fx);
+	   return true;
+	  }
+	 }
 	}
 
 	Editing::MouseMode eff = effective_mouse_mode ();
@@ -1902,6 +1920,13 @@ Editor::motion_handler (ArdourCanvas::Item* item, GdkEvent* event, bool from_aut
 		samplepos_t where;
 
 		if (mouse_sample (where, ignored)) {
+
+			if (mouse_mode != MouseTimeFX && entered_regionview && dynamic_cast<AudioRegionView*> (entered_regionview)) {
+			 auto region = entered_regionview->region ();
+			 const bool edge = std::min (std::abs (where - region->position_sample ()), std::abs (where - region->end_position ().samples ())) <= 10 * samples_per_pixel;
+			 if ((event->motion.state & GDK_SHIFT_MASK) && edge && ClipWarpSettings::read (*region).enabled) set_canvas_cursor (cursors ()->time_fx);
+			 else if (get_canvas_cursor () == cursors ()->time_fx) set_canvas_cursor (which_track_cursor ());
+			}
 
 			/* display peaks */
 			if (mouse_mode == MouseContent || ArdourKeyboard::indicates_snap (event->motion.state)) {

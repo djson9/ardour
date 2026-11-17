@@ -491,6 +491,11 @@ DiskReader::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_samp
 				}
 			}
 
+			/* Preview is pre-track processing, just like the disk audio it
+			 * replaces. Complete immutable windows are handed over off-thread. */
+			if (n == 0) _warp_preview.begin (playback_sample, nframes, speed == 1 && !declick_out, std::max (1u, uint32_t (_session.sample_rate () / 200)));
+			_warp_preview.apply (disk_buf.data (), n);
+
 			_declick_amp.apply_gain (disk_buf, nframes, target_gain);
 
 			/* _declick_amp is now left with the correct gain after processing nframes */
@@ -502,6 +507,7 @@ DiskReader::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_samp
 				mix_buffers_no_gain (output.data (), disk_buf.data (), nframes);
 			}
 		}
+		_warp_preview.end ();
 	}
 
 midi:

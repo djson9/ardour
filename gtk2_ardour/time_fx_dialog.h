@@ -30,6 +30,7 @@
 #include <ytkmm/button.h>
 
 #include "ardour/timefx_request.h"
+#include "clip_warp.h"
 
 #include "ardour_dialog.h"
 #include "progress_reporter.h"
@@ -43,6 +44,10 @@ public:
 	/* We need a position so that BBT mode in the clock can function */
 	TimeFXDialog (Editor& e, bool for_pitch, Temporal::timecnt_t const & old_length, Temporal::timecnt_t const & new_length, Temporal::ratio_t const &, Temporal::timepos_t const & position, bool fixed_end);
 
+	bool clip_warp = false;
+	ClipWarpSettings warp_settings;
+	std::string warp_error;
+	ARDOUR::RegionList warp_results;
 	ARDOUR::TimeFXRequest request;
 	Editor&               editor;
 	bool                  pitching;

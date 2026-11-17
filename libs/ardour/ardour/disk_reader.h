@@ -27,6 +27,7 @@
 #include "evoral/Curve.h"
 
 #include "ardour/disk_io.h"
+#include "ardour/warp_preview.h"
 #include "ardour/midi_buffer.h"
 #include "ardour/midi_state_tracker.h"
 
@@ -40,7 +41,10 @@ template <typename T> class MidiRingBuffer;
 
 class /*LIBARDOUR_API*/ DiskReader : public DiskIOProcessor
 {
+private:
+	WarpPreview _warp_preview;
 public:
+	WarpPreview& warp_preview () { return _warp_preview; }
 	LIBARDOUR_API DiskReader (Session&, Track&, std::string const& name, Temporal::TimeDomainProvider const &, DiskIOProcessor::Flag f = DiskIOProcessor::Flag (0));
 	LIBARDOUR_API ~DiskReader ();
 

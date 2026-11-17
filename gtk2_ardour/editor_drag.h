@@ -1376,10 +1376,13 @@ private:
 };
 
 /** Region drag in time-FX mode */
+class ClipWarpPreview;
+
 class TimeFXDrag : public RegionDrag
 {
 public:
-	TimeFXDrag (Editor&, ArdourCanvas::Item *, RegionView *, std::list<RegionView*> const &, Temporal::TimeDomain td);
+	TimeFXDrag (Editor&, ArdourCanvas::Item *, RegionView *, std::list<RegionView*> const &, Temporal::TimeDomain td, bool clip_warp = false);
+	~TimeFXDrag ();
 
 	void start_grab (GdkEvent *, Gdk::Cursor* c = 0);
 	void motion (GdkEvent *, bool);
@@ -1387,6 +1390,8 @@ public:
 	void aborted (bool);
 private:
 	bool _dragging_start;
+	bool _clip_warp;
+	std::unique_ptr<ClipWarpPreview> _warp_preview;
 };
 
 /** Drag in range select mode */
