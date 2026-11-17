@@ -45,8 +45,11 @@ public:
 	/** Called only by the DSP owner, including the live consumer. No allocations
 	 * or locks are permitted. Allows event/loop-boundary subdivisions. */
 	using NextRange = std::function<Range (Range const&)>;
+	/** Producer-only prerequisite check, before touching DSP. False retries later
+	 * and permits cancellation while waiting for a routed upstream range. */
+	using Ready = std::function<bool (Range const&)>;
 
-	AnticipationQueue (Configuration const&, Render, NextRange = NextRange ());
+	AnticipationQueue (Configuration const&, Render, NextRange = NextRange (), Ready = Ready ());
 	~AnticipationQueue ();
 	AnticipationQueue (AnticipationQueue const&) = delete;
 	AnticipationQueue& operator= (AnticipationQueue const&) = delete;
@@ -100,6 +103,7 @@ private:
 	Configuration const _config;
 	Render const _render;
 	NextRange const _next_range;
+	Ready const _ready;
 	std::vector<std::unique_ptr<Slot>> _slots;
 	std::vector<std::unique_ptr<Reader>> _readers;
 	BufferSet _scratch;

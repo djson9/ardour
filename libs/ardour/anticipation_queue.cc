@@ -6,16 +6,19 @@
 #include <stdexcept>
 
 #include "temporal/tempo.h"
+#include "pbd/pthread_utils.h"
 #include "ardour/audio_buffer.h"
 #include "ardour/midi_buffer.h"
 #include "ardour/process_thread.h"
+#include "ardour/session_event.h"
 
 using namespace ARDOUR;
 
-AnticipationQueue::AnticipationQueue (Configuration const& config, Render render, NextRange next_range)
+AnticipationQueue::AnticipationQueue (Configuration const& config, Render render, NextRange next_range, Ready ready)
 	: _config (config)
 	, _render (std::move (render))
 	, _next_range (std::move (next_range))
+	, _ready (std::move (ready))
 	, _state (State::Stopped)
 	, _quit (false)
 	, _read (0)
@@ -114,6 +117,9 @@ AnticipationQueue::render (BufferSet& buffers, Range const& range, bool live)
 void
 AnticipationQueue::worker ()
 {
+	pthread_set_name ("Anticipation");
+	SessionEvent::create_per_thread_pool ("Anticipation", 64);
+	PBD::notify_event_loops_about_thread_creation (pthread_self (), "Anticipation", 64);
 	Temporal::TempoMap::fetch ();
 	ProcessThread process_thread;
 	process_thread.get_buffers ();
@@ -144,6 +150,10 @@ AnticipationQueue::worker ()
 		try {
 			if (!_next.frames || _next.frames > _config.max_frames) {
 				throw std::runtime_error ("Invalid anticipation subdivision");
+			}
+			if (_ready && !_ready (_next)) {
+				std::this_thread::sleep_for (std::chrono::microseconds (50));
+				continue;
 			}
 			_scratch.set_count (_config.channels);
 			for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { _scratch.get_midi (c).clear (); }
