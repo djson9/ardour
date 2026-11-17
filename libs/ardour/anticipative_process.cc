@@ -13,6 +13,8 @@
 #include "ardour/port_insert.h"
 #include "ardour/send.h"
 #include "ardour/port.h"
+#include "ardour/port_set.h"
+#include "ardour/audioengine.h"
 #include "ardour/route.h"
 #include "ardour/session.h"
 #include "ardour/track.h"
@@ -55,14 +57,15 @@ struct AnticipativeProcess::RouteAdapter {
 		if (track) { return; }
 		for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
 			for (uint32_t destination = 0; destination < route->n_inputs ().get (*type); ++destination) {
-				auto port = route->input ()->nth (destination, *type);
+				auto port = route->input ()->ports ()->port (*type, destination);
 				std::vector<std::string> names; port->get_connections (names);
 				for (auto const& name : names) {
 					bool found = false;
 					for (auto const& candidate : plan._nodes) {
 						if (!candidate->adapter || candidate.get () == node) { continue; }
 						for (uint32_t source = 0; source < candidate->route->n_outputs ().get (*type); ++source) {
-							if (candidate->route->output ()->nth (source, *type)->name () != name) { continue; }
+							auto source_name = candidate->route->output ()->ports ()->port (*type, source)->name ();
+							if (source_name != name && plan._session.engine ().make_port_name_non_relative (source_name) != name) { continue; }
 							found = true; size_t feed = 0;
 							for (; feed < feeds.size () && feeds[feed].source != candidate.get (); ++feed) {}
 							if (feed == feeds.size ()) {
