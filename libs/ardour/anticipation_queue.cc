@@ -132,6 +132,7 @@ AnticipationQueue::worker ()
 				throw std::runtime_error ("Invalid anticipation subdivision");
 			}
 			_scratch.set_count (_config.channels);
+			for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { _scratch.get_midi (c).clear (); }
 			_scratch.silence (_next.frames, 0);
 			render (_scratch, _next, false);
 			if (!(_scratch.count () <= _config.channels)) {
@@ -139,6 +140,7 @@ AnticipationQueue::worker ()
 			}
 			Slot& slot = *_slots[w % _config.blocks];
 			slot.buffers.set_count (_scratch.count ());
+			for (uint32_t c = 0; c < _scratch.count ().n_midi (); ++c) { slot.buffers.get_midi (c).clear (); }
 			slot.buffers.read_from (_scratch, _next.frames);
 			slot.range = _next;
 			slot.generation = _generation;
@@ -213,9 +215,11 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 		return Result::Live;
 	}
 
-	_live_input.set_count (output.count ());
+	_live_input.set_count (ChanCount::min (output.count (), _config.channels));
+	for (uint32_t c = 0; c < _live_input.count ().n_midi (); ++c) { _live_input.get_midi (c).clear (); }
 	_live_input.read_from (output, requested.frames);
 	output.set_count (_config.channels);
+	for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { output.get_midi (c).clear (); }
 	output.silence (requested.frames, 0);
 	pframes_t copied = 0;
 	uint32_t remaining_slots = _config.blocks;
@@ -232,6 +236,7 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 			_state.store (State::Live, std::memory_order_release);
 			_live_handoffs.fetch_add (1, std::memory_order_relaxed);
 			_scratch.set_count (_live_input.count ());
+			for (uint32_t c = 0; c < _scratch.count ().n_midi (); ++c) { _scratch.get_midi (c).clear (); }
 			for (DataType::iterator t = DataType::begin (); t != DataType::end (); ++t) {
 				for (uint32_t c = 0; c < _live_input.count ().get (*t); ++c) {
 					_scratch.get_available (*t, c).read_from (_live_input.get_available (*t, c), remaining.frames, 0, copied);
