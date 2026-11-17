@@ -557,6 +557,14 @@ Route::process_output_buffers (BufferSet& bufs,
 		if (_midi_freeze_processors.count (proc.get())) {
 			continue;
 		}
+		if (owned_render && proc == _meter) {
+			if (_render_observer) { _render_observer (_render_observer_context, proc.get (), bufs, nframes); }
+			continue;
+		}
+		if (owned_render) {
+			auto send = std::dynamic_pointer_cast<InternalSend> (proc);
+			if (send) { send->cycle_start (nframes); }
+		}
 
 		bool re_inject_oob_data = false;
 
@@ -616,6 +624,7 @@ Route::process_output_buffers (BufferSet& bufs,
 			proc->run (bufs, start_sample - latency, end_sample - latency, pspeed, nframes, proc != _processors.back());
 		}
 
+		if (owned_render && _render_observer) { _render_observer (_render_observer_context, proc.get (), bufs, nframes); }
 		bufs.set_count (proc->output_streams());
 
 		if (re_inject_oob_data) {
@@ -662,10 +671,13 @@ Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, sample
 			                           end + amp->output_latency () + _output_latency, nframes);
 		}
 		if (proc->active ()) { latency += proc->effective_latency (); }
+		auto send = std::dynamic_pointer_cast<InternalSend> (proc);
+		if (send) { send->cycle_start (nframes); }
 		double speed = 1;
 		if (proc == _disk_writer && _session.remaining_latency_preroll () > nframes + offset &&
 		    end + offset - _disk_writer->input_latency () >= _session.transport_sample ()) { speed = 0; }
 		proc->run (buffers, start + offset - latency, end + offset - latency, speed, nframes, proc != _processors.back ());
+		if (_render_observer) { _render_observer (_render_observer_context, proc.get (), buffers, nframes); }
 		buffers.set_count (proc->output_streams ());
 	}
 }

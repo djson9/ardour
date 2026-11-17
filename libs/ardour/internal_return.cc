@@ -50,10 +50,10 @@ InternalReturn::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t /*en
 	}
 
 	for (auto & send : _sends) {
+		if (_cached_input_reader && _cached_input_reader (_cached_input_context, send, bufs, start_sample, nframes)) {
+			continue;
+		}
 		if ((send->active() || send->actually_active()) && (!send->source_route() || send->source_route()->active())) {
-			if (_cached_input_reader && _cached_input_reader (_cached_input_context, send, bufs, start_sample, nframes)) {
-				continue;
-			}
 			bufs.merge_from (send->get_buffers(), nframes);
 		}
 	}

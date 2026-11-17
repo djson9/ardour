@@ -11,6 +11,7 @@ namespace ARDOUR {
 
 class Route;
 class Session;
+class InternalSend;
 
 /** Session-owned anticipation plan and exclusive DSP queues.
  *
@@ -25,7 +26,7 @@ public:
 	using Queue = AnticipationQueue;
 	enum Reason : uint32_t {
 		Predictable = 0, Forced = 1, Recording = 2, Monitoring = 4,
-		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32
+		UpstreamLive = 8, OutputRoute = 16, UnmanagedUpstream = 32, RequiredLive = 64
 	};
 
 	struct Node {
@@ -36,6 +37,7 @@ public:
 		std::atomic<uint32_t> reason {Predictable};
 		std::vector<size_t> downstream;
 		bool unmanaged_upstream {false};
+		bool requires_live {false};
 		std::shared_ptr<RouteAdapter> adapter;
 	};
 
@@ -64,9 +66,11 @@ public:
 	size_t size () const { return _nodes.size (); }
 
 private:
+	static bool cached_send (void*, InternalSend const*, BufferSet&, samplepos_t, pframes_t);
 	Session& _session;
 	std::vector<std::unique_ptr<Node>> _nodes;
 	std::vector<size_t> _work;
+	std::vector<std::shared_ptr<Route>> _return_routes;
 	std::atomic<bool> _running {false};
 	uint64_t _generation {0};
 };

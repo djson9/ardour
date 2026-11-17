@@ -9,6 +9,9 @@
 #include "ardour/midi_buffer.h"
 #include "ardour/delivery.h"
 #include "ardour/internal_send.h"
+#include "ardour/internal_return.h"
+#include "ardour/disk_reader.h"
+#include "ardour/meter.h"
 #include "ardour/plugin_insert.h"
 #include "ardour/port_insert.h"
 #include "ardour/send.h"
@@ -28,6 +31,12 @@ struct AnticipativeProcess::RouteAdapter {
 		std::unique_ptr<BufferSet> input;
 	};
 	struct Connection { size_t feed; DataType type; uint32_t source, destination; };
+	struct Tap {
+		std::shared_ptr<Processor> processor;
+		std::shared_ptr<InternalSend> send;
+		ChanCount offset, count;
+		std::unique_ptr<BufferSet> data, delivery;
+	};
 	AnticipativeProcess& plan;
 	std::shared_ptr<Route> route;
 	Node* node {nullptr};
@@ -35,6 +44,10 @@ struct AnticipativeProcess::RouteAdapter {
 	ChanCount channels;
 	std::vector<Feed> feeds;
 	std::vector<Connection> connections;
+	std::vector<Tap> taps;
+	ChanCount processing_channels;
+	bool requires_live {false}, attached {false}, rendering_future {false};
+	static thread_local RouteAdapter* current;
 	bool wired {false};
 	bool track;
 	samplepos_t continuous;
@@ -43,18 +56,53 @@ struct AnticipativeProcess::RouteAdapter {
 		: plan (p), route (r), channels (ChanCount::max (r->max_processor_streams (), ChanCount::max (r->n_inputs (), r->n_outputs ()))),
 		  track (bool (std::dynamic_pointer_cast<Track> (r))), continuous (first.continuous)
 	{
-		for (BufferSet* buffer : {&work, &main, &audible, &future_input}) { allocate (*buffer, channels, first.frames); }
+		processing_channels = channels;
+		ChanCount packed = r->n_outputs ();
+		bool suffix = !track;
+		r->foreach_processor ([&] (std::weak_ptr<Processor> weak) {
+			auto proc = weak.lock ();
+			if (std::dynamic_pointer_cast<DiskReader> (proc)) { suffix = true; }
+			auto send = std::dynamic_pointer_cast<InternalSend> (proc);
+			auto meter = std::dynamic_pointer_cast<PeakMeter> (proc);
+			auto plugin = std::dynamic_pointer_cast<PluginInsert> (proc);
+			if ((!send && std::dynamic_pointer_cast<Send> (proc)) || std::dynamic_pointer_cast<PortInsert> (proc) || (plugin && plugin->has_sidechain ())) { requires_live = true; }
+			if (!send && !(meter && suffix)) { return; }
+			if (send && !suffix) { requires_live = true; }
+			Tap tap; tap.processor = proc; tap.send = send; tap.offset = packed;
+			tap.count = send ? send->get_buffers ().count () : proc->input_streams ();
+			tap.data.reset (new BufferSet); tap.delivery.reset (new BufferSet);
+			allocate (*tap.data, tap.count, first.frames); allocate (*tap.delivery, tap.count, first.frames);
+			packed += tap.count; taps.push_back (std::move (tap));
+		});
+		channels = ChanCount::max (channels, packed);
+		allocate (work, processing_channels, first.frames); allocate (future_input, processing_channels, first.frames);
+		allocate (main, r->n_outputs (), first.frames); allocate (audible, channels, first.frames);
 		main.set_count (r->n_outputs ());
 	}
-	~RouteAdapter () { route->set_render_consumer (nullptr, nullptr); route->main_outs ()->set_render_buffers (nullptr); }
+	~RouteAdapter () {
+		if (!attached) { return; }
+		route->set_render_consumer (nullptr, nullptr); route->set_render_observer (nullptr, nullptr); route->main_outs ()->set_render_buffers (nullptr);
+		for (auto& tap : taps) { if (tap.send) { tap.send->set_manual_cycle_start (false); } }
+	}
 	static void allocate (BufferSet& b, ChanCount c, pframes_t n) {
 		b.ensure_buffers (DataType::AUDIO, c.n_audio (), n); b.ensure_buffers (DataType::MIDI, c.n_midi (), 8192); b.set_count (c);
+	}
+	size_t feed_for (Node& source) {
+		for (size_t i = 0; i < feeds.size (); ++i) { if (feeds[i].source == &source) { return i; } }
+		Feed f; f.source = &source; f.reader = &source.queue->add_reader (); f.input.reset (new BufferSet);
+		allocate (*f.input, source.adapter->channels, node->first.frames); feeds.push_back (std::move (f)); return feeds.size () - 1;
 	}
 	void wire () {
 		if (wired) { return; }
 		wired = true;
 		/* DiskReader replaces the playback input; physical capture remains live. */
 		if (track) { return; }
+		for (auto& source : plan._nodes) {
+			if (!source->adapter || source.get () == node) { continue; }
+			for (auto const& tap : source->adapter->taps) {
+				if (tap.send && tap.send->target_route () == route) { feed_for (*source); }
+			}
+		}
 		for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
 			for (uint32_t destination = 0; destination < route->n_inputs ().get (*type); ++destination) {
 				auto port = route->input ()->ports ()->port (*type, destination);
@@ -75,7 +123,7 @@ struct AnticipativeProcess::RouteAdapter {
 							connections.push_back ({feed, *type, source, destination});
 						}
 					}
-					if (!found) { node->forced.store (true); }
+					if (!found) { node->requires_live = true; }
 				}
 			}
 		}
@@ -84,8 +132,8 @@ struct AnticipativeProcess::RouteAdapter {
 		for (auto& feed : feeds) {
 			if (!feed.source->queue->peek (*feed.reader, *feed.input, range, plan.generation ())) { return false; }
 		}
-		future_input.set_count (channels); future_input.silence (range.frames, 0);
-		for (uint32_t c = 0; c < channels.n_midi (); ++c) { future_input.get_midi (c).clear (); }
+		future_input.set_count (processing_channels); future_input.silence (range.frames, 0);
+		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { future_input.get_midi (c).clear (); }
 		for (auto const& connection : connections) {
 			auto& source = feeds[connection.feed].input->get_available (connection.type, connection.source);
 			if (connection.type == DataType::AUDIO) { future_input.get_audio (connection.destination).accumulate_from (static_cast<AudioBuffer&> (source), range.frames); }
@@ -94,13 +142,30 @@ struct AnticipativeProcess::RouteAdapter {
 		return true;
 	}
 	void render (BufferSet& b, Queue::Range const& range, bool live) {
-		work.set_count (channels); work.silence (range.frames, 0);
-		for (uint32_t c = 0; c < channels.n_midi (); ++c) { work.get_midi (c).clear (); }
+		struct Scope { RouteAdapter* previous; Scope(RouteAdapter* self):previous(current){current=self;} ~Scope(){current=previous;} } scope(this);
+		rendering_future = !live;
+		work.set_count (processing_channels); work.silence (range.frames, 0);
+		for (uint32_t c = 0; c < processing_channels.n_midi (); ++c) { work.get_midi (c).clear (); }
 		work.read_from (live ? b : future_input, range.frames);
 		route->render_anticipative (work, range.project, range.project + range.frames, range.frames, live);
-		for (uint32_t c = 0; c < main.count ().n_midi (); ++c) { b.get_midi (c).clear (); }
-		b.read_from (main, range.frames);
+		b.set_count (channels); b.silence (range.frames, 0);
+		for (uint32_t c = 0; c < channels.n_midi (); ++c) { b.get_midi (c).clear (); }
+		pack (b, main, ChanCount::ZERO, range.frames);
+		for (auto const& tap : taps) { pack (b, *tap.data, tap.offset, range.frames); }
 		for (auto& feed : feeds) { feed.source->queue->release_until (*feed.reader, range.continuous + range.frames); }
+	}
+	static void pack (BufferSet& to, BufferSet const& from, ChanCount offset, pframes_t n) {
+		for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+			for (uint32_t c = 0; c < from.count ().get (*type); ++c) { to.get_available (*type, c + offset.get (*type)).read_from (from.get_available (*type, c), n); }
+		}
+	}
+	static void observe (void* context, Processor const* processor, BufferSet const& input, pframes_t n) {
+		auto& self = *static_cast<RouteAdapter*> (context);
+		for (auto& tap : self.taps) {
+			if (tap.processor.get () != processor) { continue; }
+			for (uint32_t c = 0; c < tap.count.n_midi (); ++c) { tap.data->get_midi (c).clear (); }
+			tap.data->read_from (tap.send ? tap.send->get_buffers () : input, n);
+		}
 	}
 	static bool consume (void* context, BufferSet& input, samplepos_t start, samplepos_t end, pframes_t nframes, bool moving) {
 		auto& self = *static_cast<RouteAdapter*> (context);
@@ -110,11 +175,48 @@ struct AnticipativeProcess::RouteAdapter {
 		self.audible.read_from (input, nframes);
 		self.plan.process (*self.node, self.audible, {start, self.continuous, nframes});
 		self.continuous += nframes;
+		for (auto& tap : self.taps) {
+			if (tap.send) { continue; }
+			for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+				for (uint32_t c = 0; c < tap.count.get (*type); ++c) { tap.delivery->get_available (*type, c).read_from (self.audible.get_available (*type, c + tap.offset.get (*type)), nframes); }
+			}
+			tap.processor->run (*tap.delivery, start, end, 1, nframes, false);
+		}
 		self.audible.set_count (self.route->n_outputs ());
 		self.route->deliver_anticipative (self.audible, nframes);
 		return true;
 	}
 };
+
+thread_local AnticipativeProcess::RouteAdapter* AnticipativeProcess::RouteAdapter::current = nullptr;
+
+bool
+AnticipativeProcess::cached_send (void* context, InternalSend const* send, BufferSet& destination, samplepos_t, pframes_t nframes)
+{
+	auto& plan = *static_cast<AnticipativeProcess*> (context);
+	for (auto const& node : plan._nodes) {
+		if (!node->adapter) { continue; }
+		for (auto const& tap : node->adapter->taps) {
+			if (tap.send.get () != send) { continue; }
+			BufferSet const* source = &node->adapter->audible;
+			auto current = RouteAdapter::current;
+			if (current && current->rendering_future) {
+				source = nullptr;
+				for (auto const& feed : current->feeds) { if (feed.source == node.get ()) { source = feed.input.get (); break; } }
+				if (!source) { return true; }
+			}
+			for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+				for (uint32_t c = 0; c < std::min (tap.count.get (*type), destination.count ().get (*type)); ++c) {
+					auto const& buffer = source->get_available (*type, c + tap.offset.get (*type));
+					if (*type == DataType::AUDIO) { destination.get_audio (c).accumulate_from (static_cast<AudioBuffer const&> (buffer), nframes); }
+					else { destination.get_midi (c).merge_from (buffer, nframes); }
+				}
+			}
+			return true;
+		}
+	}
+	return false;
+}
 
 AnticipativeProcess::AnticipativeProcess (Session& session) : _session (session) {}
 AnticipativeProcess::~AnticipativeProcess () { clear (); }
@@ -122,22 +224,17 @@ AnticipativeProcess::~AnticipativeProcess () { clear (); }
 AnticipativeProcess::Node&
 AnticipativeProcess::add_route (std::shared_ptr<Route> route, Queue::Range const& first, uint32_t blocks)
 {
-	/* Physical inserts and routing taps need their respective adapter bindings;
-	 * never let an unbound routing processor run against device buffers ahead. */
-	bool unsupported = false;
-	route->foreach_processor ([&] (std::weak_ptr<Processor> weak) {
-		auto processor = weak.lock ();
-		auto plugin = std::dynamic_pointer_cast<PluginInsert> (processor);
-		if (std::dynamic_pointer_cast<Send> (processor) || std::dynamic_pointer_cast<PortInsert> (processor) || (plugin && plugin->has_sidechain ())) { unsupported = true; }
-	});
-	if (unsupported) { throw std::invalid_argument ("Route requires send/sidechain adapter bindings"); }
+	if (running () || !route) { throw std::logic_error ("Route binding requires a stopped plan"); }
+	for (auto const& node : _nodes) { if (node->route == route) { throw std::invalid_argument ("Duplicate anticipation owner"); } }
 	auto adapter = std::make_shared<RouteAdapter> (*this, route, first);
 	Node& node = add (route, {adapter->channels, first.frames, blocks, 8192},
 	                 [adapter] (BufferSet& b, Queue::Range const& r, bool live) { adapter->render (b, r, live); }, first,
 	                 Queue::NextRange (), [adapter] (Queue::Range const& r) { return adapter->ready (r); });
-	node.adapter = adapter; adapter->node = &node;
+	node.adapter = adapter; adapter->node = &node; node.requires_live = adapter->requires_live;
+	for (auto& tap : adapter->taps) { if (tap.send) { tap.send->set_manual_cycle_start (true); } }
 	route->main_outs ()->set_render_buffers (&adapter->main);
 	route->set_render_consumer (&RouteAdapter::consume, adapter.get ());
+	route->set_render_observer (&RouteAdapter::observe, adapter.get ()); adapter->attached = true;
 	return node;
 }
 
@@ -171,6 +268,11 @@ AnticipativeProcess::start (uint64_t generation)
 		if (node->adapter) { node->adapter->wire (); node->adapter->continuous = node->first.continuous; }
 	}
 	auto routes = _session.get_routes ();
+	if (_return_routes.empty ()) {
+		for (auto const& route : *routes) {
+			if (route->internal_return ()) { route->internal_return ()->set_cached_input_reader (&AnticipativeProcess::cached_send, this); _return_routes.push_back (route); }
+		}
+	}
 	for (auto& from : _nodes) {
 		from->downstream.clear ();
 		from->unmanaged_upstream = false;
@@ -210,6 +312,8 @@ void
 AnticipativeProcess::clear ()
 {
 	stop ();
+	for (auto const& route : _return_routes) { route->internal_return ()->set_cached_input_reader (nullptr, nullptr); }
+	_return_routes.clear ();
 	_nodes.clear ();
 	_work.clear ();
 }
@@ -221,6 +325,7 @@ AnticipativeProcess::begin_cycle ()
 	for (size_t i = 0; i < _nodes.size (); ++i) {
 		Node& node = *_nodes[i];
 		uint32_t reason = node.forced.load (std::memory_order_relaxed) ? Forced : Predictable;
+		if (node.requires_live) { reason |= RequiredLive; }
 		if (node.unmanaged_upstream) { reason |= UnmanagedUpstream; }
 		if (node.route->is_master () || node.route->is_monitor () || node.route->is_auditioner ()) {
 			reason |= OutputRoute;

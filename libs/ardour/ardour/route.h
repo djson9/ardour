@@ -121,6 +121,8 @@ public:
 	 * A true return owns delivery for this cycle, bypassing the normal DSP loop. */
 	using RenderConsumer = bool (*) (void*, BufferSet&, samplepos_t, samplepos_t, pframes_t, bool);
 	void set_render_consumer (RenderConsumer reader, void* context) { _render_consumer = reader; _render_consumer_context = context; }
+	using RenderObserver = void (*) (void*, Processor const*, BufferSet const&, pframes_t);
+	void set_render_observer (RenderObserver observer, void* context) { _render_observer = observer; _render_observer_context = context; }
 	/** Same normal processor loop, with disk capture left to the audible owner.
 	 * Caller provides owned Delivery buffers and exclusive processor ownership. */
 	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input);
@@ -643,6 +645,8 @@ protected:
 	bool           _active;
 	RenderConsumer _render_consumer {nullptr};
 	void* _render_consumer_context {nullptr};
+	RenderObserver _render_observer {nullptr};
+	void* _render_observer_context {nullptr};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 
