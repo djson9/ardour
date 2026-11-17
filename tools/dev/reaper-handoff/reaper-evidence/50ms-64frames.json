@@ -1,0 +1,17 @@
+{
+  "host": "7.81/macOS-arm64",
+  "monitor_activation_ms": 60.06908416748047,
+  "positions_discontinuous": [],
+  "state_counter_discontinuous": [],
+  "arm_processing_gaps_ms": [
+    50.40097236633301
+  ],
+  "render_lead_ms": {
+    "before_arm": 49.33333333333334,
+    "monitored": 0.0,
+    "after_disarm": 49.33333333333323
+  },
+  "playing_block_sizes": [
+    64.0
+  ]
+}

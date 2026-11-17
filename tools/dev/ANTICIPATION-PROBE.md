@@ -1,68 +1,161 @@
-# Anticipation feasibility probe
+# Anticipation feasibility probes
 
-This standalone macOS probe links the real existing Ardour build. It exercises
-`Route::bounce_process`, a deterministic stateful `Processor`, per-thread Ardour
-buffers, and actual `InternalSend` / `InternalReturn` instances. It changes no
-production processing path and is not a working anticipation feature.
+These standalone macOS probes link the existing Ardour build. They reuse real
+Routes, PluginInsert/LV2 effects, sends, returns and (in the callback probe) the
+normal Session processing path. They are experiments, not an enabled DAW feature.
+No production engine source has been changed in this stage.
 
-Run from this worktree with a compatible built checkout:
+## Run
 
 ```sh
 python3 tools/dev/run-anticipation-probe.py ../ardour-9.10
+python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_callback_probe.cc
+ARDOUR_PROBE_BLOCK=128 python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_callback_probe.cc
 ```
 
-The runner rejects differing library sources, records the linked library hash,
-and writes its executable, compile arguments, logs and JSON under
-`artifacts/anticipation-probe/`. The fixture session lives there too. It uses the
-dummy backend, never attaches the fixture session to the device callback, and
-does not launch or terminate the installed GUI application. A small process-local
-GLib home-lookup interposer isolates macOS preferences without changing HOME;
-the executable verifies isolation before initializing Ardour. The original
-user-config checksum is also checked after the run.
+The runner verifies compatible library sources and records library/source hashes,
+working-tree status, logs and JSON under `artifacts/anticipation-probe/` or
+`artifacts/anticipation-callback-probe/`. It deletes a stale result before running.
+A process-local GLib home interposer isolates Mac preferences without changing
+HOME; the executable checks isolation before initializing Ardour, and the runner
+checks the real user-config checksum afterward. It never operates the user's GUI.
 
-## Experiments and results
+## REAPER behavior: drain before live ownership
 
-At 64 and 128 frames, 400 blocks per size:
+The companion `reaper-handoff` scripts launch a separate REAPER instance with
+isolated preferences and a deterministic JSFX trace. They compare an anticipative
+track with an always-live reference, arm at two seconds and disarm at four seconds.
+Only the exact process launched by the harness is terminated afterward.
 
-| Experiment | Result |
-| --- | --- |
-| Background route output queued, compared with direct route output | Maximum sample error 0 |
-| Independent foreground route plus cached background output | Maximum mixed-output error 0 |
-| Concurrent calls to one processor instance | 0 |
-| Explicit render position while session position stays fixed | 51,072 versus 0 at the final sampled block |
-| Naive serialized handoff from future DSP state to earlier audible position | Maximum error 0.316799 |
-| Reset known processor state and replay the full preceding history | Maximum error 0 |
-| Publish two real internal-send blocks, then request the earlier position from the return | Maximum error 0.0557618; only current send data remains |
+```sh
+python3 tools/dev/reaper-handoff/run.py --output artifacts/reaper-handoff --horizon 200 --block 64
+python3 tools/dev/reaper-handoff/analyze.py artifacts/reaper-handoff
+```
 
-The negative handoff and send cases are expected findings, and the probe fails
-if they are not reproduced. These tests establish the need for state recovery
-and timestamped routing storage; they do not claim either problem is solved.
+Installed REAPER 7.81/macOS-arm64 measurements:
 
-## Limits
+| Horizon / device block | Ahead lead | Processing pause on arm | Reported monitoring activation | Lead while monitored |
+| --- | --- | --- | --- | --- |
+| 50 ms / 64 | 49.33 ms | 50.40 ms | 60.07 ms | 0 ms |
+| 200 ms / 64 | 198.67 ms | 201.18 ms | 210.02 ms | 0 ms |
+| 500 ms / 128 | 498.67 ms | 501.25 ms | 510.06 ms | 0 ms |
 
-- Uses a deterministic test processor, not AU/VST3/LV2 plugins or disk playback.
-- Uses the existing bounce-processing slice, not normal concurrent `Route::roll`
-  or two concurrent invocations of the shared Graph.
-- The foreground consumer waits in this correctness harness, so this supplies
-  no hardware-deadline, latency, capacity, or underrun evidence.
-- Foreground/background summation is an oracle; the separate send/return probe
-  exercises real routing objects but not a working cached bus or sidechain.
-- The test processor can reset its one history value; arbitrary plugins may
-  not support equivalent restoration, and full-history replay is not bounded.
-- Session construction and destruction complete normally on successful runs.
+Plugin timeline positions and accumulated sample counters remain contiguous.
+Disarming restores the configured lead. Monitoring-state polling has roughly
+30 ms UI granularity; DSP timestamps measure the pause independently. This
+supports draining queued playback to the existing DSP cursor before changing
+ownership. It does not establish every REAPER routing mode or physical I/O latency.
 
-## Next experiments
+The earlier assumption that matching REAPER required an instantaneous rewind of
+arbitrary plugin state was unnecessary for this fixture. Monitoring activation
+delay and steady-state input/output latency are different measurements.
 
-1. Put one actual plugin through the shared route-processing slice and validate
-   render-local transport callbacks and parameter/state access.
-2. Add an experimental timestamped send cache with normal-route delivery, then
-   test a cached source into a live bus and sidechain without consumer waits.
-3. Measure REAPER's stateful-plugin monitoring transition and test the smallest
-   matching handoff mechanism in Ardour.
-4. Only then benchmark a paced hardware callback at 64/128 frames and real plugin
-   chains; keep the behavioral-parity release requirements intact.
+## Correctness probe
 
-An early unisolated startup attempt detected a changed user-config checksum.
-The before contents were not captured, so it was not blindly restored. The
-runner was corrected to isolate preferences, and the successful isolated runs
-verified the original configuration remained unchanged during those runs.
+At 64 and 128 frames:
+
+- Stateful test processor through a bounded queue: exact direct/cached equality.
+- Naive future-to-earlier-state handoff: maximum difference 0.316799 (expected failure).
+- Reset/replay of the known test state: exact equality, but not a proposed solution.
+- Ordinary InternalSend retains one current block: historical return error 0.0557618.
+- Four actual `urn:ardour:a-delay` inserts per source: exact cached/direct equality
+  across drain-to-cursor ownership transfer; effect-versus-dry difference 0.293145.
+- Replay post-FX sends at consumption time, mix with a live source, and process
+  through InternalReturn plus four actual delay inserts on the destination bus:
+  exact equality with the direct reference, nonzero output peak 0.336858.
+
+This harness can wait and join. It proves signal/state behavior, not deadlines.
+Its post-FX-send result does not yet cover arbitrary mid-chain taps, sidechains,
+compensated routing, MIDI, or anticipative destination buses.
+
+## Normal callback probe
+
+The worker owns a private Route using the same existing processing slice. A small
+bridge Processor on a registered route consumes its bounded queue without waiting.
+The ordinary Session/Route callback runs live source and bus processors, delivery,
+InternalSend and InternalReturn. A simultaneous direct reference follows the same
+normal routing path, including normal transport-start gain ramps.
+
+At callback 512 the bridge requests producer acknowledgement. It continues
+consuming cached blocks, then transfers the same DSP instance at the final
+published cursor. At block 1024 it releases ownership to the worker after finishing
+the live block; the worker rebuilds lead while consumption continues. No callback
+joins, waits for queue data, or replays old plugin history.
+
+The first completed 64-frame run verified 2,048 bus blocks with zero sample error,
+zero queue underruns and zero measured bridge-duration overruns. The largest
+bridge call in that run was 361.542 microseconds against a 1,333.33 microsecond
+block period. This measures only the bridge, not total callback time or physical
+latency. The initial 128-frame normal-priority dummy run retained exact equality
+but did not finish within its nominal-duration timeout; a subsequent realtime-dummy 128-frame run completed all 2,048 blocks with zero error and underruns, and a 69.042 microsecond maximum bridge call. It took 6.54 wall-clock seconds for 5.46 seconds of timeline, so dummy pacing still does not prove hardware deadlines.
+
+The controller is scripted at fixed callback indices. Automatic record-arm
+eligibility, full route migration, plan invalidation and GUI editing are still
+unimplemented. Four delay inserts are a stateful compatibility fixture, not proof
+of massive-chain capacity.
+
+## Capacity experiment
+
+```sh
+ARDOUR_PROBE_DIRECT=1 python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_capacity_probe.cc
+python3 tools/dev/run-anticipation-probe.py ../ardour-9.10 anticipation_capacity_probe.cc
+```
+
+The fixture uses eight independent chains of 32 actual LV2 delay inserts, a live
+source and a shared bus with four more delay inserts. The existing parallel
+processing graph is present (13 DSP threads); this is not a comparison against a
+single-thread-only engine. Source generation is deterministic test DSP. Captures
+are taken at the bus, before physical delivery. The stress patch produces peaks
+above unity, so it is not an auditionable mix or a hardware-output test.
+
+| 64-frame result | Direct | Anticipated |
+| --- | --- | --- |
+| Engine mean callback | 487.960 us | 80.6996 us |
+| Engine maximum callback | 19,028 us | 343 us |
+| Per-source bridge calls over 1,333.33 us | 8 | 0 |
+| Cache underruns | N/A | 0 |
+| Compared stereo samples | 262,144 | 262,144 |
+
+Both captures have SHA-256
+`70be909e85f2c16d43d6e1c639fb088f5ffa9418eb403825dccae459a1989543`:
+the output is bit-for-bit identical. `capacity-evidence.json` records the builds,
+source hashes available at the time, metrics and limitations. These short runs
+prove the worker queues can remove substantial work from the callback while
+preserving the tested signal path. They do not establish universal plugin
+capacity, physical latency, long-run hardware stability or full REAPER parity.
+
+The callback timing audit also found that AudioEngine resets performance meters
+when its initial warmup ends. Startup peaks and final steady-state maxima are
+therefore distinct; the callback probe now reports where it observed the peak.
+A later small-fixture run saw its pre-reset peak at block 42 and a post-warmup
+engine maximum of 616 us. Do not describe every startup or OS scheduling spike as
+an anticipation failure, or omit measured steady-state overruns.
+
+## Failures that changed the experiment
+
+- Session construction automatically attaches to AudioEngine. The original
+  correctness harness incorrectly assumed otherwise; longer mixed-bus runs
+  exposed concurrent dummy processing. It now explicitly detaches before creating
+  fixtures and asserts the detached state. The corrected rerun passes the above
+  signal comparisons. Earlier unattached-session claims are superseded.
+- A real LV2 worker crashed before its thread-local tempo map was initialized.
+  Calling the existing `Temporal::TempoMap::fetch()` on worker entry fixed it.
+- Comparing normal callback output with a bounce-only bus oracle includes different
+  transport-start processing. The callback test now uses a simultaneous normal
+  callback reference instead of ignoring startup errors or weakening tolerance.
+- A CoreAudio/BlackHole attempt stalled inside the macOS audio service during
+  backend startup, before the Session or callback experiment. Only its probe
+  process was terminated; this is not a successful CoreAudio test.
+- An early unisolated startup detected a changed real Ardour config checksum. Its
+  original contents were not captured and were not blindly restored. Subsequent
+  successful isolated runs verify the original config is unchanged during them.
+
+## Remaining gates
+
+1. Establish correctly paced 64/128-frame execution and total callback deadlines;
+   then show an actual workload that fails direct and succeeds anticipated.
+2. Cover mid-chain sends, cached buses, sidechains and latency compensation with
+   timestamped boundary outputs while retaining existing routing code.
+3. Cover disk/MIDI sources, held notes, seek/loop and generation cancellation.
+4. Connect the proven ownership mechanism to actual monitoring eligibility and
+   live downstream propagation, with safe mutation/deletion.

@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "backend": "None (Dummy)",
+  "normal_session_callback": true,
+  "blocks": [
+    128
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "bridge_max_us": 69.042,
+  "peak": 0.378609,
+  "hardware_latency_measured": false,
+  "source_commit": "2fedcea6e91664c3bae2e8b1dfb84494d4411884",
+  "linked_source_commit": "3fdf7bffdde09529ce193392d4ee55147e0e38c9",
+  "library_sha256": "37a6ca220855b3b519f74b1ffef8756c95301b54fba4f1b6395c95d6e253836a",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "ea88ea160fe74ae36b29710b7dab16ece6c1a0b3b23a3be24777129cc4aa89f1",
+    "anticipation_probe.cc": "ca850b8e2f286c11c36357ab94846b9dc90055cad65e7719c0c0f3ee3d88b505",
+    "run-anticipation-probe.py": "046356a8fd3f5b49fbeaf561b726959476d250cc5a1b60c90e7c71bec5672bef"
+  },
+  "working_tree_status": [
+    " M tools/dev/anticipation_probe.cc",
+    " M tools/dev/run-anticipation-probe.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_callback_probe.cc"
+  ]
+}

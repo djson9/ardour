@@ -1,0 +1,86 @@
+{
+  "fixture": "8 independent playback routes x 32 LV2 delay inserts, live source, shared 4-insert bus",
+  "direct": {
+    "passed": true,
+    "mode": "direct",
+    "backend": "Dummy Realtime",
+    "block": 64,
+    "chains": 8,
+    "inserts_per_chain": 32,
+    "verified_blocks": 2048,
+    "cache_underruns": 0,
+    "bridge_overruns": 8,
+    "bridge_max_us": 2597.96,
+    "engine_mean_us": 487.96,
+    "engine_max_us": 19028,
+    "period_us": 1333.33,
+    "wall_seconds": 3.21553,
+    "peak": 16.1553,
+    "capture": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-capacity-probe/run-o_r2188w/session/capacity-output.f32",
+    "hardware_deadlines_measured": false,
+    "source_commit": "2fedcea6e91664c3bae2e8b1dfb84494d4411884",
+    "linked_source_commit": "3fdf7bffdde09529ce193392d4ee55147e0e38c9",
+    "library_sha256": "37a6ca220855b3b519f74b1ffef8756c95301b54fba4f1b6395c95d6e253836a",
+    "user_config_unchanged": true,
+    "source_sha256": {
+      "anticipation_capacity_probe.cc": "6e2dcfef2017a24cc820249d874bbc2cd93451ab2016fbc9bc661d2813b47d41",
+      "anticipation_probe.cc": "8d281ea93103653996381cee176774027aa423a892511646ef80a07b4a2db08d",
+      "run-anticipation-probe.py": "756fd72abbe691cb8f17c5a4dd420e96a9fa53657ae7883c59eb12147104697a"
+    },
+    "working_tree_status": [
+      " M tools/dev/ANTICIPATION-PROBE.md",
+      " M tools/dev/anticipation_probe.cc",
+      " M tools/dev/run-anticipation-probe.py",
+      "?? artifacts/",
+      "?? tools/dev/anticipation_callback_probe.cc",
+      "?? tools/dev/anticipation_capacity_probe.cc",
+      "?? tools/dev/reaper-handoff/"
+    ]
+  },
+  "anticipated": {
+    "passed": true,
+    "mode": "anticipated",
+    "backend": "Dummy Realtime",
+    "block": 64,
+    "chains": 8,
+    "inserts_per_chain": 32,
+    "verified_blocks": 2048,
+    "cache_underruns": 0,
+    "bridge_overruns": 0,
+    "bridge_max_us": 9.417,
+    "engine_mean_us": 80.6996,
+    "engine_max_us": 343,
+    "period_us": 1333.33,
+    "wall_seconds": 3.21859,
+    "peak": 16.1553,
+    "capture": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-capacity-probe/run-qu3w_phm/session/capacity-output.f32",
+    "hardware_deadlines_measured": false,
+    "source_commit": "2fedcea6e91664c3bae2e8b1dfb84494d4411884",
+    "linked_source_commit": "3fdf7bffdde09529ce193392d4ee55147e0e38c9",
+    "library_sha256": "37a6ca220855b3b519f74b1ffef8756c95301b54fba4f1b6395c95d6e253836a",
+    "user_config_unchanged": true,
+    "source_sha256": {
+      "anticipation_capacity_probe.cc": "ee1705bdf836d528548b22b2847e6896f551d994fead0bfaeb0c8f6ff509bc67",
+      "anticipation_probe.cc": "8d281ea93103653996381cee176774027aa423a892511646ef80a07b4a2db08d",
+      "run-anticipation-probe.py": "756fd72abbe691cb8f17c5a4dd420e96a9fa53657ae7883c59eb12147104697a"
+    },
+    "working_tree_status": [
+      " M tools/dev/ANTICIPATION-PROBE.md",
+      " M tools/dev/anticipation_probe.cc",
+      " M tools/dev/run-anticipation-probe.py",
+      "?? artifacts/",
+      "?? tools/dev/anticipation_callback_probe.cc",
+      "?? tools/dev/anticipation_capacity_probe.cc",
+      "?? tools/dev/reaper-handoff/"
+    ]
+  },
+  "samples_compared": 262144,
+  "max_sample_error": 0,
+  "capture_sha256": "70be909e85f2c16d43d6e1c639fb088f5ffa9418eb403825dccae459a1989543",
+  "limits": [
+    "Dummy backend, not hardware latency or fixed driver deadlines",
+    "Synthetic deterministic source, real LV2 effects",
+    "No automatic monitoring classification or arbitrary routing",
+    "Output is compared before physical delivery; stress fixture peak exceeds unity"
+  ]
+}
