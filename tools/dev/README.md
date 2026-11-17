@@ -107,21 +107,19 @@ python3 tools/dev/macos-fast-iterate.py iterate \
 Use `--all` to seed the deployment manifest the first time and whenever new
 binary targets are added. Subsequent runs reuse the discovered binary list. `--target
 libardour_mcp_http` restricts a surface edit to its target/dependencies; omit it
-for general changes. `--fast-compile` applies `-O0` only to the MCP surface;
-audio DSP remains optimized. `--direct-launch` uses the bundle environment to
+for general changes. `--fast-compile` applies `-O0` to the MCP surface and `-O1` to the off-thread clip-warp adapter; audio DSP remains optimized. `--direct-launch` uses the bundle environment to
 launch the development executable directly. Omit these two flags for the normal
 optimized build and LaunchServices launch. The helper reports build, preparation/transfer, install,
-and launch-to-MCP-ready timings. Compilation still depends on which code changed
+and launch-to-MCP-ready timings. The warp adapter implementation is compiled separately from the large editor sources. Three measured MacBook build/deploy/restart cycles for adapter/optimization changes took 8.89, 8.89 and 8.25 seconds, meeting the revised under-ten-second target for these cases. Compilation still depends on which code changed
 and on machine load; this is not a six-second clean build guarantee.
 
-Only changed built dylibs/executables are copied. Their load paths are rewritten
+Only changed built dylibs/executables are copied, using compressed rsync deltas for the transfer. Their load paths are rewritten
 in one operation per binary; missing Homebrew dylib dependencies are bundled.
 Changed binaries are ad-hoc signed on the build host, then the application is
 signed and deeply verified on the desktop. No Apple signing identity is used.
 The helper saves the matching stopped session and overlaps normal shutdown with
 the build. A failed build/deployment leaves the saved session on disk; reopen
-the existing app after resolving the error. It it never
-force-kills Ardour or dismisses unsaved-work dialogs. Resource/layout changes
+the existing app after resolving the error. By default it does not force-terminate Ardour or dismiss unsaved-work dialogs. For explicitly authorized development restarts, `--terminate-saved` sends SIGTERM only to the exact app process after verifying the session path and saving it. Resource/layout changes
 and LV2 bundle changes still require normal packaging. Full packaging is also
 needed for a distributable release.
 

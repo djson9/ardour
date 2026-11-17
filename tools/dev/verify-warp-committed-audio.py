@@ -4,7 +4,7 @@ import argparse,json,struct,subprocess,tempfile,xml.etree.ElementTree as ET
 from pathlib import Path
 import numpy as np
 base=Path(__file__).resolve().parents[2]
-ap=argparse.ArgumentParser();ap.add_argument('--session',type=Path,default=base/'verification-macbook/Warp Verification/Warp Verification.ardour');ap.add_argument('--engines',type=Path,default=base/'warp-engines-macbook');args=ap.parse_args()
+ap=argparse.ArgumentParser();ap.add_argument('--session',type=Path,default=base/'verification-macbook/Warp Verification/Warp Verification.ardour');ap.add_argument('--engines',type=Path,default=base/'warp-engines-macbook');ap.add_argument('--source-start',type=int,default=0);ap.add_argument('--source-frames',type=int);args=ap.parse_args()
 session=ET.parse(args.session).getroot();assert session.get('name')=='Warp Verification'
 regions=session.findall('./Playlists/Playlist/Region');assert len(regions)==1
 region=regions[0];settings=region.find('.//ClipWarp').attrib;channels=int(region.get('channels'))
@@ -24,7 +24,10 @@ originals=[read_wave(region.get('master-source-'+str(ch))) for ch in range(chann
 outputs=[read_wave(region.get('source-'+str(ch))) for ch in range(channels)]
 rate=originals[0][1];assert all(r==rate for _,r in originals+outputs)
 original=np.column_stack([d for d,_ in originals]);actual=np.column_stack([d for d,_ in outputs])
-assert region.get('start')=='a0' and region.get('ancestral-start')=='a0','This check expects an untrimmed fixture'
+assert region.get('start')=='a0','This check expects a freshly rendered region'
+assert region.get('ancestral-start')=='a'+str(args.source_start*5880),region.attrib
+original=original[args.source_start:args.source_start+args.source_frames if args.source_frames is not None else None]
+if args.source_frames is not None:assert len(original)==args.source_frames
 with tempfile.TemporaryDirectory() as tmp:
     inp=Path(tmp)/'input.f32';out=Path(tmp)/'output.f32';original.tofile(inp)
     cmd=[str(args.engines/'ArdourWarpRender'),settings['mode'],str(inp),str(out),str(rate),str(channels),str(len(actual)/len(original))]+[settings[k] for k in ['pitch','formants','envelope','grain','flux','preserve','loop','transient-envelope']]
@@ -33,5 +36,5 @@ with tempfile.TemporaryDirectory() as tmp:
     if settings['reverse']=='1':expected=expected[::-1]
     assert actual.shape==expected.shape
     delta=np.abs(actual-expected);assert np.isfinite(actual).all() and not np.any(delta),float(delta.max())
-    report={'session':str(args.session),'settings':settings,'channels':channels,'frames':len(actual),'maxError':float(delta.max()),'peak':float(np.abs(actual).max()),'workerOutput':run.stdout}
+    report={'session':str(args.session),'settings':settings,'channels':channels,'sourceStart':args.source_start,'sourceFrames':len(original),'frames':len(actual),'maxError':float(delta.max()),'peak':float(np.abs(actual).max()),'workerOutput':run.stdout}
 path=base/'artifacts'/('warp-committed-'+settings['mode']+'-'+str(channels)+'ch.json');path.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

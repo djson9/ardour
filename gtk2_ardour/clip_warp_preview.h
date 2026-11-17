@@ -11,6 +11,8 @@
 #include "ardour/session.h"
 #include "ardour/session_event.h"
 #include "clip_warp_filter.h"
+#include "clip_warp_preview_source.h"
+#include "ardour/timefx_request.h"
 
 /* A drag owns one background renderer and one isolated playlist. No render
  * changes the real playlist or adds an undo command; release commits once. */

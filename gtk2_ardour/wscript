@@ -9,6 +9,18 @@ import re
 import subprocess
 import glob
 
+@TaskGen.feature('ardour_warp_dev_fast')
+@TaskGen.after_method('process_source')
+def warp_development_compile(obj):
+    # Opt-in for the off-thread warp adapter only; leave DSP/audio code optimized.
+    if not os.environ.get('ARDOUR_DEV_FAST'):
+        return
+    for task in obj.compiled_tasks:
+        if task.inputs[0].name != 'clip_warp_filter.cc':
+            continue
+        task.env = task.env.derive()
+        task.env.CXXFLAGS = [f for f in task.env.CXXFLAGS if not f.startswith('-O')] + ['-O1']
+
 @TaskGen.extension('.m')
 def m_hook(self, node):
     """Alias .m files to be compiled the same as .c files, gcc will do the right thing."""
@@ -44,6 +56,7 @@ gtk2_ardour_sources = [
         'audio_clock.cc',
         'audio_clip_editor.cc',
         'audio_region_editor.cc',
+        'clip_warp_filter.cc',
         'audio_region_view.cc',
         'audio_trigger_properties_box.cc',
         'audio_streamview.cc',
@@ -554,7 +567,7 @@ def build(bld):
 
     # Tool to dump lua-bindings (of gtk2ardour + libs)
     if re.search ("linux", sys.platform) != None and bld.env['LUABINDINGDOC']:
-        obj = bld (features = 'cxx c cxxprogram')
+        obj = bld (features = 'cxx c cxxprogram ardour_warp_dev_fast')
         obj.install_path = None
         obj.source    = list(gtk2_ardour_sources)
         obj.target    = 'luadoc'
@@ -611,7 +624,7 @@ def build(bld):
 
 #    # Tool to test libcanvas
 #    if re.search ("linux", sys.platform) != None and bld.env['CANVASTESTUI']:
-#        obj = bld (features = 'cxx c cxxprogram')
+#        obj = bld (features = 'cxx c cxxprogram ardour_warp_dev_fast')
 #        obj.install_path = None
 #        obj.source    = list(gtk2_ardour_sources)
 #        obj.source    = [ 'ardour_button.cc', 'ui_config.cc', 'tooltips.cc' ]
@@ -643,7 +656,7 @@ def build(bld):
     if bld.env['build_target'] == 'mingw' or bld.env['build_target'] == 'msvc':
         obj = bld (features = 'cxx c cxxprogram winres')
     else:
-        obj = bld (features = 'cxx c cxxprogram')
+        obj = bld (features = 'cxx c cxxprogram ardour_warp_dev_fast')
 
     # operate on copy to avoid adding sources twice
     obj.source    = list(gtk2_ardour_sources)

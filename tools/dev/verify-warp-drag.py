@@ -11,7 +11,7 @@ def state():return next(w for w in m.tool('ui_get_state')['windows'] if w['title
 def metrics():return m.tool('track_get_info',id='488')['warpPreview']
 if state()['canvases'][0]['height']<300:
     m.tool('ui_activate_action',action='Editor/show-editor-props');time.sleep(.15)
-a=state();canvas=next(c for c in a['canvases'] if c['name']=='EditorMainCanvas');label=next(t for t in canvas['labels'] if t['text']=='Warp Fixture');box=label['ancestors'][0]
+a=state();canvas=next(c for c in a['canvases'] if c['name']=='EditorMainCanvas');label=next(t for t in canvas['labels'] if t['text']=='Warp Fixture' or t['text'].startswith('Warp Fixture ('));box=label['ancestors'][0]
 x=box['x0']+5 if args.left_edge else box['x1']-5
 y=box['y1']-20;direction=1 if args.left_edge else -1;target=x+direction*90
 if args.beat_grid:

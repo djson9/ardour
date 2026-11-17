@@ -3,7 +3,7 @@
 Requires an already packaged app; dependencies added to changed binaries are bundled.
 Only Mach-O files are updated: use normal packaging after resource/layout changes.
 """
-import argparse, concurrent.futures, json, os, plistlib, re, shlex, shutil, subprocess, sys, tarfile, time, urllib.request
+import argparse, concurrent.futures, json, os, plistlib, re, shlex, shutil, signal, subprocess, sys, tarfile, time, urllib.request
 from pathlib import Path
 
 
@@ -137,8 +137,15 @@ def iterate(args):
         if transport.get('rolling') or transport.get('recording') or float(transport.get('speed',0)) != 0:
             raise RuntimeError('Stop playback/recording before iterating')
         tool('session_save')
-        # Ask the app to quit normally. Never force termination or discard a dialog.
-        subprocess.Popen(['osascript','-e','tell application "Ardour9" to quit'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        if args.terminate_saved:
+            pattern='^'+re.escape(str(Path(args.app).resolve()/'Contents/MacOS/Ardour9'))
+            processes=subprocess.run(['pgrep','-f',pattern],capture_output=True,text=True)
+            pids=processes.stdout.split()
+            if len(pids)!=1:raise RuntimeError('Expected exactly one process for the specified app')
+            os.kill(int(pids[0]),signal.SIGTERM)
+        else:
+            # Normal application quit may present a dialog; never force it.
+            subprocess.Popen(['osascript','-e','tell application "Ardour9" to quit'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     run(['ssh',*ssh_options,args.host,command],stdout=sys.stderr)
     timings['build']=time.perf_counter()-start
     prep = ['python3',remote_script,'prepare','--source',remote_source,'--app',args.remote_app]
@@ -148,7 +155,7 @@ def iterate(args):
     stage = local.parent/'.ardour-fast-iterate'
     stage.mkdir(exist_ok=True)
     archive = stage/'delta.tar'
-    run(['scp','-q',*ssh_options,args.host+':'+result['archive'],archive])
+    run(['rsync','-az','--no-whole-file','-e',shlex.join(['ssh',*ssh_options]),args.host+':'+result['archive'],archive])
     timings['prepare_transfer']=time.perf_counter()-start-timings['build']
     if not result['files'] and not args.restart:
         print(json.dumps(dict(changed=False,seconds=time.perf_counter()-start))); return
@@ -207,6 +214,7 @@ def main():
     p.add_argument('--fast-compile',action='store_true',help='Use -O0 for MCP surface development (not DSP code)')
     p.add_argument('--jobs',type=int,default=8)
     p.add_argument('--restart',action='store_true')
+    p.add_argument('--terminate-saved',action='store_true',help='Terminate the exact app process after verifying and saving its session; for authorized development restarts')
     p.add_argument('--direct-launch',action='store_true',help='Launch the development app directly with its bundle environment')
     p.add_argument('--session')
     args=p.parse_args()

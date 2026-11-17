@@ -25,8 +25,8 @@ MacBook CoreAudio validation (48 kHz, 1024 frames) passed all six long mono mode
 
 ## Outstanding
 
-- Test overlap/region effects, trimmed ancestry, and additional stressed-session cases.
+- Overlap/gain and twice-trimmed reversed stereo fixtures now pass. Broader region-effect and stressed-session coverage remains useful.
 - Replace `.ready` marker checks with a versioned capability handshake.
 - Improve initial preview latency. A universal latency guarantee is not established.
-- The requested six-second full iteration loop is not met: the latest incremental compile alone took 7.565 seconds.
-- Final installation into the main user app is separate from validation in the dedicated test app.
+- The user revised the iteration target to under ten seconds. Three measured build/deploy/restart cycles took 8.89, 8.89 and 8.25 seconds after splitting the adapter implementation and using incremental deployment. Larger/header changes and cold builds are not covered by those measurements.
+- Keep a rollback copy when promoting the validated app and private engines to the main installation.
