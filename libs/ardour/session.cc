@@ -612,6 +612,34 @@ Session::anticipative_process ()
 }
 
 void
+Session::retire_anticipation_for_edit ()
+{
+	if (!_anticipative_process || !_anticipative_process->size ()) { return; }
+	assert (!_engine.in_process_thread ());
+	_anticipative_process->clear ();
+	_anticipation_priming = false;
+	_anticipation_edit_pending.store (true);
+	/* Hold output until the existing locate path restores audible disk position
+	 * and plugin state. The edit completes under the caller's process lock. */
+	request_locate (_transport_sample, true, transport_rolling () ? MustRoll : MustStop);
+}
+
+bool
+Session::anticipation_edit_ready ()
+{
+	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
+	_anticipative_process->suspend ();
+	_anticipation_priming = false;
+	_anticipation_edit_pending.store (true);
+	if (!_anticipation_retirement_scheduled) {
+		_anticipation_retirement_scheduled = true;
+		add_post_transport_work (PostTransportRetireAnticipation);
+		_butler->schedule_transport_work ();
+	}
+	return false;
+}
+
+void
 Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
 {
 	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }

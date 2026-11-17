@@ -165,8 +165,9 @@ Session::process (pframes_t nframes)
 	 * 2) is the transport FSM waiting to be told this
 	 */
 
-	if (_anticipative_process && _anticipative_process->size () &&
-	    !_anticipative_process->running () && _anticipative_process->quiescent ()) {
+	if (_anticipation_edit_pending.load () ||
+	    (_anticipative_process && _anticipative_process->size () &&
+	     !_anticipative_process->running () && _anticipative_process->quiescent ())) {
 		/* Queues were cancelled before the transport event entered the FSM.
 		 * Their future DiskReader fade state is not an audible declick. */
 		one_or_more_routes_declicking = false;
@@ -407,6 +408,10 @@ Session::process_with_events (pframes_t nframes)
 		process_event (ev);
 	}
 
+	if (_anticipation_edit_pending.load ()) {
+		_silent = true;
+		return;
+	}
 	if (_anticipation_priming) {
 		if (_anticipation_prepare_failed.load () || (_anticipative_process && _anticipative_process->faulted ())) {
 			_anticipation_priming = false;

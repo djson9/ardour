@@ -721,6 +721,7 @@ Session::butler_completed_transport_work ()
 
 	if (ptw & PostTransportLocate) {
 		post_locate ();
+		_anticipation_edit_pending.store (false);
 		ptw = PostTransportWork (ptw & ~PostTransportLocate);
 		set_post_transport_work (ptw);
 		TFSM_EVENT (TransportFSM::LocateDone);
@@ -1218,6 +1219,12 @@ Session::butler_transport_work (bool have_process_lock)
 	int on_entry = _butler->should_do_transport_work.load();
 	bool finished = true;
 	PostTransportWork ptw = post_transport_work();
+	if (ptw & PostTransportRetireAnticipation) {
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		retire_anticipation_for_edit ();
+		_anticipation_retirement_scheduled = false;
+	}
 	if (_anticipative_process && _anticipative_process->size () &&
 	    (ptw & (PostTransportStop | PostTransportLocate | PostTransportReverse))) {
 		/* The callback cancels producers and waits for acknowledgement through

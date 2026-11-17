@@ -533,6 +533,7 @@ setup_enum_writer ()
 	REGISTER_CLASS_ENUM (Session, PostTransportAdjustCaptureBuffering);
 	REGISTER_CLASS_ENUM (Session, PostTransportLoopChanged);
 	REGISTER_CLASS_ENUM (Session, PostTransportPrepareAnticipation);
+	REGISTER_CLASS_ENUM (Session, PostTransportRetireAnticipation);
 	REGISTER_BITS (_Session_PostTransportWork);
 
 	REGISTER_CLASS_ENUM (Session, Clean);

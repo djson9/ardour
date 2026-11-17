@@ -346,6 +346,10 @@ public:
 	/** Control thread: opt in to native plan preparation at transport start.
 	 * Experimental engine API; UI enablement awaits structural-edit barriers. */
 	void set_anticipative_processing (bool, uint32_t milliseconds = 200);
+	/** Non-RT, process lock held, before taking a route/IO mutation lock. */
+	void retire_anticipation_for_edit ();
+	/** RT, process lock held. False defers a pending structural mutation. */
+	bool anticipation_edit_ready ();
 
 	std::shared_ptr<RTTaskList> rt_tasklist () { return _rt_tasklist; }
 	std::shared_ptr<IOTaskList> io_tasklist () { return _io_tasklist; }
@@ -1306,7 +1310,8 @@ public:
 		PostTransportAdjustPlaybackBuffering  = 0x100,
 		PostTransportAdjustCaptureBuffering   = 0x200,
 		PostTransportLoopChanged        = 0x400,
-		PostTransportPrepareAnticipation = 0x800
+		PostTransportPrepareAnticipation = 0x800,
+		PostTransportRetireAnticipation = 0x1000
 	};
 
 	std::shared_ptr<SessionPlaylists> playlists () const { return _playlists; }
@@ -2402,6 +2407,8 @@ private:
 	std::atomic<uint32_t> _anticipation_horizon {200};
 	std::atomic<bool> _anticipation_preparing {false};
 	std::atomic<bool> _anticipation_prepare_failed {false};
+	std::atomic<bool> _anticipation_edit_pending {false};
+	bool _anticipation_retirement_scheduled {false}; // process lock held
 	bool _anticipation_priming {false}; // process callback only
 	uint64_t _anticipation_generation {0}; // Butler only, under process lock
 
