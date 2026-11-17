@@ -1357,7 +1357,10 @@ PluginInsert::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sa
 #endif
 		/* run as normal if we are active or moving from inactive to active */
 
-		if (_session.transport_rolling() || _session.bounce_processing()) {
+		/* A render can advance before the audible transport starts. Use its
+		 * supplied speed to evaluate automation at its supplied sample range.
+		 */
+		if (speed != 0 || _session.transport_rolling() || _session.bounce_processing()) {
 			automate_and_run (bufs, start_sample, end_sample, speed, nframes);
 		} else {
 			PBD::Mutex::Lock lm (control_lock(), PBD::Mutex::TryLock);
