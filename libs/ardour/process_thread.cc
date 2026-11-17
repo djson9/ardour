@@ -38,6 +38,7 @@ release_thread_buffer (void* arg)
 }
 
 PBD::Private<ThreadBuffers> ProcessThread::_private_thread_buffers (release_thread_buffer);
+thread_local ProcessThread::RenderTime const* ProcessThread::_render_time = nullptr;
 
 void
 ProcessThread::init ()

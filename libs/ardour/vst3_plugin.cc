@@ -43,6 +43,7 @@
 #include "ardour/audioengine.h"
 #include "ardour/butler.h"
 #include "ardour/debug.h"
+#include "ardour/process_thread.h"
 #include "ardour/rc_configuration.h"
 #include "ardour/selection.h"
 #include "ardour/session.h"
@@ -733,7 +734,8 @@ VST3Plugin::connect_and_run (BufferSet&  bufs,
 	    Vst::ProcessContext::kContTimeValid | Vst::ProcessContext::kSystemTimeValid | Vst::ProcessContext::kSmpteValid | Vst::ProcessContext::kProjectTimeMusicValid | Vst::ProcessContext::kBarPositionValid | Vst::ProcessContext::kTempoValid | Vst::ProcessContext::kTimeSigValid | Vst::ProcessContext::kClockValid;
 
 	context.projectTimeSamples   = start;
-	context.continousTimeSamples = _engine.processed_samples ();
+	ProcessThread::RenderTime const* render_time = ProcessThread::render_time ();
+	context.continousTimeSamples = render_time ? render_time->continuous_at (start) : _engine.processed_samples ();
 	context.systemTime           = g_get_monotonic_time ();
 
 	{

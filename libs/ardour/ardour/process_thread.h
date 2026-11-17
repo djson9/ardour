@@ -42,6 +42,31 @@ public:
 	void get_buffers ();
 	void drop_buffers ();
 
+	/* A moving render has a project cursor and an unwrapped cursor.  The latter
+	 * advances across loop boundaries and does not depend on the device clock.
+	 */
+	struct RenderTime {
+		samplepos_t project_start;
+		samplepos_t continuous_start;
+		samplepos_t continuous_at (samplepos_t project) const {
+			return continuous_start + (project - project_start);
+		}
+	};
+
+	class RenderScope {
+	public:
+		RenderScope (samplepos_t project, samplepos_t continuous)
+			: _time { project, continuous }, _previous (_render_time) { _render_time = &_time; }
+		~RenderScope () { _render_time = _previous; }
+		RenderScope (RenderScope const&) = delete;
+		RenderScope& operator= (RenderScope const&) = delete;
+	private:
+		RenderTime const _time;
+		RenderTime const* const _previous;
+	};
+
+	static RenderTime const* render_time () { return _render_time; }
+
 	static bool have_thread_buffers () {
 		return 0 != _private_thread_buffers.get ();
 	}
@@ -63,6 +88,7 @@ protected:
 	void session_going_away ();
 
 private:
+	static thread_local RenderTime const* _render_time;
 	static PBD::Private<ThreadBuffers> _private_thread_buffers;
 };
 
