@@ -88,6 +88,7 @@ public:
 	/** RT, from the route's consumer boundary. */
 	Queue::Result process (Node&, BufferSet&, Queue::Range const&);
 	bool running () const { return _running.load (std::memory_order_acquire); }
+	bool bound () const { return _bound.load (std::memory_order_acquire); }
 	uint64_t generation () const { return _generation; }
 	size_t size () const { return _nodes.size (); }
 
@@ -98,6 +99,7 @@ private:
 	std::vector<size_t> _work;
 	std::vector<std::shared_ptr<Route>> _return_routes;
 	std::atomic<bool> _running {false};
+	std::atomic<bool> _bound {false};
 	uint64_t _generation {0};
 };
 

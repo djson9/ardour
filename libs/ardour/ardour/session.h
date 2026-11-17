@@ -2408,6 +2408,7 @@ private:
 	std::atomic<bool> _anticipation_preparing {false};
 	std::atomic<bool> _anticipation_prepare_failed {false};
 	std::atomic<bool> _anticipation_edit_pending {false};
+	std::atomic<bool> _anticipation_external_edit {false};
 	bool _anticipation_retirement_scheduled {false}; // process lock held
 	bool _anticipation_priming {false}; // process callback only
 	bool _anticipation_prepare_requested {false}; // process callback only

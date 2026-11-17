@@ -24,6 +24,7 @@
 #include "ardour/session.h"
 #include "ardour/track.h"
 #include "ardour/location.h"
+#include "ardour/triggerbox.h"
 
 using namespace ARDOUR;
 
@@ -113,6 +114,7 @@ struct AnticipativeProcess::RouteAdapter {
 		  last_project_end (first.project)
 	{
 		processing_channels = channels;
+		if (r->triggerbox () && !r->triggerbox ()->empty ()) { requires_live = true; }
 		ChanCount packed = r->n_outputs ();
 		bool suffix = !track;
 		r->foreach_processor ([&] (std::weak_ptr<Processor> weak) {
@@ -397,6 +399,7 @@ AnticipativeProcess::add (std::shared_ptr<Route> route, Queue::Configuration con
 	node->first = first;
 	node->queue.reset (new Queue (config, std::move (render), std::move (next), std::move (ready)));
 	_nodes.push_back (std::move (node));
+	_bound.store (true, std::memory_order_release);
 	return *_nodes.back ();
 }
 
@@ -479,6 +482,7 @@ AnticipativeProcess::clear ()
 	_return_routes.clear ();
 	_nodes.clear ();
 	_work.clear ();
+	_bound.store (false, std::memory_order_release);
 }
 
 void

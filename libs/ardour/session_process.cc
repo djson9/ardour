@@ -92,6 +92,7 @@ Session::process (pframes_t nframes)
 	samplepos_t transport_at_start = _transport_sample;
 
 	setup_thread_local_variables ();
+	if (_anticipation_external_edit.exchange (false)) { anticipation_edit_ready (); }
 	_transport_fsm->retry_pending_events ();
 
 	if (non_realtime_work_pending()) {
@@ -144,7 +145,7 @@ Session::process (pframes_t nframes)
 	if (_update_send_delaylines) {
 		std::shared_ptr<RouteList const> r = routes.reader ();
 		for (auto const& i : *r) {
-			i->update_send_delaylines ();
+			if (!i->has_anticipative_owner ()) { i->update_send_delaylines (); }
 		}
 	}
 

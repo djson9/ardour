@@ -644,6 +644,7 @@ Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
 {
 	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
 	PBD::Mutex::Lock lock (_engine.process_lock ());
+	anticipative_process (); // publish a stable coordinator before enabling callbacks
 	_anticipation_horizon.store (milliseconds);
 	_anticipation_enabled.store (enabled);
 	if (transport_rolling () || (_anticipative_process && _anticipative_process->size ())) {
@@ -2580,6 +2581,7 @@ Session::set_block_size (pframes_t nframes)
 void
 Session::resort_routes ()
 {
+	if (_anticipation_enabled.load ()) { _anticipation_external_edit.store (true); }
 	/* don't do anything here with signals emitted
 	   by Routes during initial setup or while we
 	   are being destroyed.
@@ -6134,6 +6136,7 @@ Session::available_capture_duration ()
 void
 Session::tempo_map_changed ()
 {
+	if (_anticipation_enabled.load ()) { _anticipation_external_edit.store (true); }
 	clear_clicks ();
 	sync_cues ();
 
@@ -7512,6 +7515,12 @@ Session::set_owned_port_public_latency (bool playback)
 void
 Session::update_latency (bool playback)
 {
+	if (_anticipation_enabled.load () &&
+	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
+		_anticipation_external_edit.store (true);
+		_engine.queue_latency_update (playback);
+		return;
+	}
 	/* called only from AudioEngine::latency_callback.
 	 * but may indirectly be triggered from
 	 * Session::update_latency_compensation -> _engine.update_latencies
@@ -7701,6 +7710,13 @@ Session::set_worst_input_latency ()
 void
 Session::update_latency_compensation (bool force_whole_graph, bool called_from_backend)
 {
+	if (_anticipation_enabled.load () &&
+	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
+		_anticipation_external_edit.store (true);
+		_engine.queue_latency_update (false);
+		_engine.queue_latency_update (true);
+		return;
+	}
 	/* Called to update Ardour's internal latency values and compensation
 	 * planning. Typically case is from within ::graph_reordered()
 	 */
