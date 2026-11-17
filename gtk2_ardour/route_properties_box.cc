@@ -329,7 +329,8 @@ RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 		return;
 	}
 #endif
-	GenericPluginUI* plugin_ui = new GenericPluginUI (pib, true, true);
+	GenericPluginUI* plugin_ui = new GenericPluginUI (pib, true, true, Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? 16 : 0);
+	plugin_ui->FullControlsRequested.connect ([this, p] () { _insert_box->generic_edit_processor (p); });
 	if (plugin_ui->empty ()) {
 		delete plugin_ui;
 		return;

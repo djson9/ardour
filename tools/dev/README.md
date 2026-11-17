@@ -303,3 +303,36 @@ format/ID; loaded instances are unaffected. Unhide restores Normal status.
 For track navigation, the local Editor bindings use Up for
 `Editor/select-prev-route` and Down for `Editor/select-next-route`. Contextual
 MIDI-note, automation, mixer, text-entry, and plugin-list bindings remain separate.
+
+### Track-selection latency in the Live layout
+
+The compact device panel builds at most 16 controls per plugin. **All controls…**
+opens the existing, unlimited generic editor; the native plugin editor also
+remains available from the processor list. Standalone editors and the standard
+(non-Live) layout retain their full parameter lists. Compact panels skip preset
+filesystem discovery because they do not display the preset toolbar. Presets are
+still loaded when the full editor is explicitly opened.
+
+On the MacBook, selecting ACE Reasonable Synth-2 (Serum + Decapitator) previously
+cost 242.66–252.09 ms over ten selections. Sampling showed widget construction,
+GTK realization/style lookup, and a separate first-selection AU preset-directory
+scan. After bounding the compact controls and removing that unused preset scan,
+ten Down-key selections measured 22.97–25.08 ms (median 23.70 ms, first selection
+after restart 25.08 ms). Up measured 8.07–13.71 ms. Every measured selection met
+the 100 ms budget. These are MCP key-dispatch plus GUI-thread inspection round
+trips, not display-compositor or physical-key-to-photon measurements. Opening
+the full editor is deliberately outside this track-selection budget.
+
+Reproduce against a stopped session with editor focus, using the ID of the track
+immediately before the target and the exact current editor title:
+
+```sh
+python3 tools/dev/measure-track-navigation.py \
+  --start-track-id 5649 --window '*Hotkey Verification - Ardour'
+```
+
+The script changes track selection, checks the Up/Down bindings, prints all
+samples, and fails if any measured round trip is 100 ms or longer. To include a
+cold selection, run immediately after restarting Ardour. Verified on 2026-11-17:
+macOS build/install, ten actual MCP arrow-key pairs, visible compact controls and
+All controls button, and opening Serum's full generic editor from that button.

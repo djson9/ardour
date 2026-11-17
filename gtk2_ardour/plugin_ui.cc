@@ -523,7 +523,7 @@ PluginUIWindow::plugin_going_away ()
 	death_connection.disconnect ();
 }
 
-PlugUIBase::PlugUIBase (std::shared_ptr<PlugInsertBase> pib)
+PlugUIBase::PlugUIBase (std::shared_ptr<PlugInsertBase> pib, bool with_presets)
 	: _pib (pib)
 	, plugin (pib->plugin ())
 	, _add_button (_("Add"))
@@ -561,8 +561,12 @@ PlugUIBase::PlugUIBase (std::shared_ptr<PlugInsertBase> pib)
 	set_tooltip (_tailtime_button, _("Edit Plugin tail time"));
 	_no_load_preset = 0;
 
-	update_preset_list ();
-	update_preset ();
+	/* Controls-only panels have no preset toolbar. Avoid scanning the
+	 * filesystem for presets merely because a track was selected. */
+	if (with_presets) {
+		update_preset_list ();
+		update_preset ();
+	}
 
 	_latency_button.set_icon (ArdourIcon::LatencyClock);
 	_latency_button.add_elements (ArdourButton::Text);
@@ -634,7 +638,7 @@ PlugUIBase::PlugUIBase (std::shared_ptr<PlugInsertBase> pib)
 
 	_pib->DropReferences.connect (death_connection, invalidator (*this), std::bind (&PlugUIBase::plugin_going_away, this), gui_context ());
 
-	if (_pib->ui_elements () & PlugInsertBase::PluginPreset) {
+	if (with_presets && (_pib->ui_elements () & PlugInsertBase::PluginPreset)) {
 		plugin->PresetAdded.connect (*this, invalidator (*this), std::bind (&PlugUIBase::preset_added_or_removed, this), gui_context ());
 		plugin->PresetRemoved.connect (*this, invalidator (*this), std::bind (&PlugUIBase::preset_added_or_removed, this), gui_context ());
 		plugin->PresetLoaded.connect (*this, invalidator (*this), std::bind (&PlugUIBase::update_preset, this), gui_context ());

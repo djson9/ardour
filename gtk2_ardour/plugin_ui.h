@@ -89,7 +89,7 @@ class VSTPluginUI;
 class PlugUIBase : public virtual sigc::trackable, public PBD::ScopedConnectionList
 {
 public:
-	PlugUIBase (std::shared_ptr<ARDOUR::PlugInsertBase>);
+	PlugUIBase (std::shared_ptr<ARDOUR::PlugInsertBase>, bool with_presets = true);
 	virtual ~PlugUIBase();
 
 	virtual gint get_preferred_height () = 0;
@@ -218,12 +218,13 @@ private:
 class GenericPluginUI : public PlugUIBase, public Gtk::VBox
 {
 public:
-	GenericPluginUI (std::shared_ptr<ARDOUR::PlugInsertBase> plug, bool scrollable = false, bool ctrls_only = false);
+	GenericPluginUI (std::shared_ptr<ARDOUR::PlugInsertBase> plug, bool scrollable = false, bool ctrls_only = false, size_t max_controls = 0);
 	~GenericPluginUI ();
 
 	gint get_preferred_height () { return prefheight; }
 	gint get_preferred_width () { return -1; }
 	bool empty () const { return _empty; }
+	sigc::signal<void> FullControlsRequested;
 
 	bool start_updating(GdkEventAny*);
 	bool stop_updating(GdkEventAny*);
@@ -237,6 +238,7 @@ private:
 	gint prefheight;
 	bool is_scrollable;
 	bool want_ctrl_only;
+	size_t _max_controls;
 	bool _empty;
 
 	struct MeterInfo {

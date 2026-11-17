@@ -84,11 +84,12 @@ using namespace ArdourWidgets;
 using namespace Gtk;
 using namespace ARDOUR_UI_UTILS;
 
-GenericPluginUI::GenericPluginUI (std::shared_ptr<PlugInsertBase> pib, bool scrollable, bool ctrls_only)
-	: PlugUIBase (pib)
+GenericPluginUI::GenericPluginUI (std::shared_ptr<PlugInsertBase> pib, bool scrollable, bool ctrls_only, size_t max_controls)
+	: PlugUIBase (pib, !(ctrls_only && max_controls))
 	, automation_menu (0)
 	, is_scrollable(scrollable)
 	, want_ctrl_only(ctrls_only)
+	, _max_controls (max_controls)
 	, _empty (true)
 	, _plugin_pianokeyboard_expander (_("MIDI Keyboard (audition only)"))
 	, _piano (0)
@@ -108,7 +109,7 @@ GenericPluginUI::GenericPluginUI (std::shared_ptr<PlugInsertBase> pib, bool scro
 	if (_pib->ui_elements () == PlugInsertBase::NoGUIToolbar) {
 		Gtk::Label* spacer = manage (new Gtk::Label());
 		smaller_hbox->pack_start(*spacer);
-	} else {
+	} else if (!ctrls_only) {
 		add_common_widgets (smaller_hbox, false);
 	}
 
@@ -317,9 +318,15 @@ void
 GenericPluginUI::build ()
 {
 	std::vector<ControlUI *> control_uis;
+	bool more_controls = false;
 
 	// Build a ControlUI for each control port
 	for (size_t i = 0; i < plugin->parameter_count(); ++i) {
+
+		if (_max_controls && control_uis.size () >= _max_controls) {
+			more_controls = true;
+			break;
+		}
 
 		if (plugin->parameter_is_control (i)) {
 
@@ -363,6 +370,10 @@ GenericPluginUI::build ()
 	// Build a ControlUI for each property
 	const Plugin::PropertyDescriptors& descs = plugin->get_supported_properties();
 	for (Plugin::PropertyDescriptors::const_iterator d = descs.begin(); d != descs.end(); ++d) {
+		if (_max_controls && control_uis.size () >= _max_controls) {
+			more_controls = true;
+			break;
+		}
 		const ParameterDescriptor& desc = d->second;
 		const Evoral::Parameter    param(PluginPropertyAutomation, 0, desc.key);
 
@@ -399,7 +410,11 @@ GenericPluginUI::build ()
 	}
 
 	if (control_uis.empty () && _pi) {
-		if (has_descriptive_presets ()) {
+		if (_max_controls) {
+			/* Preset-only plugins still need an entry point to their editor. */
+			more_controls = true;
+			_empty = false;
+		} else if (has_descriptive_presets ()) {
 			preset_gui = new PluginPresetsUI (_pi); // XXX
 			hpacker.pack_start (*preset_gui, true, true);
 			_empty = false;
@@ -411,6 +426,17 @@ GenericPluginUI::build ()
 		}
 	} else {
 		automatic_layout (control_uis);
+	}
+
+	if (more_controls) {
+		/* Bound widget construction and realization in the compact device
+		 * panel. The full editor remains available on explicit request. */
+		Gtk::Button* more = manage (new Gtk::Button (_("All controls…")));
+		more->set_name ("PluginAllControls");
+		more->signal_clicked ().connect ([this] () { FullControlsRequested (); });
+		main_contents.pack_start (*more, false, false);
+		main_contents.reorder_child (*more, 0);
+		more->show ();
 	}
 
 	output_update ();
