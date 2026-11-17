@@ -254,7 +254,12 @@ struct AnticipativeProcess::RouteAdapter {
 	}
 	static bool consume (void* context, BufferSet& input, samplepos_t start, samplepos_t end, pframes_t nframes, bool moving) {
 		auto& self = *static_cast<RouteAdapter*> (context);
-		if (!moving && !self.plan._session.remaining_latency_preroll ()) { self.route->output ()->silence (nframes); return true; }
+		self.audible.set_count (self.channels);
+		if (!moving && !self.plan._session.remaining_latency_preroll ()) {
+			self.audible.silence (nframes, 0);
+			for (uint32_t c = 0; c < self.channels.n_midi (); ++c) { self.audible.get_midi (c).clear (); }
+			self.route->output ()->silence (nframes); return true;
+		}
 		self.route->capture_anticipative_input (input, start, end, nframes);
 		if (!self.plan.running ()) {
 			self.audible.silence (nframes, 0);

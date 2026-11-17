@@ -177,6 +177,11 @@ Session::process (pframes_t nframes)
 		TFSM_EVENT (TransportFSM::DeclickDone);
 	}
 
+	if (_anticipation_prepare_requested) {
+		_anticipation_prepare_requested = false;
+		add_post_transport_work (PostTransportPrepareAnticipation);
+		TFSM_EVENT (TransportFSM::ButlerRequired);
+	}
 	_engine.main_thread()->drop_buffers ();
 
 	/* deliver MIDI clock. Note that we need to use the transport sample

@@ -2556,6 +2556,7 @@ Session::set_block_size (pframes_t nframes)
 	 * ::process(). It is therefore fine to do things that block
 	 * here.
 	 */
+	retire_anticipation_for_edit ();
 	current_block_size = nframes;
 	_required_thread_buffersize = -1;
 

@@ -90,6 +90,7 @@ bool
 Session::transport_change_ready ()
 {
 	_anticipation_priming = false;
+	_anticipation_prepare_requested = false;
 	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
 	_anticipative_process->suspend ();
 	return _anticipative_process->quiescent ();
@@ -628,8 +629,9 @@ Session::start_transport (bool after_loop)
 		_anticipation_priming = true;
 		_anticipation_prepare_failed.store (false);
 		_anticipation_preparing.store (true);
-		add_post_transport_work (PostTransportPrepareAnticipation);
-		TFSM_EVENT (TransportFSM::ButlerRequired);
+		/* A roll-after-locate can be nested inside Butler completion, which
+		 * clears the old work flags. Schedule new work at this cycle's end. */
+		_anticipation_prepare_requested = true;
 	}
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("send TSC4 with speed = %1\n", transport_speed()));
 
@@ -1955,6 +1957,10 @@ Session::request_roll_at_and_return (samplepos_t start, samplepos_t return_to)
 void
 Session::engine_halted ()
 {
+	/* The backend has stopped callbacks. Retire future owners before the normal
+	 * synchronous stop touches DiskReaders, instruments or loop buffers. */
+	if (_anticipative_process) { _anticipative_process->clear (); }
+	_anticipation_priming = false;
 	/* there will be no more calls to process(), so
 	   we'd better clean up for ourselves, right now.
 
