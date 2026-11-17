@@ -285,3 +285,21 @@ On macOS these are Cmd+T, Cmd+Shift+T, Cmd+L, and Cmd+Option+L. Loop uses the se
 region span and starts loop playback. The bottom-panel toggle shows/hides the
 current piano roll or device view. N continues to open the full Add dialog.
 Native build/deployment and all four live binding/action checks passed.
+
+### Plugin-selector keyboard and visibility controls
+
+Enter (including keypad Enter) in search refreshes results, selects the first
+match, and focuses the result list. With no matches it stays in search. Up/Down
+then navigates results; Enter queues the focused plugin and invokes the existing
+Insert Plugin(s) flow, including any plugins already in that queue. Modified
+Enter and text editing keep their normal behavior. Mouse double-click retains
+its existing queue-only action.
+
+Right-click a result for Hide Plugin or Unhide Plugin. Show Hidden Plugins in the
+same menu disables the search filter bypass and displays hidden matches so they
+can be unhidden. Status is saved immediately and applies to the chosen plugin
+format/ID; loaded instances are unaffected. Unhide restores Normal status.
+
+For track navigation, the local Editor bindings use Up for
+`Editor/select-prev-route` and Down for `Editor/select-next-route`. Contextual
+MIDI-note, automation, mixer, text-entry, and plugin-list bindings remain separate.

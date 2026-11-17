@@ -29,6 +29,7 @@
 #include <ytkmm/comboboxtext.h>
 #include <ytkmm/entry.h>
 #include <ytkmm/liststore.h>
+#include <ytkmm/menu.h>
 #include <ytkmm/notebook.h>
 #include <ytkmm/scrolledwindow.h>
 #include <ytkmm/treemodel.h>
@@ -157,6 +158,7 @@ private:
 	void vst3_refiller (const std::string&);
 
 	Gtk::Menu* _plugin_menu;
+	Gtk::Menu _result_context_menu;
 	ARDOUR::PluginManager& manager;
 
 	void row_activated(Gtk::TreeModel::Path path, Gtk::TreeViewColumn* col);

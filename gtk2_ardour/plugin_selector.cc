@@ -43,6 +43,8 @@
 
 #include "gtkmm2ext/cell_renderer_pixbuf_multi.h"
 #include "gtkmm2ext/utils.h"
+#include "gtkmm2ext/keyboard.h"
+#include <ydk/gdkkeysyms.h>
 
 #include "widgets/tooltips.h"
 
@@ -135,6 +137,38 @@ PluginSelector::PluginSelector (PluginManager& mgr)
 	plugin_model->set_sort_func (plugin_columns.name.index (), sigc::mem_fun(*this, &PluginSelector::name_sorter));
 
 	plugin_display.set_name("PluginSelectorDisplay");
+	_result_context_menu.set_name ("ArdourContextMenu");
+	plugin_display.signal_button_press_event ().connect ([this] (GdkEventButton* ev) {
+		if (!Gtkmm2ext::Keyboard::is_context_menu_event (ev)) return false;
+		using namespace Gtk::Menu_Helpers;
+		auto& items = _result_context_menu.items ();
+		items.clear ();
+		Gtk::TreeModel::Path path;
+		if (plugin_display.get_path_at_pos (ev->x, ev->y, path)) {
+			plugin_display.set_cursor (path);
+			auto row = plugin_model->get_iter (path);
+			PluginInfoPtr pi = (*row)[plugin_columns.plugin];
+			auto status = manager.get_status (pi);
+			bool hidden = status == PluginManager::Hidden || status == PluginManager::Concealed;
+			items.push_back (MenuElem (hidden ? _("Unhide Plugin") : _("Hide Plugin"), [this, pi, hidden] {
+				manager.set_status (pi->type, pi->unique_id, hidden ? PluginManager::Normal : PluginManager::Hidden);
+				_need_status_save = true;
+				_need_menu_rebuild = true;
+				manager.save_statuses ();
+				refill ();
+			}));
+			items.push_back (SeparatorElem ());
+		}
+		items.push_back (MenuElem (_("Show Hidden Plugins"), [this] {
+			_search_ignore_checkbox->set_active (false);
+			_fil_hidden_radio->set_active (true);
+			set_sensitive_widgets ();
+			refill ();
+		}));
+		_result_context_menu.popup (ev->button, ev->time);
+		return true;
+	}, false);
+
 	plugin_display.signal_row_activated().connect_notify (sigc::mem_fun(*this, &PluginSelector::row_activated));
 	plugin_display.get_selection()->signal_changed().connect (sigc::mem_fun(*this, &PluginSelector::display_selection_changed));
 
@@ -173,6 +207,29 @@ PluginSelector::PluginSelector (PluginManager& mgr)
 	Gtk::Table* search_table = manage(new Gtk::Table(2, 2));
 
 	search_entry.signal_changed().connect (sigc::mem_fun (*this, &PluginSelector::search_entry_changed));
+	search_entry.set_name ("PluginSelectorSearch");
+	search_entry.signal_key_press_event ().connect ([this] (GdkEventKey* ev) {
+		if ((ev->keyval != GDK_Return && ev->keyval != GDK_KP_Enter) ||
+		    !Gtkmm2ext::Keyboard::modifier_state_equals (ev->state, Gtkmm2ext::Keyboard::ModifierMask (0))) return false;
+		refill ();
+		if (!plugin_model->children ().empty ()) {
+			Gtk::TreeModel::Path path (plugin_model->children ().begin ());
+			plugin_display.set_cursor (path, *plugin_display.get_column (1), false);
+			plugin_display.scroll_to_row (path);
+			plugin_display.grab_focus ();
+		}
+		return true; // Never activate the dialog's Insert default from search.
+	}, false);
+	plugin_display.signal_key_press_event ().connect ([this] (GdkEventKey* ev) {
+		if ((ev->keyval != GDK_Return && ev->keyval != GDK_KP_Enter) ||
+		    !Gtkmm2ext::Keyboard::modifier_state_equals (ev->state, Gtkmm2ext::Keyboard::ModifierMask (0))) return false;
+		if (plugin_display.get_selection ()->get_selected ()) {
+			btn_add_clicked ();
+			response (RESPONSE_APPLY);
+		}
+		return true; // Avoid row activation adding the same plugin a second time.
+	}, false);
+
 	search_clear_button.signal_clicked().connect (sigc::mem_fun (*this, &PluginSelector::search_clear_button_clicked));
 
 	_search_name_checkbox = manage (new ArdourButton (_("Name"), ArdourButton::led_default_elements, true));
