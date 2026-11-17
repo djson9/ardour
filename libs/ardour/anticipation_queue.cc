@@ -64,6 +64,7 @@ AnticipationQueue::start (Range const& first, uint64_t generation)
 	_next = first;
 	_consumer_next = first.continuous;
 	_generation = generation;
+	for (auto const& reader : _readers) { reader->released_until.store (first.continuous); reader->index.store (0); }
 	_offset = 0;
 	_read.store (0);
 	_write.store (0);
@@ -124,6 +125,19 @@ AnticipationQueue::worker ()
 		uint64_t w = _write.load (std::memory_order_relaxed);
 		uint64_t r = _read.load (std::memory_order_acquire);
 		if (state != State::Ahead || w - r >= _config.blocks) {
+			std::this_thread::sleep_for (std::chrono::microseconds (50));
+			continue;
+		}
+		bool retained = false;
+		if (w >= _config.blocks) {
+			for (auto const& reader : _readers) {
+				if (w - reader->index.load (std::memory_order_acquire) >= _config.blocks) {
+					retained = true;
+					break;
+				}
+			}
+		}
+		if (retained) {
 			std::this_thread::sleep_for (std::chrono::microseconds (50));
 			continue;
 		}
@@ -217,7 +231,11 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 
 	_live_input.set_count (ChanCount::min (output.count (), _config.channels));
 	for (uint32_t c = 0; c < _live_input.count ().n_midi (); ++c) { _live_input.get_midi (c).clear (); }
-	_live_input.read_from (output, requested.frames);
+	for (DataType::iterator t = DataType::begin (); t != DataType::end (); ++t) {
+		for (uint32_t c = 0; c < _live_input.count ().get (*t); ++c) {
+			_live_input.get_available (*t, c).read_from (output.get_available (*t, c), requested.frames);
+		}
+	}
 	output.set_count (_config.channels);
 	for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { output.get_midi (c).clear (); }
 	output.silence (requested.frames, 0);
@@ -293,4 +311,58 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 	}
 	_consumer_next += requested.frames;
 	return Result::Cached;
+}
+
+AnticipationQueue::Reader&
+AnticipationQueue::add_reader ()
+{
+	if (_state.load () != State::Stopped) {
+		throw std::logic_error ("Register anticipation readers before starting");
+	}
+	_readers.emplace_back (new Reader);
+	return *_readers.back ();
+}
+
+void
+AnticipationQueue::release_until (Reader& reader, samplepos_t continuous)
+{
+	/* Monotonic within a generation; start() resets all tokens while quiescent. */
+	assert (continuous >= reader.released_until.load (std::memory_order_relaxed));
+	uint64_t index = reader.index.load (std::memory_order_relaxed);
+	uint64_t w = _write.load (std::memory_order_acquire);
+	while (index < w) {
+		Slot const& slot = *_slots[index % _config.blocks];
+		if (slot.range.continuous + slot.range.frames > continuous) { break; }
+		++index;
+	}
+	reader.released_until.store (continuous, std::memory_order_release);
+	reader.index.store (index, std::memory_order_release);
+}
+
+bool
+AnticipationQueue::peek (Reader const& reader, BufferSet& output, Range const& requested, uint64_t generation)
+{
+	if (generation != _generation || !requested.frames || requested.frames > _config.max_frames ||
+	    !(_config.channels <= output.available ()) ||
+	    reader.released_until.load (std::memory_order_relaxed) > requested.continuous) {
+		return false;
+	}
+	uint64_t w = _write.load (std::memory_order_acquire);
+	uint64_t begin = reader.index.load (std::memory_order_relaxed);
+	output.set_count (_config.channels);
+	for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { output.get_midi (c).clear (); }
+	output.silence (requested.frames, 0);
+	pframes_t copied = 0;
+	for (uint64_t i = begin; i < w && copied < requested.frames; ++i) {
+		Slot const& slot = *_slots[i % _config.blocks];
+		samplepos_t at = requested.continuous + copied;
+		if (slot.range.continuous + slot.range.frames <= at) { continue; }
+		if (slot.generation != generation || slot.range.continuous > at ||
+		    slot.range.project + at - slot.range.continuous != requested.project + copied) { return false; }
+		pframes_t offset = at - slot.range.continuous;
+		pframes_t n = std::min (requested.frames - copied, slot.range.frames - offset);
+		copy (output, slot, n, copied, offset);
+		copied += n;
+	}
+	return copied == requested.frames;
 }

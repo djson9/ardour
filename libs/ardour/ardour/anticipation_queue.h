@@ -65,6 +65,22 @@ public:
 	uint64_t discontinuities () const { return _discontinuities.load (); }
 	uint64_t live_handoffs () const { return _live_handoffs.load (); }
 	uint64_t generation () const { return _generation; }
+	bool stopping () const { return _quit.load (std::memory_order_acquire); }
+
+	/** Non-RT, before start: retain output until each future consumer releases it.
+	 * The token and its queue must outlive all peek() calls. Each token has one
+	 * consumer; release_until() is called only after that consumer finishes reading.
+	 */
+	struct Reader {
+		std::atomic<samplepos_t> released_until {0};
+		std::atomic<uint64_t> index {0};
+	};
+	Reader& add_reader ();
+	/** Worker-only, non-consuming range lookup. Never waits; false means not yet
+	 * rendered or an invalid generation/range. A registered Reader pins the data.
+	 */
+	bool peek (Reader const&, BufferSet&, Range const&, uint64_t generation);
+	void release_until (Reader&, samplepos_t continuous);
 
 private:
 
@@ -85,6 +101,7 @@ private:
 	Render const _render;
 	NextRange const _next_range;
 	std::vector<std::unique_ptr<Slot>> _slots;
+	std::vector<std::unique_ptr<Reader>> _readers;
 	BufferSet _scratch;
 	BufferSet _live_input;
 	std::thread _worker;
