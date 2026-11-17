@@ -34,6 +34,7 @@
 #include <string>
 
 #include <ytk/gtkaction.h>
+#include <glibmm/miscutils.h>
 
 #include "canvas/container.h"
 #include "canvas/canvas.h"
@@ -399,6 +400,7 @@ void
 Editor::store_ruler_visibility ()
 {
 	XMLNode* node = new XMLNode(X_("RulerVisibility"));
+	node->set_property ("live-layout", Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1");
 
 	node->set_property (X_("minsec"), ruler_minsec_action->get_active());
 	node->set_property (X_("timecode"), ruler_timecode_action->get_active());
@@ -469,6 +471,22 @@ Editor::restore_ruler_visibility ()
 		ruler_range_action->set_active (true);
 		ruler_marker_action->set_active (true);
 		ruler_section_action->set_active (td == Temporal::BeatTime);
+	}
+
+	bool saved_live_layout = false;
+	if (node) node->get_property ("live-layout", saved_live_layout);
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !saved_live_layout) {
+		/* Apply compact defaults once; subsequent ruler edits are preserved. */
+		ruler_minsec_action->set_active (false);
+		ruler_timecode_action->set_active (false);
+		ruler_samples_action->set_active (false);
+		ruler_bbt_action->set_active (true);
+		ruler_meter_action->set_active (false);
+		ruler_tempo_action->set_active (false);
+		ruler_range_action->set_active (true);
+		ruler_marker_action->set_active (true);
+		ruler_section_action->set_active (false);
+		ruler_video_action->set_active (false);
 	}
 
 	no_ruler_shown_update = false;

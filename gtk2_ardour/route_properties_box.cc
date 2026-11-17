@@ -18,6 +18,7 @@
  */
 
 #include <cassert>
+#include <glibmm/miscutils.h>
 #include <ytkmm/widget.h>
 
 #include "pbd/compose.h"
@@ -152,6 +153,9 @@ RoutePropertiesBox::RoutePropertiesBox ()
 
 	pack_start (_insert_frame, false, false, 4);
 	pack_start (_scroller, true, true);
+	_empty_device_hint.set_text (_("Double-click the empty processor list to add a device"));
+	_empty_device_hint.set_no_show_all ();
+	pack_start (_empty_device_hint, true, true);
 	show_all();
 
 	ARDOUR_UI::instance()->ActionsReady.connect_same_thread (_forever_connections, std::bind (&RoutePropertiesBox::ui_actions_ready, this));
@@ -195,7 +199,7 @@ RoutePropertiesBox::set_session (ARDOUR::Session* s) {
 	_insert_frame.remove ();
 	_insert_frame.add (*_insert_box);
 	_insert_frame.set_padding (4);
-	_insert_frame.set_size_request (144 * ui_scale, 236 * ui_scale);
+	_insert_frame.set_size_request (144 * ui_scale, (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? 160 : 236) * ui_scale);
 
 	_session->SurroundMasterAddedOrRemoved.connect (_session_connections, invalidator (*this), std::bind (&RoutePropertiesBox::surround_master_added_or_removed, this), gui_context());
 }
@@ -254,8 +258,12 @@ RoutePropertiesBox::map_frozen ()
 void
 RoutePropertiesBox::update_processor_box_visibility ()
 {
+	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+	_empty_device_hint.set_visible (live_layout && _proc_uis.empty ());
 	_show_insert = !ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-mixer"))->get_active ();
-	if (!_show_insert || _proc_uis.empty ()) {
+	/* In the compact layout the processor list is also the entry point for
+	 * adding the first device to an empty track. */
+	if (!_show_insert || (_proc_uis.empty () && Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1")) {
 		_insert_frame.hide ();
 	} else {
 		_insert_frame.show ();
@@ -264,7 +272,7 @@ RoutePropertiesBox::update_processor_box_visibility ()
 #ifndef MIXBUS
 	if (_show_insert || !_proc_uis.empty ()) {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
-		set_size_request (-1, 365 * ui_scale); // match with SelectionPropertiesBox
+		set_size_request (-1, (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? 180 : 365) * ui_scale);
 	} else {
 		set_size_request (-1, -1);
 	}

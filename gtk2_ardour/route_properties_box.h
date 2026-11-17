@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <ytkmm/box.h>
+#include <ytkmm/label.h>
 #include <ytkmm/scrolledwindow.h>
 
 #include "ardour/ardour.h"
@@ -65,6 +66,7 @@ private:
 
 	Gtk::ScrolledWindow _scroller;
 	Gtk::HBox           _box;
+	Gtk::Label          _empty_device_hint;
 
 	std::shared_ptr<ARDOUR::Route> _route;
 	std::vector <GenericPluginUI*> _proc_uis;

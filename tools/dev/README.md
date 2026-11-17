@@ -171,3 +171,55 @@ Focused C++ tests and the running-app test pass, including invalid XML retention
 The original upstream build's audiographer, midi++2, evoral, ardour and temporal
 suites passed. Its PBD suite had an existing Darwin RWLock assertion failure;
 that unrelated test is not repaired by this branch.
+
+## Charcoal theme and Live-style editor layout
+
+`gtk2_ardour/themes/charcoal-ardour.colors` is an optional theme with charcoal
+surfaces, flat square controls, orange transport accents, a teal playhead, and a
+cyan/purple/orange palette for new tracks. It appears alongside the original
+themes in Preferences → Appearance. Existing track colors are preserved.
+
+For the macOS development bundle, save and quit Ardour, then run:
+
+```sh
+python3 tools/dev/apply-charcoal-profile.py --layout
+```
+
+The installer copies the theme, selects it, and sets `ARDOUR_LIVE_LAYOUT=1` in the
+bundle's launch environment. It ad-hoc signs and verifies the changed bundle.
+The source changes must be built into the app first. Launch the app again to see:
+
+- The existing Clips/Tracks/Sources browser on the left.
+- The timeline in the center and track controls on the right.
+- The selected track's processor list and device controls below the timeline.
+  Double-click empty space in the processor list to add a device.
+- Bars/beats and range/location markers as the initial ruler set. Right-click a
+  ruler to change it; subsequent choices are saved with the session.
+
+On first use, the layout shows the browser and bottom panel and hides the left
+mixer strip. Their normal visibility buttons and browser divider remain usable.
+The bottom panel is shorter for empty tracks and grows to accommodate plugin
+controls. Ardour's transport, editing toolbar, plugin controls, and native browser
+remain Ardour interfaces; this is an Ableton-inspired arrangement, not a complete
+Live UI replacement. Track selection, editing coordinates, and audio processing
+use the existing implementations.
+
+Omit `--layout` to install the colors with the traditional editor arrangement.
+For other development launches, set `ARDOUR_LIVE_LAYOUT=1` in the process
+environment. Unset it to restore the standard panel ordering. A mode change
+resets the browser divider to a useful default. Panel visibility and ruler choices
+remain ordinary saved Ardour/session preferences.
+
+The macOS installer preserves the first `ui_config` and `Info.plist` copies in
+`~/Library/Preferences/Ardour9/charcoal-profile-backup/`. With Ardour stopped,
+`python3 tools/dev/apply-charcoal-profile.py --restore` restores those original
+files (including preferences changed since the backup), then re-signs the app.
+It does not remove the optional theme or alter tracks/audio. Use the normal
+Preferences and visibility controls if you only want to adjust individual items.
+
+Validated on macOS arm64: incremental native build and deep bundle signature
+verification passed; the running app was visually checked with browser left,
+track headers right, compact rulers, and the bottom device panel. Numbered track
+type checks passed for all six choices, keypad input, text-entry preservation,
+and unchanged route count. Live key reload passed at 0.57 seconds with malformed
+XML retaining the last valid binding. The 59-color theme's 429 aliases resolve.

@@ -514,13 +514,23 @@ Editor::Editor ()
 	edit_packer.attach (*axis_view_shadow,       0, 1, 0, 2,    FILL,        FILL|EXPAND, 0, 0);
 #endif
 
+	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
 	/* labels for the time bars */
-	edit_packer.attach (time_bars_event_box,     1, 3, 0, 1,    FILL,        SHRINK,      5, 0);
-	/* track controls */
-	edit_packer.attach (*_group_tabs,            1, 2, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
-	edit_packer.attach (controls_layout,         2, 3, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
-	/* canvas */
-	edit_packer.attach (*_track_canvas_viewport, 3, 4, 0, 2,    FILL|EXPAND, FILL|EXPAND, 0, 0);
+	if (live_layout) {
+		/* Keep time/track coordinates inside their existing canvas; only
+		 * rearrange the GTK containers around it. */
+		edit_packer.attach (*_track_canvas_viewport, 1, 2, 0, 2, FILL|EXPAND, FILL|EXPAND, 0, 0);
+		edit_packer.attach (time_bars_event_box, 2, 4, 0, 1, FILL, SHRINK, 5, 0);
+		edit_packer.attach (*_group_tabs, 2, 3, 1, 2, FILL, FILL|EXPAND, 0, 0);
+		edit_packer.attach (controls_layout, 3, 4, 1, 2, FILL, FILL|EXPAND, 0, 0);
+	} else {
+		edit_packer.attach (time_bars_event_box,     1, 3, 0, 1,    FILL,        SHRINK,      5, 0);
+		/* track controls */
+		edit_packer.attach (*_group_tabs,            1, 2, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
+		edit_packer.attach (controls_layout,         2, 3, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
+		/* canvas */
+		edit_packer.attach (*_track_canvas_viewport, 3, 4, 0, 2,    FILL|EXPAND, FILL|EXPAND, 0, 0);
+	}
 	/* vertical summary */
 	_vsummary_frame.set_name("SummaryFrame");
 	_vsummary_frame.add(*_vsummary);
@@ -659,6 +669,15 @@ Editor::Editor ()
 	 */
 	content_app_bar.add (_application_bar);
 	content_att_right.add (_editor_list_vbox);
+	if (live_layout) {
+		content_right_pane.remove (content_inner_hbox);
+		content_right_pane.remove (content_right_vbox);
+		content_right_pane.add (content_right_vbox);
+		content_right_pane.add (content_inner_hbox);
+		content_right_pane.set_divider (0, 0.22);
+		right_attachment_button.set_icon (ArdourWidgets::ArdourIcon::AttachmentLeft);
+		right_attachment_button.set_text (_("Browser"));
+	}
 	content_att_bottom.add (_bottom_hbox);
 	content_main_top.add (global_vpacker);
 	content_main.add (editor_summary_pane);
@@ -2247,6 +2266,11 @@ Editor::set_state (const XMLNode& node, int version)
 	bool yn;
 
 	Tabbable::set_state (node, version);
+	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+	bool saved_live_layout = false;
+	node.get_property ("live-layout", saved_live_layout);
+	const bool new_layout = live_layout != saved_live_layout;
+	if (new_layout) content_right_pane.set_divider (0, live_layout ? 0.22 : 0.85);
 
 	samplepos_t ph_pos;
 	if (_session && node.get_property ("playhead", ph_pos)) {
@@ -2316,6 +2340,7 @@ Editor::set_state (const XMLNode& node, int version)
 
 	yn = true;
 	node.get_property ("show-editor-mixer", yn);
+	if (live_layout && new_layout) yn = false;
 	/* force a change to sync action state and actual attachment visibility.
 	 * Otherwise after creating a new session from a running instance
 	 * the editor-mixer and bottom attachment are not visible, even though
@@ -2326,11 +2351,13 @@ Editor::set_state (const XMLNode& node, int version)
 
 	yn = false;
 	node.get_property ("show-editor-list", yn);
+	if (live_layout && new_layout) yn = true;
 	show_editor_list_action->set_active (!yn); // ditto
 	show_editor_list_action->set_active (yn);
 
 	yn = false;
 	node.get_property ("show-editor-props", yn);
+	if (live_layout && new_layout) yn = true;
 	show_editor_props_action->set_active (!yn); // ditto
 	show_editor_props_action->set_active (yn);
 
@@ -2348,6 +2375,14 @@ Editor::set_state (const XMLNode& node, int version)
 		_the_notebook.set_current_page (el_page);
 	} else {
 		el_page = _the_notebook.get_current_page ();
+	}
+	if (live_layout && new_layout) {
+		el_page = 3;
+		_notebook_tab1.set_index (3);
+		_the_notebook.set_current_page (el_page);
+	}
+	if (live_layout && _notebook_tab1.index () != el_page && _notebook_tab2.index () != el_page) {
+		_notebook_tab1.set_index (el_page);
 	}
 	std::string label (_the_notebook.get_tab_label_text (*_the_notebook.get_nth_page (el_page)));
 	_notebook_tab1.set_active (label);
@@ -2404,6 +2439,7 @@ Editor::get_state () const
 	node->set_property ("id", id().to_s ());
 
 	node->add_child_nocopy (Tabbable::get_state());
+	node->set_property ("live-layout", Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1");
 
 	node->set_property("edit-vertical-pane-size", editor_summary_pane.get_absolute_divider());
 
