@@ -801,3 +801,37 @@ toggling gain without losing position, Stop, and rapid selection without late
 playback. Restart preference restoration passed in 0.06 seconds; folder/filter regression
 and restart checks passed in 1.38 and 0.14 seconds. Every runner
 has a hard nine-second deadline; compilation and application startup are separate.
+
+### File search
+
+**Cmd+F** (Ctrl+F on other platforms) opens the arrangement's Files sidebar and
+focuses its Search field, selecting any existing query. Search includes the
+current folder and subfolders, respects the editable audio/MIDI whitelist, and
+matches all words without case sensitivity (including normalized Unicode).
+Results show relative paths and prefer filename matches. The first result is
+selected while typing focus stays in Search. Down enters the results; Enter in
+Search previews the first result. Escape clears the query and restores the
+ordinary folder tree; a second Escape returns focus to the tree.
+
+A single background worker cancels superseded searches. A 150 ms debounce avoids
+scanning on every keystroke. Hidden files, symlinks, and nonregular files are
+excluded. Searches stop at 1,000 results or 100,000 visited entries and ask the
+user to refine the query; unreadable folders are reported. Search text is local
+to the current browser and resets when navigating to a different root folder.
+
+```sh
+# Prepare outside the execution deadline; use the native toolchain/pkg-config:
+python3 tools/dev/test-browser-file-search.py --prepare
+python3 tools/dev/test-browser-file-search.py
+# Rebuild the existing browser UI probe, inject only into a disposable app,
+# then exercise real macOS keyboard events after startup:
+python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --search --pid PRIVATE_GUI_PID
+```
+
+On 2026-11-18, scanner coverage passed in 0.02 seconds, native search UI coverage
+in 5.16 seconds, folder/filter regression in 1.69 seconds, and existing keyboard
+navigation in 5.12 seconds. Search GUI coverage includes Cmd+F from another
+sidebar tab, selecting/replacing the query, first-result selection, Down,
+recursive results, rapid query replacement, no matches, Escape restoration,
+Enter-to-preview, and changing the extension whitelist while searching. Every
+runner retains a hard nine-second execution deadline.
