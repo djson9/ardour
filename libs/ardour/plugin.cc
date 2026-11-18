@@ -302,13 +302,13 @@ ARDOUR::find_plugin(Session& session, string identifier, PluginType type)
 ChanCount
 Plugin::output_streams () const
 {
-	return get_info()->n_outputs;
+	return _info->n_outputs;
 }
 
 ChanCount
 Plugin::input_streams () const
 {
-	return get_info()->n_inputs;
+	return _info->n_inputs;
 }
 
 samplecnt_t
