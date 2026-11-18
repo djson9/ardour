@@ -313,10 +313,10 @@ static gboolean tick (gpointer) {
    auto* h = header (props->get_toplevel (), view);
    if (!h || title_brightness (h, route->name ()) >= active_title_brightness * .75) return finish ("Track did not dim after Tab");
    snapshot (h, ".track-inactive"); snapshot (&entry (list, eq)->widget (), ".device-active");
-   key (*props, GDK_Right); stage = 12; return TRUE;
+   key (*props, GDK_Down); stage = 12; return TRUE;
   }
   if (stage == 12) {
-   if (!list->is_focus () || !selected (delay)) return finish ("Right did not select Delay");
+   if (!list->is_focus () || !selected (delay)) return finish ("Down did not select Delay");
    if (!single ("Detail Delay")) return TRUE;
    key (*props, GDK_Right); stage = 13; return TRUE;
   }
@@ -350,10 +350,10 @@ static gboolean tick (gpointer) {
   if (stage == 14) {
    if (!selected (delay)) return finish ("Left did not select Delay");
    if (!single ("Detail Delay")) return TRUE;
-   key (*props, GDK_Left); stage = 15; return TRUE;
+   key (*props, GDK_Up); stage = 15; return TRUE;
   }
   if (stage == 15) {
-   if (!selected (eq)) return finish ("Left did not select EQ");
+   if (!selected (eq)) return finish ("Up did not select EQ");
    if (!single ("Detail EQ")) return TRUE;
    key (*props, GDK_Left); if (!selected (eq)) return finish ("Device navigation wrapped at the start");
    key (*props, GDK_Tab); stage = 16; return TRUE;
@@ -414,7 +414,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 20) {
    if (!list->is_focus ()) return finish ("Tab did not focus a fader-only track");
-   key (*props, GDK_Right); key (*props, GDK_Left);
+   key (*props, GDK_KP_Down); key (*props, GDK_KP_Up);
    if (!list->is_focus () || !selected (session->master_out ()->amp ()) || count<GainMeter> (props) != 1) return finish ("Fader-only navigation changed focus/selection");
    click (entry (list, session->master_out ()->amp ())->action_widget (), 3);
    auto* menu = dynamic_cast<Gtk::Menu*> (ActionManager::get_widget ("/ProcessorMenu"));
