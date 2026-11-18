@@ -30,6 +30,10 @@ static void finish(const char *error) {
 }
 static gboolean click_idle(gpointer data) {
  GtkWidget *w=data;
+ GdkEvent *enter=gdk_event_new(GDK_ENTER_NOTIFY);
+ enter->crossing.window=g_object_ref(gtk_widget_get_window(w));enter->crossing.send_event=TRUE;
+ enter->crossing.mode=GDK_CROSSING_NORMAL;enter->crossing.detail=GDK_NOTIFY_NONLINEAR;
+ gtk_widget_event(w,enter);gdk_event_free(enter);
  for(int release=0;release<2;release++) {
   GdkEvent *e=gdk_event_new(release?GDK_BUTTON_RELEASE:GDK_BUTTON_PRESS);
   e->button.window=g_object_ref(gtk_widget_get_window(w));e->button.send_event=TRUE;
