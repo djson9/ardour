@@ -1273,8 +1273,61 @@ Editor::update_section_box ()
 }
 
 void
+Editor::focus_adjacent_track (bool down)
+{
+	if (!_session || _drags->active () || track_dragging ()) {
+		return;
+	}
+	auto anchor = _last_focused_track.lock ();
+	TrackViewList visible;
+	TimeAxisView* master = nullptr;
+	for (auto* view : track_views) {
+		auto* route = dynamic_cast<RouteTimeAxisView*> (view);
+		if (!route || !view->marked_for_display ()) {
+			continue;
+		}
+		if (view->track_header_has_focus ()) {
+			anchor = route->stripable ();
+		}
+		if (route->is_master ()) {
+			master = view;
+		} else {
+			visible.push_back (view);
+		}
+	}
+	if (master) {
+		visible.push_back (master);
+	}
+	if (visible.empty ()) {
+		return;
+	}
+	auto current = std::find_if (visible.begin (), visible.end (), [&] (TimeAxisView* view) {
+		return view->stripable () == anchor;
+	});
+	if (current == visible.end ()) {
+		current = down ? visible.begin () : std::prev (visible.end ());
+	} else if (down && std::next (current) != visible.end ()) {
+		++current;
+	} else if (!down && current != visible.begin ()) {
+		--current;
+	}
+	if (!(*current)->selected () || selection->tracks.size () != 1) {
+		set_selected_track (**current, SelectionSet);
+	}
+	_last_focused_track = (*current)->stripable ();
+	ensure_time_axis_view_is_visible (**current, false);
+	(*current)->focus_track_header ();
+}
+
+void
 Editor::track_selection_changed ()
 {
+	/* Escape clears the selection. Retain the route so the next vertical
+	 * arrow can continue in displayed order even after focus leaves its header. */
+	if (!selection->tracks.empty () && selection->tracks.back ()->stripable ()) {
+		_last_focused_track = selection->tracks.back ()->stripable ();
+	}
+
 	/* reset paste count, so the plaste location doesn't get incremented
 	 * if we want to paste in the same place, but different track. */
 	paste_count = 0;
@@ -1742,6 +1795,7 @@ Editor::region_selection_changed ()
 	if (!selection->regions.empty()) {
 		RegionView* rv = (selection->regions.back ());
 		assert (rv);
+		_last_focused_track = rv->get_time_axis_view ().stripable ();
 		maybe_edit_region_in_bottom_pane (*rv);
 
 		std::shared_ptr<MidiRegion> mr (std::dynamic_pointer_cast<MidiRegion> (selection->regions.back()->region()));

@@ -400,7 +400,7 @@
     <ColorAlias name="secondary delta clock: cursor" alias="theme:contrasting alt"/>
     <ColorAlias name="secondary delta clock: edited text" alias="theme:contrasting alt"/>
     <ColorAlias name="secondary delta clock: text" alias="theme:contrasting alt"/>
-    <ColorAlias name="selected region base" alias="theme:contrasting selection"/>
+    <ColorAlias name="selected region base" alias="widget:blue lighter"/>
     <ColorAlias name="selected time axis frame" alias="alert:ruddy"/>
     <ColorAlias name="selected waveform fill" alias="neutral:foregroundest"/>
     <ColorAlias name="selected waveform outline" alias="theme:bg2"/>

@@ -37,6 +37,7 @@
 #include <ytkmm/stock.h>
 
 #include "pbd/error.h"
+#include "pbd/failed_constructor.h"
 #include "pbd/ffs.h"
 #include "pbd/stl_delete.h"
 #include "pbd/whitespace.h"
@@ -1682,11 +1683,32 @@ MidiTimeAxisView::add_region (timepos_t const & f, timecnt_t const & length, boo
 	if (commit) {
 		real_editor->begin_reversible_command (Operations::create_region);
 	}
-	playlist()->clear_changes ();
-
 	real_editor->snap_to (pos, Temporal::RoundNearest);
+	auto region = add_region_at (pos, length);
+	if (commit) {
+		if (region) {
+			real_editor->commit_reversible_command ();
+		} else {
+			real_editor->abort_reversible_command ();
+		}
+	}
+	return region;
+}
 
-	std::shared_ptr<Source> src = _session->create_midi_source_by_stealing_name (view()->trackview().track());
+std::shared_ptr<MidiRegion>
+MidiTimeAxisView::add_region_at (timepos_t const& pos, timecnt_t const& length)
+{
+	std::shared_ptr<Source> src;
+	try {
+		src = _session->create_midi_source_by_stealing_name (track ());
+	} catch (failed_constructor const&) {
+		/* Report a source creation failure below. */
+	}
+	if (!src) {
+		error << _("Could not create a MIDI source for the new clip") << endmsg;
+		return {};
+	}
+	playlist()->clear_changes ();
 
 	const Temporal::timecnt_t start (Temporal::BeatTime); /* zero beats */
 
@@ -1720,10 +1742,6 @@ MidiTimeAxisView::add_region (timepos_t const & f, timecnt_t const & length, boo
 	region->set_position (pos);
 	playlist()->add_region (region, pos, 1.0, false);
 	_session->add_command (new StatefulDiffCommand (playlist()));
-
-	if (commit) {
-		real_editor->commit_reversible_command ();
-	}
 
 	return std::dynamic_pointer_cast<MidiRegion>(region);
 }

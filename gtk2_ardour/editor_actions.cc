@@ -416,6 +416,9 @@ Editor::register_actions ()
 	act = reg_sens (editor_actions, "separate-from-punch", _("Separate Using Punch Range"), sigc::mem_fun(*this, &Editor::separate_region_from_punch));
 	act = reg_sens (editor_actions, "separate-from-loop", _("Separate Using Loop Range"), sigc::mem_fun(*this, &Editor::separate_region_from_loop));
 
+	act = reg_sens (editor_actions, "insert-empty-midi-region", _("Insert Empty MIDI Clip"), sigc::mem_fun (*this, &Editor::insert_empty_midi_region));
+	ActionManager::time_selection_sensitive_actions.push_back (act);
+
 	act = reg_sens (editor_actions, "editor-crop", _("Crop"), sigc::mem_fun(*this, &Editor::crop_region_to_selection));
 	ActionManager::time_selection_sensitive_actions.push_back (act);
 

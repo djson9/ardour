@@ -111,6 +111,7 @@
 #include "keyboard.h"
 #include "midi_inspector.h"
 #include "midi_region_view.h"
+#include "midi_time_axis.h"
 #include "mixer_ui.h"
 #include "mixer_strip.h"
 #include "normalize_dialog.h"
@@ -2940,6 +2941,46 @@ void
 Editor::audition_playlist_region_standalone (std::shared_ptr<Region> region)
 {
 	_session->audition_region (region);
+}
+
+void
+Editor::insert_empty_midi_region ()
+{
+	if (!_session || !_session->writable () || _session->actively_recording () || selection->time.empty ()) {
+		return;
+	}
+
+	bool started = false;
+	bool inserted = false;
+	const TimeSelection ranges = selection->time;
+	for (auto* track : selection->tracks.filter_to_unique_playlists ()) {
+		auto* midi = dynamic_cast<MidiTimeAxisView*> (track);
+		if (!midi || !midi->is_midi_track () || midi->track ()->freeze_state () == Track::Frozen) {
+			continue;
+		}
+		auto regions = midi->playlist ()->region_list ();
+		for (auto const& range : ranges) {
+			const timepos_t start (range.start ().beats ());
+			const timepos_t end (range.end ().beats ());
+			if (start >= end || std::any_of (regions->begin (), regions->end (), [&] (std::shared_ptr<Region> const& region) {
+				return region->position () < end && start < region->end_position ();
+			})) {
+				continue;
+			}
+			if (!started) {
+				begin_reversible_command (Operations::create_region);
+				started = true;
+			}
+			if (midi->add_region_at (start, start.distance (end))) {
+				inserted = true;
+			}
+		}
+	}
+	if (inserted) {
+		commit_reversible_command ();
+	} else if (started) {
+		abort_reversible_command ();
+	}
 }
 
 void

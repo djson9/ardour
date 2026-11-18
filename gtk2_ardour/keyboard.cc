@@ -132,6 +132,11 @@ remove_hidden_toolbar_shortcuts ()
 		}
 	}
 	if (auto* editor = Bindings::get_bindings ("Editor")) {
+		/* Older per-user profiles predate the clip action. add() preserves
+		 * both an existing key assignment and a custom binding for the action. */
+		Gtkmm2ext::KeyboardKey insert_midi;
+		Gtkmm2ext::KeyboardKey::make_key ("Primary-Tertiary-m", insert_midi);
+		editor->add (insert_midi, Bindings::Press, "Editor/insert-empty-midi-region", nullptr);
 		Gtkmm2ext::KeyboardKey slash (0, GDK_slash);
 		std::string previous;
 		if (editor->is_bound (slash, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);

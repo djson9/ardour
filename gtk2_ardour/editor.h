@@ -734,6 +734,7 @@ private:
 	void catch_vanishing_regionview (RegionView*);
 
 	void set_selected_track (TimeAxisView&, ARDOUR::SelectionOperation op = ARDOUR::SelectionSet, bool no_remove=false);
+	void focus_adjacent_track (bool down);
 	bool focus_route_processors ();
 	void select_all_visible_lanes ();
 	void select_all_tracks ();
@@ -1070,6 +1071,7 @@ private:
 	std::unique_ptr<ARDOUR::AutomationClips> _automation_clips;
 	bool _automation_clips_visible = false;
 	TrackViewList track_views;
+	std::weak_ptr<ARDOUR::Stripable> _last_focused_track;
 
 	std::pair<TimeAxisView*, double> trackview_by_y_position (double, bool trackview_relative_offset = true) const;
 
@@ -1241,6 +1243,7 @@ private:
 	void close_region_gaps ();
 
 
+	void insert_empty_midi_region ();
 	void region_from_selection ();
 	void create_region_from_selection (std::vector<std::shared_ptr<ARDOUR::Region> >&);
 

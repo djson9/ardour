@@ -421,9 +421,9 @@ MidiStreamView::color_handler ()
 	_region_group->set_render_with_alpha (UIConfiguration::instance().modifier ("region alpha").a());
 
 	if (_trackview.is_midi_track()) {
-		canvas_rect->set_fill_color (UIConfiguration::instance().color_mod ("midi track base", "midi track base"));
+		apply_color (UIConfiguration::instance().color_mod ("midi track base", "midi track base"), StreamBaseColor);
 	} else {
-		canvas_rect->set_fill_color (UIConfiguration::instance().color ("midi bus base"));
+		apply_color (UIConfiguration::instance().color ("midi bus base"), StreamBaseColor);
 	}
 
 	for (auto & rv : region_views) {

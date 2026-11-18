@@ -102,6 +102,7 @@ public:
 		StreamBaseColor
 	};
 
+	void     update_lane_background ();
 	void     apply_color (uint32_t, ColorTarget t);
 	void     apply_color (Gdk::Color const &, ColorTarget t);
 

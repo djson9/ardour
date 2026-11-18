@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'track-title', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag', 'loop-locate'], required=True)
+p.add_argument('--case', choices=['headers', 'track-title', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag', 'loop-locate', 'midi-clip-focus'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 p.add_argument('--no-activate', action='store_true', help='Skip AppleEvents activation for native GTK-only checks on an isolated GUI')
 a = p.parse_args()
@@ -98,9 +98,9 @@ signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError('9-s
 signal.alarm(9)
 start = time.monotonic()
 # Tests use GTK events; activation allows native dialogs/completion to own focus.
-port = a.url.split(':')[-1].split('/')[0]
-pid = subprocess.check_output(['lsof', '-t', '-iTCP:' + port, '-sTCP:LISTEN'], text=True).strip()
 if not a.no_activate:
+    port = a.url.split(':')[-1].split('/')[0]
+    pid = subprocess.check_output(['lsof', '-t', '-iTCP:' + port, '-sTCP:LISTEN'], text=True).strip()
     subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (first application process whose unix id is ' + pid + ') to set frontmost to true'], check=True)
 header(next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track')))
 checks = []
@@ -504,6 +504,95 @@ elif a.case == 'loop-locate':
     call('transport_loop_toggle', enabled=False)
     remove_fixture([name],[route_id])
     checks += ['arrangement click plays at snapped point while looping', 'clicks before/after bracket are honored', 'loop bounds and wrapping preserved', 'stopped click does not start playback']
+
+elif a.case == 'midi-clip-focus':
+    midi = next(r for r in routes() if r['type'] == 'midi_track' and not r['hidden'])
+    def regions():
+        return call('track_get_regions', id=midi['id'])['regions']
+    original = {r['regionId'] for r in regions()}
+    state = instant().attrib
+    info = call('session_get_info')
+    bar = round(info['sampleRate'] * 60 / info['tempoBpm'] * 4)
+    zoom, left = int(state['zoom']), int(state['left-frame'])
+    canvas = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+    def select_bars(route, start, end):
+        box = pointer('TrackHeader:' + route['name'], 'move', 20, 12)
+        y = box['yRoot'] - canvas['yRoot'] + box['height'] / 2
+        x1, x2 = ((b * bar - left) / zoom for b in (start + .05, end + .05))
+        assert 0 < x1 < x2 < canvas['width'] and 0 < y < canvas['height']
+        pointer('EditorMainCanvas', 'move', x1, y)
+        pointer('EditorMainCanvas', 'press', x1, y)
+        pointer('EditorMainCanvas', 'move', x2, y, buttonDown=True)
+        pointer('EditorMainCanvas', 'release', x2, y)
+        assert instant().find('Selection/TimelineRange') is not None
+    def new_regions():
+        return [r for r in regions() if r['regionId'] not in original]
+    key('Escape')
+    call('ui_activate_action', action='EditorEditing/set-mouse-mode-object')
+    call('ui_activate_action', action='EditorEditing/snap-normal')
+    select_bars(midi, 2, 4)
+    key('Primary-Tertiary-m')
+    clip, = wait(new_regions)
+    assert (clip['startSample'], clip['endSample']) == (2 * bar, 4 * bar), clip
+    assert not call('midi_note_get_json', regionId=clip['regionId'])['midi']['midi_events']
+    key('Primary-Tertiary-m')
+    assert len(new_regions()) == 1
+    call('session_undo')
+    wait(lambda: not new_regions())
+    call('session_redo')
+    wait(lambda: len(new_regions()) == 1)
+    select_bars(midi, 4, 5)
+    key('Primary-Tertiary-m')
+    wait(lambda: len(new_regions()) == 2)
+    key('Escape')
+    key('Down')
+    following = selected()
+    assert following and following != {midi['id']}
+    key('Escape')
+    assert not selected()
+    key('Up')
+    expect_selection([midi['id']])
+    key('Tab')
+    key('Down')
+    expect_selection(following)
+    key('Up')
+    expect_selection([midi['id']])
+    call('transport_locate_sample', sample=2 * bar)
+    wait(lambda: call('transport_get_state')['sample'] == 2 * bar)
+    key('Right')
+    wait(lambda: call('transport_get_state')['sample'] > 2 * bar)
+    key('Left')
+    wait(lambda: call('transport_get_state')['sample'] == 2 * bar)
+    expect_selection([midi['id']])
+    call('session_undo')
+    call('session_undo')
+    wait(lambda: not new_regions())
+    call('ui_activate_action', action='EditorEditing/snap-off')
+    select_bars(midi, .25, 1.25)
+    off_grid = instant().find('Selection/TimelineRange').attrib
+    call('ui_activate_action', action='EditorEditing/snap-normal')
+    key('Primary-Tertiary-m')
+    off_grid_clip, = wait(new_regions)
+    call('session_save')
+    session_xml = ET.parse(a.session_path / (a.session_path.name + '.ardour'))
+    saved = session_xml.find(".//Playlist/Region[@id='" + off_grid_clip['regionId'] + "']")
+    assert saved is not None
+    length, position = saved.get('length').split('@')
+    assert position == off_grid['start']
+    assert off_grid['start'][0] == off_grid['end'][0] == length[0] == 'b'
+    assert int(off_grid['end'][1:]) - int(off_grid['start'][1:]) == int(length[1:])
+    assert off_grid_clip['startSample'] % bar and off_grid_clip['endSample'] % bar
+    call('session_undo')
+    wait(lambda: not new_regions())
+    audio = next(r for r in routes() if r['type'] == 'audio_track' and not r['hidden'])
+    before_audio = call('track_get_regions', id=audio['id'])['regions']
+    select_bars(audio, 2, 4)
+    key('Primary-Tertiary-m')
+    assert call('track_get_regions', id=audio['id'])['regions'] == before_audio and not new_regions()
+    checks += ['empty MIDI clip matches dragged range', 'repeat skips occupied range',
+               'undo and redo', 'adjacent MIDI insertion', 'vertical navigation resumes after Escape and from the device list',
+               'horizontal arrows move the playhead and retain track focus',
+               'off-grid selection survives snap changes', 'audio range is skipped']
 
 elif a.case == 'loop':
     call('transport_stop')

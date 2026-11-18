@@ -428,39 +428,9 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 			focus_track_header ();
 		}
 		return true;
-	case GDK_Up:
-	case GDK_KP_Up:
-	case GDK_Down:
-	case GDK_KP_Down:
-		break;
 	default:
 		return false;
 	}
-
-	/* Follow the displayed group order, omitting folded/hidden descendants.
-	 * The Live layout pins Master below all scrolling tracks. */
-	TrackViewList visible;
-	TimeAxisView* master = nullptr;
-	for (auto* view : _editor.get_track_views ()) {
-		auto* route_view = dynamic_cast<RouteTimeAxisView*> (view);
-		if (!route_view || !view->marked_for_display ()) continue;
-		if (route_view->route ()->is_master ()) master = view;
-		else visible.push_back (view);
-	}
-	if (master) visible.push_back (master);
-
-	auto current = std::find (visible.begin (), visible.end (), this);
-	if (current == visible.end ()) return true;
-	if (event->keyval == GDK_Up || event->keyval == GDK_KP_Up) {
-		if (current == visible.begin ()) return true;
-		--current;
-	} else {
-		if (++current == visible.end ()) return true;
-	}
-	_editor.set_selected_track (**current, SelectionSet);
-	_editor.ensure_time_axis_view_is_visible (**current, false);
-	(*current)->focus_track_header ();
-	return true;
 }
 
 bool
@@ -895,6 +865,9 @@ TimeAxisView::set_selected (bool yn)
 	}
 
 	AxisView::set_selected (yn);
+	if (view ()) {
+		view ()->update_lane_background ();
+	}
 
 	if (_selected) {
 		time_axis_frame.set_name (controls_base_selected_name);

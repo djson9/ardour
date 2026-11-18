@@ -165,6 +165,16 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	const guint mask = (Keyboard::RelevantModifierKeyMask & ~(Gdk::SHIFT_MASK|Gdk::LOCK_MASK));
 	bool cutcopypaste = false;
 
+	const bool up = ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up;
+	const bool down = ev->keyval == GDK_Down || ev->keyval == GDK_KP_Down;
+	if ((up || down) && Keyboard::modifier_state_equals (ev->state, 0) &&
+	    editor && top_level_bindings && top_level_bindings == editor->contents ().get_data (ARDOUR_BINDING_KEY) &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !loading_session () &&
+	    !(focus && (GTK_IS_ENTRY (focus) || GTK_IS_TEXT_VIEW (focus)))) {
+		editor->focus_adjacent_track (down);
+		return true;
+	}
+
 	/* Header/device-list navigation takes precedence over editor accelerators.
 	 * Entry widgets and the rename dialog retain their own keyboard handling. */
 	if (focus) {

@@ -255,6 +255,7 @@
       </menu>
       <separator/>
       <menuitem action='EditorEditing/editor-delete'/>
+      <menuitem action='insert-empty-midi-region'/>
       <menuitem action='editor-crop'/>
       <menuitem action='split-region'/>
       <menu action="SeparateMenu">

@@ -117,10 +117,10 @@ static gboolean tick (gpointer) {
   }
   if (stage == 11) {
    if (!list->is_focus () || !selected (eq) || !single ("Detail EQ")) return finish ("Tab did not focus the selected device");
-   key (*props, GDK_Down); stage = 12; return TRUE;
+   key (*props, GDK_Right); stage = 12; return TRUE;
   }
   if (stage == 12) {
-   if (!list->is_focus () || !selected (delay) || !single ("Detail Delay")) return finish ("Down did not skip the fader/select Delay");
+   if (!list->is_focus () || !selected (delay) || !single ("Detail Delay")) return finish ("Right did not skip the fader/select Delay");
    key (*props, GDK_Right); stage = 13; return TRUE;
   }
   if (stage == 13) {
@@ -132,15 +132,15 @@ static gboolean tick (gpointer) {
    key (*props, GDK_Tab);
    if (view->track_header_has_focus () || list->is_focus () || !selected (rack)) return finish ("Entry Tab was intercepted");
    if (!props->focus_processors ()) return finish ("Could not refocus the device list after entry Tab");
-   key (*props, GDK_Down); if (!selected (rack)) return finish ("Device navigation wrapped at the end");
+   key (*props, GDK_Right); if (!selected (rack)) return finish ("Device navigation wrapped at the end");
    key (*props, GDK_KP_Left); stage = 14; return TRUE;
   }
   if (stage == 14) {
    if (!selected (delay) || !single ("Detail Delay")) return finish ("Keypad Left did not select Delay");
-   key (*props, GDK_Up); stage = 15; return TRUE;
+   key (*props, GDK_Left); stage = 15; return TRUE;
   }
   if (stage == 15) {
-   if (!selected (eq) || !single ("Detail EQ")) return finish ("Up did not select EQ");
+   if (!selected (eq) || !single ("Detail EQ")) return finish ("Left did not select EQ");
    key (*props, GDK_Left); if (!selected (eq)) return finish ("Device navigation wrapped at the start");
    key (*props, GDK_Tab); stage = 16; return TRUE;
   }
@@ -198,7 +198,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 20) {
    if (!list->is_focus ()) return finish ("Tab did not focus an empty device list");
-   key (*props, GDK_Down); key (*props, GDK_Up);
+   key (*props, GDK_Right); key (*props, GDK_Left);
    if (!list->is_focus () || !list->selection ().empty ()) return finish ("Empty device navigation changed focus/selection");
    key (*props, GDK_Tab); stage = 21; return TRUE;
   }

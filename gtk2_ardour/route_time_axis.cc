@@ -1418,6 +1418,7 @@ RouteTimeAxisView::set_selected_regionviews (RegionSelection& regions)
 {
 	if (_view) {
 		_view->set_selected_regionviews (regions);
+		_view->update_lane_background ();
 	}
 
 	for (auto & child : children) {
