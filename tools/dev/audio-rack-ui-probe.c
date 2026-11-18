@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-static GtkWidget *rack, *capturing, *content, *offscreen;
+static GtkWidget *rack, *capturing, *content, *offscreen, *original_parent;
 static const char *capture_name;
 static int stage, ticks;
 static GtkWidget* top (const char* title) {
@@ -29,9 +29,9 @@ static int click(GtkWidget* w,const char* text) {
  g_object_ref(s.result);g_idle_add(click_idle,s.result);return 1;
 }
 static void capture(GtkWidget* w,const char* name) {
- capturing=w; capture_name=name;content=gtk_bin_get_child(GTK_BIN(w));
+ capturing=w; capture_name=name;content=GTK_IS_WINDOW(w)?gtk_bin_get_child(GTK_BIN(w)):w;original_parent=gtk_widget_get_parent(content);
  GtkAllocation a;gtk_widget_get_allocation(content,&a);g_object_ref(content);
- gtk_container_remove(GTK_CONTAINER(w),content);offscreen=gtk_offscreen_window_new();
+ gtk_container_remove(GTK_CONTAINER(original_parent),content);offscreen=gtk_offscreen_window_new();
  gtk_widget_set_size_request(offscreen,a.width,a.height);gtk_container_add(GTK_CONTAINER(offscreen),content);gtk_widget_show_all(offscreen);
 }
 static void finish_capture(void) {
@@ -39,7 +39,7 @@ static void finish_capture(void) {
  char path[4096];snprintf(path,sizeof(path),"%s/%s.png",getenv("ARDOUR_RACK_UI_PROBE"),capture_name);
  GError* err=NULL;if(image){gdk_pixbuf_save(image,path,"png",&err,NULL);g_object_unref(image);}
  if(err){g_printerr("RACK PROBE capture failed: %s\n",err->message);g_error_free(err);}
- gtk_container_remove(GTK_CONTAINER(offscreen),content);gtk_container_add(GTK_CONTAINER(capturing),content);g_object_unref(content);gtk_widget_destroy(offscreen);capturing=NULL;
+ gtk_container_remove(GTK_CONTAINER(offscreen),content);gtk_container_add(GTK_CONTAINER(original_parent),content);g_object_unref(content);gtk_widget_destroy(offscreen);capturing=NULL;
 }
 static void find_named (GtkWidget* w,gpointer arg) {
  struct Search* s=arg;if(s->result)return;
@@ -73,27 +73,32 @@ static int touch_parameter(GtkWidget* w) {
  }
  return 1;
 }
-struct IndexedButton { const char* text; int index; GtkWidget* result; };
-static void find_indexed_button(GtkWidget* w,gpointer arg) {
- struct IndexedButton* s=arg;if(s->result)return;
- if(GTK_IS_BUTTON(w)) {const char* text=gtk_button_get_label(GTK_BUTTON(w));if(text&&!strcmp(text,s->text)&&s->index--==0){s->result=w;return;}}
- if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),find_indexed_button,s);
+static GtkWidget* named(GtkWidget* w,const char* name) {
+ struct Search s={name,NULL};find_named(w,&s);return s.result;
 }
-static int add_to_second_chain(void) {
- struct IndexedButton s={"Add plugin…",1,NULL};find_indexed_button(rack,&s);if(!s.result)return 0;
- g_object_ref(s.result);g_idle_add(click_idle,s.result);return 1;
+static int select_row(GtkWidget* view,int index) {
+ if(!view)return 0;GtkTreePath* path=gtk_tree_path_new_from_indices(index,-1);
+ gtk_tree_view_set_cursor(GTK_TREE_VIEW(view),path,NULL,FALSE);gtk_tree_path_free(path);return 1;
 }
-static void count_delay(GtkWidget* w,gpointer arg) {
- if(GTK_IS_LABEL(w)&&!strcmp(gtk_label_get_text(GTK_LABEL(w)),"ACE Delay"))++*(int*)arg;
- if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),count_delay,arg);
+static int select_chain(int index) {return select_row(named(rack,"AudioRackChainList"),index);}
+static int plugin_count(void) {
+ GtkWidget* view=named(rack,"AudioRackPluginList");if(!view)return -1;
+ return gtk_tree_model_iter_n_children(gtk_tree_view_get_model(GTK_TREE_VIEW(view)),NULL);
 }
+static int plugin_name(int index,const char* expected) {
+ GtkWidget* view=named(rack,"AudioRackPluginList");if(!view)return 0;
+ GtkTreeModel* model=gtk_tree_view_get_model(GTK_TREE_VIEW(view));GtkTreeIter iter;
+ if(!gtk_tree_model_iter_nth_child(model,&iter,NULL,index))return 0;
+ char* name=NULL;gtk_tree_model_get(model,&iter,1,&name,-1);int result=name&&!strcmp(name,expected);g_free(name);return result;
+}
+static int add_to_second_chain(void) {if(!select_chain(1))return 0;return click(rack,"Add plugin…");}
 static void return_key(GtkWidget* w) {
  GdkEvent* ev=gdk_event_new(GDK_KEY_PRESS);ev->key.window=g_object_ref(gtk_widget_get_window(w));
  ev->key.send_event=TRUE;ev->key.keyval=GDK_Return;gtk_widget_event(w,ev);gdk_event_free(ev);
 }
-static int search_delay(GtkWidget* w) {
+static int search_effect(GtkWidget* w,const char* name) {
  struct Search s={"PluginSelectorSearch",NULL};find_named(w,&s);if(!s.result)return 0;
- gtk_entry_set_text(GTK_ENTRY(s.result),"ACE Delay");return_key(s.result);return 1;
+ gtk_entry_set_text(GTK_ENTRY(s.result),name);return_key(s.result);return 1;
 }
 static int select_delay(GtkWidget* w,int keyboard) {
  struct Search s={"PluginSelectorDisplay",NULL};find_named(w,&s);if(!s.result)return 0;
@@ -106,7 +111,7 @@ static int select_delay(GtkWidget* w,int keyboard) {
  gtk_tree_path_free(path);return 1;
 }
 static gboolean probe(gpointer unused) {
- if(++ticks>100){g_printerr("RACK PROBE FAILED: timeout stage %d\n",stage);return FALSE;}
+ if(++ticks>150){g_printerr("RACK PROBE FAILED: timeout stage %d\n",stage);return FALSE;}
  if(stage==0) { GtkWidget* warning=top("Pre-Release Warning");if(warning){gtk_dialog_response(GTK_DIALOG(warning),GTK_RESPONSE_OK);return TRUE;} }
  if(ticks%5==0)g_printerr("RACK PROBE stage %d\n",stage);
  if(stage==0 && ticks%5==0) {
@@ -117,10 +122,18 @@ static gboolean probe(gpointer unused) {
  if(discovery){gtk_dialog_response(GTK_DIALOG(discovery),GTK_RESPONSE_NO);return TRUE;}
  GtkWidget* w;
  switch(stage) {
- case 0: rack=top("Audio Rack");if(!rack)return TRUE;capture(rack,"rack");stage=1;break;
+ case 0:
+  if(getenv("ARDOUR_RACK_UI_EMBEDDED")) {
+   w=top("Rack Verification - Ardour");if(!w)w=top("*Rack Verification - Ardour");
+   if(!w)return TRUE;rack=named(w,"AudioRackControls");if(!rack||!gtk_widget_get_mapped(rack))return TRUE;
+   if(top("Audio Rack")){g_printerr("RACK PROBE FAILED: unexpected floating rack window\n");return FALSE;}
+  } else rack=top("Audio Rack");
+  if(!rack)return TRUE;capture(rack,"rack");stage=1;break;
  case 1: if(!click(rack,"Add chain"))return TRUE;stage=2;break;
- case 2: capture(rack,"rack-two-chains");stage=3;break;
- case 3: if(!click(rack,"Map (1)…"))return TRUE;stage=4;break;
+ case 2:
+  if(plugin_count()!=0){g_printerr("RACK PROBE FAILED: new chain should have an empty plugin list\n");return FALSE;}
+  capture(rack,"rack-two-chains");select_chain(0);stage=3;break;
+ case 3: if(!select_chain(0)||!click(rack,"Map (1)…"))return TRUE;stage=4;break;
  case 4: w=top("Saved macro mappings");if(!w)return TRUE;capture(w,"mappings");stage=5;break;
  case 5: w=top("Saved macro mappings");if(!w)return TRUE;gtk_dialog_response(GTK_DIALOG(w),GTK_RESPONSE_CLOSE);stage=6;break;
  case 6: if(!click(rack,"Parameters"))return TRUE;stage=7;break;
@@ -153,28 +166,60 @@ static gboolean probe(gpointer unused) {
   w=top("Rack test — Learned controls");if(w)gtk_widget_hide(w);
   w=top("Rack test");if(w)gtk_widget_hide(w);
   if(!add_to_second_chain())return TRUE;stage=20;break;
- case 20: w=top("Plugin Selector");if(!w||!search_delay(w))return TRUE;stage=21;break;
+ case 20: w=top("Plugin Selector");if(!w||!search_effect(w,"ACE Delay"))return TRUE;stage=21;break;
  case 21: w=top("Plugin Selector");if(!w||!select_delay(w,0))return TRUE;stage=22;break;
  case 22: w=top("Plugin Selector");if(!w||!click(w,"Insert Plugin(s)"))return TRUE;stage=23;break;
  case 23: {
-  int count=0;count_delay(rack,&count);
-  if(top("Plugin Selector")||count!=1){g_printerr("RACK PROBE FAILED: Insert Plugin(s) did not close the chooser and add ACE Delay (count=%d)\n",count);return FALSE;}
+  int count=plugin_count();
+  if(top("Plugin Selector")||count!=1||!plugin_name(0,"ACE Delay")){g_printerr("RACK PROBE FAILED: Insert Plugin(s) did not close the chooser and add ACE Delay (count=%d)\n",count);return FALSE;}
   if(!add_to_second_chain())return TRUE;stage=24;break;
  }
- case 24: w=top("Plugin Selector");if(!w||!search_delay(w))return TRUE;stage=25;break;
+ case 24: w=top("Plugin Selector");if(!w||!search_effect(w,"ACE EQ"))return TRUE;stage=25;break;
  case 25: w=top("Plugin Selector");if(!w||!select_delay(w,1))return TRUE;stage=26;break;
  case 26: {
-  int count=0;count_delay(rack,&count);
-  if(top("Plugin Selector")||count!=2){g_printerr("RACK PROBE FAILED: keyboard insertion or chooser queue reset (count=%d)\n",count);return FALSE;}
+  int count=plugin_count();
+  if(top("Plugin Selector")||count!=2||!plugin_name(1,"ACE EQ")){g_printerr("RACK PROBE FAILED: keyboard insertion or chooser queue reset (count=%d)\n",count);return FALSE;}
   if(!add_to_second_chain())return TRUE;stage=27;break;
  }
  case 27: w=top("Plugin Selector");if(!w)return TRUE;gtk_dialog_response(GTK_DIALOG(w),GTK_RESPONSE_CANCEL);stage=28;break;
  case 28: {
-  int count=0;count_delay(rack,&count);
+  int count=plugin_count();
   if(top("Plugin Selector")||count!=2){g_printerr("RACK PROBE FAILED: cancel changed the chain or left the chooser open\n");return FALSE;}
   capture(rack,"plugins-in-chain");stage=29;break;
  }
- case 29: g_printerr("RACK PROBE PASSED: rack, chain addition, mapping dialog, plugin parameters, learned addition, right-click removal, touch learning, macro control types, mouse and keyboard plugin insertion, reopen and cancel\n");return FALSE;
+ case 29: if(!click(rack,"Down"))return TRUE;stage=30;break;
+ case 30:
+  if(!plugin_name(0,"ACE EQ")||!plugin_name(1,"ACE Delay")){g_printerr("RACK PROBE FAILED: reorder selected plugin down\n");return FALSE;}
+  if(!click(rack,"Up"))return TRUE;stage=31;break;
+ case 31:
+  if(!plugin_name(0,"ACE Delay")||!plugin_name(1,"ACE EQ")){g_printerr("RACK PROBE FAILED: reorder selected plugin up\n");return FALSE;}
+  if(!click(rack,"Remove"))return TRUE;stage=32;break;
+ case 32:
+  if(plugin_count()!=1||!plugin_name(0,"ACE EQ")){g_printerr("RACK PROBE FAILED: remove selected plugin\n");return FALSE;}
+  select_chain(0);stage=33;break;
+ case 33:
+  if(plugin_count()!=1||!plugin_name(0,"Rack test")){g_printerr("RACK PROBE FAILED: first chain list\n");return FALSE;}
+  select_chain(1);stage=34;break;
+ case 34:
+  if(plugin_count()!=1||!plugin_name(0,"ACE EQ")){g_printerr("RACK PROBE FAILED: second chain list\n");return FALSE;}
+  if(getenv("ARDOUR_RACK_UI_EMBEDDED")) {
+   w=top("*Rack Verification - Ardour");if(!w)w=top("Rack Verification - Ardour");capture(w,"rack-bottom-panel");
+  } else capture(rack,"rack-selected-chain");
+  stage=35;break;
+ case 35:
+  if(getenv("ARDOUR_RACK_UI_EMBEDDED")){g_printerr("RACK PROBE READY: select empty track\n");stage=36;break;}
+  g_printerr("RACK PROBE PASSED: floating rack, macros, learned controls, chain selection, insertion, reorder and removal\n");return FALSE;
+ case 36:
+  w=top("*Rack Verification - Ardour");if(!w)w=top("Rack Verification - Ardour");
+  if(!w||named(w,"AudioRackControls"))return TRUE;
+  g_printerr("RACK PROBE READY: return to rack track\n");stage=37;break;
+ case 37:
+  w=top("*Rack Verification - Ardour");if(!w)w=top("Rack Verification - Ardour");
+  if(!w)return TRUE;rack=named(w,"AudioRackControls");if(!rack||!gtk_widget_get_mapped(rack))return TRUE;
+  if(plugin_count()!=1||!plugin_name(0,"Rack test")){g_printerr("RACK PROBE FAILED: rack state after track switch\n");return FALSE;}
+  select_chain(1);
+  if(plugin_count()!=1||!plugin_name(0,"ACE EQ")){g_printerr("RACK PROBE FAILED: second chain after track switch\n");return FALSE;}
+  g_printerr("RACK PROBE PASSED: bottom panel, macros, learned controls, chain selection, insertion, reorder, removal and track-switch lifecycle\n");return FALSE;
  }
  return TRUE;
 }

@@ -110,3 +110,28 @@ session confirms the original plugin stays in chain one and both effects are in
 chain two. The complete native build and prior GUI checks also passed.
 
 ![Plugins inserted into the selected chain](audio-rack-evidence/plugins-in-chain.png)
+
+## Bottom device panel and chain plugin lists — 2026-11-18
+
+The rack editor is now a reusable widget embedded directly in the bottom device
+panel. Its compact two-row macro bank sits beside the chain list and a separate
+plugin list for the selected chain. Single-clicking a chain switches that list;
+Add/Open/Parameters/Up/Down/Remove operate on that chain and selected plugin.
+The selected chain's name, gain, mute and solo are editable above the plugin list.
+Double-clicking the rack still opens an optional floating editor using the same
+widget. Clicking the rack in the track processor list scrolls its bottom controls
+into view. Tracks containing only racks now correctly show the device panel.
+
+The native GUI regression exercises the embedded editor, its original learning
+and macro controls, both plugin insertion paths, ordering, removal, and switching
+to an empty track and back. Saved session XML verifies that changes affect only
+the selected chain. A companion `--floating` run exercises the shared editor in
+a window. During removal testing, a strong reference captured by the native
+parameter callback exposed a self-disconnection deadlock; the callback now uses
+a weak plugin reference.
+
+Reproduce with `python3 tools/dev/verify-rack-bottom-panel.py` (or add
+`--floating`); the runner owns and cleans up its isolated GUI job. Screenshots
+and result JSON are in `audio-rack-evidence/`.
+
+![Rack controls and selected-chain plugin list in the bottom panel](audio-rack-evidence/rack-bottom-panel.png)

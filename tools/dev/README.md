@@ -538,8 +538,11 @@ The native macOS arm64 build and installed bundle signature checks passed.
 
 ## Audio racks
 
-Right-click a track's processor list and choose **New Audio Rack**. Double-click
-the rack, or use **Macros and chains…** in the compact device panel, to edit it.
+Right-click a track's processor list and choose **New Audio Rack**. The bottom
+device panel shows its macros, chain list and selected chain's plugin list directly.
+Click a chain to switch its plugin list; use the adjacent controls to add, open,
+remove or reorder its plugins. Clicking the rack in the track's processor list
+scrolls its controls into view. Double-click the rack for an optional floating editor.
 Add chains for parallel processing; add plugins within a chain for serial
 processing. Empty chains carry dry audio. Chain outputs sum, so adding a dry chain
 at unity gain changes the level. Each chain has gain, mute, solo and plugin ordering.
@@ -610,6 +613,18 @@ in 1.77 seconds with the fixes. It verifies device-time DSP positions, active
 lookahead, continued playback beyond the seek, inside/outside/end-boundary
 positions, loop wrapping, and stopped locates. The native GTK mouse test passed
 in 1.64 seconds. App startup and compilation are outside those test budgets.
+
+The rack-only bottom panel is also tested independently of generic plugin panels:
+
+```sh
+python3 tools/dev/verify-rack-bottom-panel.py
+```
+
+This macOS runner opens a disposable session with isolated preferences and dummy
+audio. It checks the embedded macro controls, switching between chain lists,
+mouse/keyboard plugin insertion, ordering, removal, and switching to an empty
+track and back. The floating editor uses the same widget; pass `--floating` to the runner to
+exercise it independently.
 
 ## Files browser and editable whitelist
 
