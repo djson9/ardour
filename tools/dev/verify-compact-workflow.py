@@ -98,9 +98,9 @@ signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError('9-s
 signal.alarm(9)
 start = time.monotonic()
 # Tests use GTK events; activation allows native dialogs/completion to own focus.
-port = a.url.split(':')[-1].split('/')[0]
-pid = subprocess.check_output(['lsof', '-t', '-iTCP:' + port, '-sTCP:LISTEN'], text=True).strip()
 if not a.no_activate:
+    port = a.url.split(':')[-1].split('/')[0]
+    pid = subprocess.check_output(['lsof', '-t', '-iTCP:' + port, '-sTCP:LISTEN'], text=True).strip()
     subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (first application process whose unix id is ' + pid + ') to set frontmost to true'], check=True)
 header(next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track')))
 checks = []
