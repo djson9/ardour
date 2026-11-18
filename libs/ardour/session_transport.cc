@@ -370,7 +370,9 @@ Session::set_transport_speed (double speed)
 	/* A speed change need not schedule a stop or locate in the ordinary FSM.
 	 * Its guard has cancelled the future owner, so explicitly reclaim that
 	 * generation before using a different resampled callback size. */
-	anticipation_edit_ready ();
+	if (_anticipative_process->bound () && (!_anticipative_process->running () || speed != 1.0)) {
+		anticipation_edit_ready ();
+	}
 	if (_anticipation_enabled.load () && speed == 1.0 && _engine_speed != 1.0) {
 		request_anticipative_refresh ();
 	}
