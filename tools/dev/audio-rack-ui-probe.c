@@ -2,6 +2,7 @@
  * Test-only GTK interaction/rendering, injected into a disposable GUI process.
  * Screenshots contain only the tested window, never the user's desktop. */
 #include <ytk/ytk.h>
+#include <ydk/gdkkeysyms.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -72,6 +73,38 @@ static int touch_parameter(GtkWidget* w) {
  }
  return 1;
 }
+struct IndexedButton { const char* text; int index; GtkWidget* result; };
+static void find_indexed_button(GtkWidget* w,gpointer arg) {
+ struct IndexedButton* s=arg;if(s->result)return;
+ if(GTK_IS_BUTTON(w)) {const char* text=gtk_button_get_label(GTK_BUTTON(w));if(text&&!strcmp(text,s->text)&&s->index--==0){s->result=w;return;}}
+ if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),find_indexed_button,s);
+}
+static int add_to_second_chain(void) {
+ struct IndexedButton s={"Add plugin…",1,NULL};find_indexed_button(rack,&s);if(!s.result)return 0;
+ g_object_ref(s.result);g_idle_add(click_idle,s.result);return 1;
+}
+static void count_delay(GtkWidget* w,gpointer arg) {
+ if(GTK_IS_LABEL(w)&&!strcmp(gtk_label_get_text(GTK_LABEL(w)),"ACE Delay"))++*(int*)arg;
+ if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),count_delay,arg);
+}
+static void return_key(GtkWidget* w) {
+ GdkEvent* ev=gdk_event_new(GDK_KEY_PRESS);ev->key.window=g_object_ref(gtk_widget_get_window(w));
+ ev->key.send_event=TRUE;ev->key.keyval=GDK_Return;gtk_widget_event(w,ev);gdk_event_free(ev);
+}
+static int search_delay(GtkWidget* w) {
+ struct Search s={"PluginSelectorSearch",NULL};find_named(w,&s);if(!s.result)return 0;
+ gtk_entry_set_text(GTK_ENTRY(s.result),"ACE Delay");return_key(s.result);return 1;
+}
+static int select_delay(GtkWidget* w,int keyboard) {
+ struct Search s={"PluginSelectorDisplay",NULL};find_named(w,&s);if(!s.result)return 0;
+ GtkTreeModel* model=gtk_tree_view_get_model(GTK_TREE_VIEW(s.result));GtkTreeIter iter;
+ if(!gtk_tree_model_get_iter_first(model,&iter))return 0;
+ GtkTreePath* path=gtk_tree_model_get_path(model,&iter);
+ gtk_tree_view_set_cursor(GTK_TREE_VIEW(s.result),path,NULL,FALSE);
+ if(keyboard)return_key(s.result);
+ else gtk_tree_view_row_activated(GTK_TREE_VIEW(s.result),path,gtk_tree_view_get_column(GTK_TREE_VIEW(s.result),1));
+ gtk_tree_path_free(path);return 1;
+}
 static gboolean probe(gpointer unused) {
  if(++ticks>100){g_printerr("RACK PROBE FAILED: timeout stage %d\n",stage);return FALSE;}
  if(stage==0) { GtkWidget* warning=top("Pre-Release Warning");if(warning){gtk_dialog_response(GTK_DIALOG(warning),GTK_RESPONSE_OK);return TRUE;} }
@@ -80,6 +113,8 @@ static gboolean probe(gpointer unused) {
   GList* tops=gtk_window_list_toplevels();for(GList* p=tops;p;p=p->next)if(gtk_widget_get_visible(p->data))g_printerr("RACK PROBE waiting: %s\n",gtk_window_get_title(GTK_WINDOW(p->data)));g_list_free(tops);
  }
  if(capturing){finish_capture();return TRUE;}
+ GtkWidget* discovery=top("Discover VST/AU Plugins?");
+ if(discovery){gtk_dialog_response(GTK_DIALOG(discovery),GTK_RESPONSE_NO);return TRUE;}
  GtkWidget* w;
  switch(stage) {
  case 0: rack=top("Audio Rack");if(!rack)return TRUE;capture(rack,"rack");stage=1;break;
@@ -114,7 +149,32 @@ static gboolean probe(gpointer unused) {
  case 16: if(!popup_control(rack))return TRUE;stage=17;break;
  case 17: if(!activate_menu("Control type: Toggle"))return TRUE;stage=18;break;
  case 18: capture(rack,"macro-control-types");stage=19;break;
- case 19: g_printerr("RACK PROBE PASSED: rack, chain addition, mapping dialog, plugin parameters, learned addition, right-click removal, touch learning, and macro control types\n");return FALSE;
+ case 19:
+  w=top("Rack test — Learned controls");if(w)gtk_widget_hide(w);
+  w=top("Rack test");if(w)gtk_widget_hide(w);
+  if(!add_to_second_chain())return TRUE;stage=20;break;
+ case 20: w=top("Plugin Selector");if(!w||!search_delay(w))return TRUE;stage=21;break;
+ case 21: w=top("Plugin Selector");if(!w||!select_delay(w,0))return TRUE;stage=22;break;
+ case 22: w=top("Plugin Selector");if(!w||!click(w,"Insert Plugin(s)"))return TRUE;stage=23;break;
+ case 23: {
+  int count=0;count_delay(rack,&count);
+  if(top("Plugin Selector")||count!=1){g_printerr("RACK PROBE FAILED: Insert Plugin(s) did not close the chooser and add ACE Delay (count=%d)\n",count);return FALSE;}
+  if(!add_to_second_chain())return TRUE;stage=24;break;
+ }
+ case 24: w=top("Plugin Selector");if(!w||!search_delay(w))return TRUE;stage=25;break;
+ case 25: w=top("Plugin Selector");if(!w||!select_delay(w,1))return TRUE;stage=26;break;
+ case 26: {
+  int count=0;count_delay(rack,&count);
+  if(top("Plugin Selector")||count!=2){g_printerr("RACK PROBE FAILED: keyboard insertion or chooser queue reset (count=%d)\n",count);return FALSE;}
+  if(!add_to_second_chain())return TRUE;stage=27;break;
+ }
+ case 27: w=top("Plugin Selector");if(!w)return TRUE;gtk_dialog_response(GTK_DIALOG(w),GTK_RESPONSE_CANCEL);stage=28;break;
+ case 28: {
+  int count=0;count_delay(rack,&count);
+  if(top("Plugin Selector")||count!=2){g_printerr("RACK PROBE FAILED: cancel changed the chain or left the chooser open\n");return FALSE;}
+  capture(rack,"plugins-in-chain");stage=29;break;
+ }
+ case 29: g_printerr("RACK PROBE PASSED: rack, chain addition, mapping dialog, plugin parameters, learned addition, right-click removal, touch learning, macro control types, mouse and keyboard plugin insertion, reopen and cancel\n");return FALSE;
  }
  return TRUE;
 }

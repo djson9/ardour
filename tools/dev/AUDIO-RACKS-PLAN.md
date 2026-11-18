@@ -94,3 +94,19 @@ Implemented on `jay/audio-racks`, based on `bdded27`, in the isolated
 ![Mapping a plugin parameter with its range](audio-rack-evidence/mappings.png)
 
 ![Learned plugin parameter](audio-rack-evidence/learned-control.png)
+
+## Plugin insertion correction — 2026-11-18
+
+The initial rack UI displayed PluginSelector without entering its response loop,
+so Insert Plugin(s) did not invoke the rack's insertion callback. Add plugin now
+uses the same `show_manager()` entry point as the route processor list and parents
+the chooser to the rack window.
+
+The extended native GUI regression reproduced the original failure with ACE Delay
+(zero inserted plugins and the chooser left open). With the fix, mouse insertion
+and keyboard insertion each add one ACE Delay to the second chain; reopening
+clears the previous queue, and Cancel leaves the chain unchanged. Saving the
+session confirms the original plugin stays in chain one and both effects are in
+chain two. The complete native build and prior GUI checks also passed.
+
+![Plugins inserted into the selected chain](audio-rack-evidence/plugins-in-chain.png)

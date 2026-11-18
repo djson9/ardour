@@ -1,0 +1,15 @@
+{
+  "chains_after_save": [
+    [
+      "Rack test"
+    ],
+    [
+      "ACE Delay",
+      "ACE Delay"
+    ]
+  ],
+  "mouse_insertion": true,
+  "keyboard_insertion": true,
+  "queue_cleared_on_reopen": true,
+  "cancel_keeps_chain": true
+}
