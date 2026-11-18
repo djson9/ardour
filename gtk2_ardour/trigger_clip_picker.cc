@@ -54,6 +54,7 @@
 #include "ardour_ui.h"
 #include "ardour_dialog.h"
 #include "browser_file_filter.h"
+#include "browser_file_search.h"
 #include "browser_audio_preview.h"
 #include "keyboard.h"
 #include "plugin_ui.h"
@@ -70,7 +71,8 @@ using namespace ARDOUR;
 #define PX_SCALE(px) std::max((float)px, rintf((float)px * UIConfiguration::instance().get_ui_scale()))
 
 TriggerClipPicker::TriggerClipPicker ()
-	: _fcd (_("Open Browser Folder"), FILE_CHOOSER_ACTION_SELECT_FOLDER)
+	: _search (new BrowserFileSearch)
+	, _fcd (_("Open Browser Folder"), FILE_CHOOSER_ACTION_SELECT_FOLDER)
 	, _seek_slider (0, 1000, 1)
 	, _autoplay_btn (_("Auto-play"))
 	, _normalize_btn (_("Normalize"))
@@ -219,6 +221,17 @@ TriggerClipPicker::TriggerClipPicker ()
 	browser_actions->pack_start (_file_types_btn, false, false);
 	dir_table->attach (*browser_actions, 0, 3, 2, 3, FILL | EXPAND, SHRINK);
 
+	_search_entry.set_name ("browser-search");
+	_search_entry.set_text ("");
+	ArdourWidgets::set_tooltip (_search_entry, _("Search files in this folder and subfolders. Down selects results; Enter previews; Escape clears."));
+	_search_entry.signal_changed ().connect (sigc::mem_fun (*this, &TriggerClipPicker::search_changed));
+	_search_entry.signal_key_press_event ().connect (sigc::mem_fun (*this, &TriggerClipPicker::search_key), false);
+	Gtk::HBox* search_row = manage (new Gtk::HBox (false, 4));
+	search_row->pack_start (*manage (new Gtk::Label (_("Search"))), false, false);
+	search_row->pack_start (_search_entry, true, true);
+	dir_table->attach (*search_row, 0, 3, 3, 4, FILL | EXPAND, SHRINK);
+	_search_poll = Glib::signal_timeout ().connect (sigc::mem_fun (*this, &TriggerClipPicker::search_poll), 40);
+
 	pack_start (*dir_table, false, false);
 	pack_start (_scroller);
 	pack_start (_browser_status, false, false);
@@ -231,6 +244,7 @@ TriggerClipPicker::TriggerClipPicker ()
 	/* GTK's plain Left/Right scroll columns. In a file browser they navigate
 	 * the folder hierarchy; Up/Down and Shift selection keep GTK semantics. */
 	_view.signal_key_press_event ().connect ([this] (GdkEventKey* event) {
+		if (!_search_entry.get_text ().empty () && event->keyval == GDK_Escape) { focus_search (); _search_entry.set_text (""); return true; }
 		bool const right = event->keyval == GDK_Right || event->keyval == GDK_KP_Right;
 		bool const left = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
 		if ((!right && !left) || !Gtkmm2ext::Keyboard::modifier_state_equals (event->state, 0)) { return false; }
@@ -318,6 +332,75 @@ TriggerClipPicker::TriggerClipPicker ()
 TriggerClipPicker::~TriggerClipPicker ()
 {
 	_idle_connection.disconnect ();
+	_search_debounce.disconnect ();
+	_search_poll.disconnect ();
+	_search.reset ();
+}
+
+void
+TriggerClipPicker::focus_search ()
+{
+ _search_entry.grab_focus ();
+ _search_entry.select_region (0, -1);
+}
+
+bool
+TriggerClipPicker::search_key (GdkEventKey* event)
+{
+ if (event->keyval == GDK_Escape) {
+  if (!_search_entry.get_text ().empty ()) _search_entry.set_text ("");
+  else _view.grab_focus ();
+  return true;
+ }
+ if (event->keyval == GDK_Down || event->keyval == GDK_KP_Down || event->keyval == GDK_Return || event->keyval == GDK_KP_Enter) {
+  if (!_model->children ().empty ()) {
+   auto row = _model->children ().begin ();
+   if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter) row_activated (_model->get_path (row), nullptr);
+   else { _view.grab_focus (); _view.set_cursor (_model->get_path (row)); }
+  }
+  return true;
+ }
+ return false;
+}
+
+void
+TriggerClipPicker::search_changed ()
+{
+ if (_search_updating) return;
+ _search_debounce.disconnect ();
+ _search->cancel ();
+ stop_audition ();
+ if (_search_entry.get_text ().empty ()) { refresh_library (); return; }
+ _model->clear ();
+ _browser_status.set_text (_current_path.empty () ? _("Open a folder to search.") : _("Searching…"));
+ _browser_status.show ();
+ if (_current_path.empty ()) return;
+ _search_debounce = Glib::signal_timeout ().connect ([this] {
+  _search->request (_current_path, _search_entry.get_text (), _file_extensions);
+  return false;
+ }, 150);
+}
+
+bool
+TriggerClipPicker::search_poll ()
+{
+ auto result = _search->take ();
+ if (!result || _search_entry.get_text ().empty ()) return true;
+ PBD::Unwinder<bool> updating (_search_updating, true);
+ _model->clear ();
+ for (auto const& file : result->files) {
+  auto row = *(_model->append ());
+  row[_columns.name] = file.relative;
+  row[_columns.path] = Glib::build_filename (_current_path, file.relative);
+  row[_columns.file] = true;
+  row[_columns.read] = true;
+  row[_columns.color] = _color_foreground;
+ }
+ _browser_status.set_text (result->limited ? _("Search limit reached. Refine your search.") :
+  result->unreadable ? _("Some folders could not be read.") :
+  result->files.empty () ? _("No matching files.") : string_compose (_("%1 matching files"), result->files.size ()));
+ if (!_model->children ().empty ()) _view.set_cursor (_model->get_path (_model->children ().begin ()));
+ return true;
 }
 
 void
@@ -595,7 +678,7 @@ TriggerClipPicker::drag_end (Glib::RefPtr<Gdk::DragContext> const&)
 void
 TriggerClipPicker::cursor_changed ()
 {
-	if (!_session) {
+	if (!_session || _search_updating) {
 		return;
 	}
 
@@ -872,6 +955,14 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 		return;
 	}
 
+	if (!pc && !_search_entry.get_text ().empty ()) {
+		if (_current_path == path) { search_changed (); return; }
+		PBD::Unwinder<bool> updating (_search_updating, true);
+		_search_entry.set_text ("");
+		_search_debounce.disconnect ();
+		_search->cancel ();
+	}
+
 	if (!pc) {
 		_view.set_model (Glib::RefPtr<Gtk::TreeStore>(0));
 		_model->clear ();
@@ -965,7 +1056,7 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 
 	if (!pc) {
 		_view.set_model (_model);
-		if (_view.get_mapped ()) { _view.grab_focus (); }
+		if (_view.get_mapped () && !_search_entry.has_focus ()) { _view.grab_focus (); }
 		if (_browser_status.get_text ().empty () && files.empty ()) {
 			_browser_status.set_text (_file_extensions.empty () ? _("No file types enabled. Edit File Types to show files.") : _("No matching files in this folder."));
 		}

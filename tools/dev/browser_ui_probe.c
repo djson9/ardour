@@ -59,6 +59,12 @@ static int row(const char *name, GtkTreeIter *out) {
  do {char *s=NULL;gtk_tree_model_get(m,&i,0,&s,-1);int match=s&&!strcmp(s,name);g_free(s);if(match){if(out)*out=i;return 1;}}while(gtk_tree_model_iter_next(m,&i));
  return 0;
 }
+static GtkWidget *preview_control(int column) {
+ GtkWidget *table=gtk_widget_get_parent(find(browser,"browser-normalize")),*out=NULL;
+ GList *children=gtk_container_get_children(GTK_CONTAINER(table));
+ for(GList *p=children;p;p=p->next){guint left,top;gtk_container_child_get(GTK_CONTAINER(table),GTK_WIDGET(p->data),"left-attach",&left,"top-attach",&top,NULL);if(left==column&&top==0)out=p->data;}
+ g_list_free(children);return out;
+}
 static int files(int expected) {
  GtkTreeModel *m=model();GtkTreeIter i;int count=0;
  if(gtk_tree_model_get_iter_first(m,&i))do {gboolean file=FALSE;gtk_tree_model_get(m,&i,3,&file,-1);if(file)count++;}while(gtk_tree_model_iter_next(m,&i));
@@ -139,6 +145,7 @@ static gboolean tick(gpointer unused) {
  }
  case 4:
   if(!strcmp(mode,"keys")){stage=50;break;}
+  if(!strcmp(mode,"search")){stage=70;break;}
   if(!row("Nested",NULL)||!row("Piano.WaV",NULL)||!row("Chords.MID",NULL)||!row("Bass.flac",NULL)||!files(3)||row("notes.txt",NULL)||row("pipe.wav",NULL)){finish("Default audio/MIDI directory listing");break;}
   row("Nested",&i);{
    GtkTreePath *p=gtk_tree_model_get_path(model(),&i);gtk_tree_view_expand_row(GTK_TREE_VIEW(find(browser,"browser-files")),p,FALSE);gtk_tree_path_free(p);
@@ -234,6 +241,65 @@ static gboolean tick(gpointer unused) {
  case 62:
   if(!cursor("Piano.WaV")){pending_failure="End did not select last file";return TRUE;}
   finish(NULL);break;
+ case 70: {
+  GtkWidget *child=browser,*parent;
+  while((parent=gtk_widget_get_parent(child))) {if(GTK_IS_NOTEBOOK(parent))gtk_notebook_set_current_page(GTK_NOTEBOOK(parent),0);child=parent;}
+  key(GDK_f,GDK_META_MASK);stage=71;break;
+ }
+ case 71:
+  pending_failure="Cmd-F did not show/focus browser search";
+  if(!gtk_widget_get_mapped(browser)||!gtk_widget_has_focus(find(browser,"browser-search")))break;
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"PIA");stage=72;break;
+ case 72:
+  pending_failure="Typed search filtering or first result";
+  if(!files(1)||!row("Piano.WaV",NULL)||!cursor("Piano.WaV"))break;
+  if(!gtk_widget_has_focus(find(browser,"browser-search"))){finish("Search results stole typing focus");break;}
+  key(GDK_Down,0);stage=73;break;
+ case 73:
+  pending_failure="Down did not focus search results";
+  if(!gtk_widget_has_focus(find(browser,"browser-files"))||!cursor("Piano.WaV"))break;
+  key(GDK_f,GDK_META_MASK);stage=74;break;
+ case 74: {
+  gint start,end;GtkWidget *entry=find(browser,"browser-search");pending_failure="Cmd-F did not select existing query";
+  if(!gtk_widget_has_focus(entry)||!gtk_editable_get_selection_bounds(GTK_EDITABLE(entry),&start,&end)||start!=0||end!=3)break;
+  key(GDK_b,0);stage=75;break;
+ }
+ case 75:
+  pending_failure="Native typing did not replace selected query";
+  if(strcmp(gtk_entry_get_text(GTK_ENTRY(find(browser,"browser-search"))),"b")||!files(1)||!row("Bass.flac",NULL))break;
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"INSIDE");stage=76;break;
+ case 76:
+  pending_failure="Subfolder file not found";
+  if(!files(1)||!row("Nested/Inside.wav",NULL))break;
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"Piano");
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"NOTHING-MATCHES");stage=77;break;
+ case 77:
+  pending_failure="Stale search replaced newer query";
+  if(!files(0)||strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-status"))),"No matching files."))break;
+  key(GDK_Escape,0);stage=78;break;
+ case 78:
+  pending_failure="Escape did not restore normal browsing";
+  if(!files(3)||!row("Nested",NULL)||strlen(gtk_entry_get_text(GTK_ENTRY(find(browser,"browser-search")))))break;
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"PIA");stage=82;break;
+ case 82:
+  pending_failure="Enter preview fixture";if(!files(1)||!row("Piano.WaV",NULL))break;
+  key(GDK_Return,0);stage=83;break;
+ case 83:
+  pending_failure="Enter in search did not preview first result";
+  if(gtk_widget_get_sensitive(preview_control(0)))break;
+  g_idle_add(click_idle,g_object_ref(preview_control(1)));
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"mid");stage=79;break;
+ case 79:
+  pending_failure="MIDI search";if(!files(1)||!row("Chords.MID",NULL))break;
+  if(click("browser-file-types"))stage=80;break;
+ case 80:
+  dialog=top("Browser File Types");if(!dialog)break;
+  edit(dialog,"wav");respond(dialog,GTK_RESPONSE_OK);stage=81;break;
+ case 81:
+  pending_failure="Search did not honor changed extension whitelist";
+  if(!files(0)||strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-status"))),"No matching files."))break;
+  gtk_entry_set_text(GTK_ENTRY(find(browser,"browser-search")),"");finish(NULL);break;
+
  case 30:
   if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)||!files(1)||!row("Chords.MID",NULL)||!row("Nested",NULL)){finish("Folder/filter not restored at startup");break;}
   finish(NULL);break;

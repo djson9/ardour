@@ -192,6 +192,11 @@ Editor::register_actions ()
 	ActionManager::session_sensitive_actions.push_back (show_editor_list_action);
 	show_editor_list_action->set_tooltip (_("Show/Hide Right Panel"));
 	right_attachment_button.set_related_action (show_editor_list_action);
+	ActionManager::session_sensitive_actions.push_back (ActionManager::register_action (editor_actions, "search-files", _("Search Files"), [this] {
+		show_editor_list_action->set_active (true);
+		_the_notebook.set_current_page (_the_notebook.page_num (_trigger_clip_picker));
+		_trigger_clip_picker.focus_search ();
+	}));
 
 	show_editor_mixer_action = ActionManager::register_toggle_action (editor_actions, "show-editor-mixer", _("Show Editor Mixer"), sigc::mem_fun (*this, &Tabbable::att_left_button_toggled));
 	ActionManager::session_sensitive_actions.push_back (show_editor_mixer_action);
