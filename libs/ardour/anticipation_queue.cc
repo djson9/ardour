@@ -143,6 +143,14 @@ AnticipationQueue::worker ()
 		ProcessThread::BufferScope buffers (*_worker_buffers);
 		while (!_quit.load (std::memory_order_acquire)) {
 			State state = _state.load (std::memory_order_acquire);
+			if (state == State::Offered) {
+				/* A live consumer may reclaim an unstarted job. Only the winner
+				 * may touch _next, scratch buffers or the original DSP instance. */
+				if (!_state.compare_exchange_strong (state, State::Ahead, std::memory_order_acq_rel)) {
+					continue;
+				}
+				state = State::Ahead;
+			}
 			if (state == State::Draining) {
 				_state.compare_exchange_strong (state, State::Drained, std::memory_order_release);
 			}
@@ -232,6 +240,14 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 	    !(_config.channels <= output.available ())) {
 		return fault (output, requested.frames);
 	}
+	if (state == State::Offered) {
+		/* No producer has claimed this range yet. Preserve ordinary live
+		 * processing if scheduling the worker takes longer than one callback.
+		 * This is not a fallback for DSP already running on the producer. */
+		if (_state.compare_exchange_strong (state, State::Live, std::memory_order_acq_rel)) {
+			state = State::Live;
+		}
+	}
 	if (state == State::Ahead && want_live) {
 		State expected = State::Ahead;
 		_state.compare_exchange_strong (expected, State::Draining, std::memory_order_acq_rel);
@@ -255,7 +271,7 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 		_consumer_next += requested.frames;
 		_next = next (requested);
 		if (!want_live) {
-			_state.store (State::Ahead, std::memory_order_release);
+			_state.store (State::Offered, std::memory_order_release);
 		}
 		return Result::Live;
 	}
@@ -304,7 +320,7 @@ AnticipationQueue::process (BufferSet& output, Range const& requested, bool want
 			_consumer_next += requested.frames;
 			_next = next (remaining);
 			if (!want_live) {
-				_state.store (State::Ahead, std::memory_order_release);
+				_state.store (State::Offered, std::memory_order_release);
 			}
 			return Result::Live;
 		}

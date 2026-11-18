@@ -40,7 +40,7 @@ public:
 		size_t midi_bytes;
 	};
 
-	enum class State { Stopped, Ahead, Draining, Drained, Live, Fault };
+	enum class State { Stopped, Ahead, Draining, Drained, Live, Fault, Offered };
 	enum class Result { Cached, Live, Underrun, Discontinuity, Stopped };
 
 	using Render = std::function<void (BufferSet&, Range const&, bool live)>;
@@ -64,7 +64,9 @@ public:
 	 * quiescent() acknowledges the final job without joining on the callback. */
 	void request_stop () { _quit.store (true, std::memory_order_release); }
 	bool quiescent () const { return _exited.load (std::memory_order_acquire); }
-	/** RT; false live request resumes ahead rendering after the last live call. */
+	/** RT; a false live request offers DSP to the producer after this live call.
+	 * Until claimed, the next consumer may reclaim it and continue live. Once
+	 * claimed, missing output remains a diagnosed underrun; never wait or race DSP. */
 	Result process (BufferSet&, Range const&, bool want_live, uint64_t generation);
 
 	State state () const { return _state.load (std::memory_order_acquire); }
