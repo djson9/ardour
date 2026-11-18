@@ -4,8 +4,10 @@
 
 The default suite now contains **25 native cases**: the original 13 integration
 cases, ten controlled worker-stall cases at 64/128 frames, and two negative controls.
-The latest complete pass takes **8.58 s wall-clock** on the build Mac, including
-the deferred-demotion regressions. The previous coverage-only suite passed in
+The latest default-on build passes all 25 cases in **8.32 s** on the build Mac.
+The preceding cold run hit the nine-second deadline (9.12 s wall-clock); timing
+therefore remains sensitive to machine load. Both results are retained. The
+previous deferred-demotion build passed in 8.58 s wall-clock. The previous coverage-only suite passed in
 8.99 s, with earlier passes in 8.95 s and 8.83 s.
 Prepare binaries separately, then run with a nine-second execution deadline:
 
@@ -83,8 +85,10 @@ ownership and retained fan-out readers; Session owns `AnticipativeProcess`, whic
 binds the original registered route processors and their main/send/meter outputs.
 The ordinary Graph remains the audible callback graph.
 
-Enable the default-off feature in **Preferences → Performance → Anticipative
-Processing**. The render-ahead horizon defaults to 200 ms. The mixer strip context
+Anticipative processing is **enabled by default**, with a 200 ms render-ahead
+horizon. Change it in **Preferences → Performance → Anticipative Processing**.
+An explicitly saved disabled preference still takes precedence; configurations
+without this setting inherit the enabled default. The mixer strip context
 menu provides **Force Realtime Processing**, the current eligibility reason and
 cache underrun count. Global settings persist in Ardour preferences; the track
 override persists in session XML. These controls are experimental.
