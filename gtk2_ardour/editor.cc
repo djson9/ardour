@@ -5901,6 +5901,9 @@ Editor::mid_track_drag (GdkEventMotion* ev, Gtk::Widget& w)
 	w.translate_coordinates (edit_controls_vbox, ev->x, ev->y, xo, yo);
 
 	if (track_drag->first_move) {
+		// A click can scroll its header into view between press and release.
+		// Only a real motion event may cross the drag threshold.
+		if (ev->type == GDK_BUTTON_RELEASE) return;
 
 		/* move threshold */
 
@@ -5975,7 +5978,9 @@ Editor::end_track_drag (bool apply)
 		for (auto* tv : selection->tracks) if (auto* r = dynamic_cast<RouteTimeAxisView*> (tv)) selected.push_back (r->route ());
 		std::string error;
 		if (!GroupTracks::drop (*_session, selected, destination, before, error)) {
-			if (!error.empty ()) { ArdourMessageDialog message (error, false, Gtk::MESSAGE_INFO, Gtk::BUTTONS_OK); message.run (); }
+			if (!error.empty ()) Glib::signal_idle ().connect_once ([error] {
+				ArdourMessageDialog message (error, false, Gtk::MESSAGE_INFO, Gtk::BUTTONS_OK); message.run ();
+			});
 		} else if (destination && GroupTracks::collapsed (destination)) {
 			_session->selection ().select_stripable_and_maybe_group (destination, SelectionSet);
 		}

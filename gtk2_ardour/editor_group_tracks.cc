@@ -86,7 +86,7 @@ void Editor::update_group_drop (int x, int y)
 		bottom = std::max (bottom, double (tv->y_position () + tv->effective_height ()));
 		if (y < tv->y_position () || y >= tv->y_position () + tv->effective_height ()) continue;
 		auto route = rtv->route ();
-		const double fraction = (y - tv->y_position ()) / tv->current_height ();
+		const double fraction = (double (y) - tv->y_position ()) / tv->current_height ();
 		if (fraction > 1.) break; // An automation lane isn't a header target.
 		if (GroupTracks::is_group (route) && fraction >= .2 && fraction < .8) {
 			track_drag->destination = route;

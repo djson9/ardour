@@ -561,6 +561,7 @@ TimeAxisView::controls_ebox_button_release (GdkEventButton* ev)
 	if (_editor.track_dragging()) {
 		// Include the release position, even if no motion was delivered there.
 		GdkEventMotion motion = {};
+		motion.type = GDK_BUTTON_RELEASE;
 		motion.x = ev->x; motion.y = ev->y;
 		motion.x_root = ev->x_root; motion.y_root = ev->y_root;
 		motion.state = ev->state;

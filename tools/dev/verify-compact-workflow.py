@@ -208,8 +208,8 @@ elif a.case == 'group-drag':
         dest = pointer('TrackHeader:' + target, 'move', 30, 14)
         x, y = dest['xRoot'] - origin['xRoot'] + 30, dest['yRoot'] - origin['yRoot'] + dest['height'] * fraction
         pointer(src, 'press', 30, 14)
-        pointer(src, 'move', 30, 21, down=True)  # cross threshold before leaving source bounds
-        pointer(src, 'move', x, y, down=True)
+        pointer(src, 'move', 30, 21, buttonDown=True)  # cross threshold before leaving source bounds
+        pointer(src, 'move', x, y, buttonDown=True)
         if cancel:
             key('Escape')
             pointer(src, 'release', 30, 21)
@@ -236,7 +236,7 @@ elif a.case == 'group-drag':
     assert routed(ids[0], 'UI Drag Outer') and parent(ids[1]) == inner
     header('UI Drag Outer'); drag('UI Drag Outer', 'UI Drag Inner')
     dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
-    choose(dialog, 'OK'); wait(lambda: not any(w['modal'] for w in windows()))
+    choose(dialog, 'gtk-ok'); wait(lambda: not any(w['modal'] for w in windows()))
     assert parent(outer) == '' and parent(inner) == outer
     header(names[2]); drag(names[2], 'UI Drag Outer', .05)
     wait(lambda: parent(ids[2]) == '')
