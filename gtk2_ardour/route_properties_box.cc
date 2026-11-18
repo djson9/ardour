@@ -280,7 +280,15 @@ RoutePropertiesBox::update_processor_box_visibility ()
 #ifndef MIXBUS
 	if (_show_insert || !(_proc_uis.empty () && _rack_uis.empty ())) {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
-		set_size_request (-1, (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? (_rack_uis.empty () ? 180 : 270) : 365) * ui_scale);
+		int height = (live_layout ? 180 : 365) * ui_scale;
+		if (live_layout && !_rack_uis.empty ()) {
+			int width, content_height;
+			_box.get_size_request (width, content_height);
+			// Neighboring plugin cards can be taller than the rack. The device
+			// scroller has no vertical scrollbar, so reserve their full height.
+			height = std::max<int> (270 * ui_scale, content_height + 12 * ui_scale);
+		}
+		set_size_request (-1, height);
 	} else {
 		set_size_request (-1, -1);
 	}
