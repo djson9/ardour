@@ -168,6 +168,7 @@ if a.case == 'groups':
     key('Escape', dialog['title'])
     wait(lambda: not any(w['modal'] for w in windows()))
     assert {doomed, *ids}.issubset({r['id'] for r in routes()})
+    header('UI Group Delete')
     key('BackSpace')
     dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
     choose(dialog, 'Yes, remove them.')

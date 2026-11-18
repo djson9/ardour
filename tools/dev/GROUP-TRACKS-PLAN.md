@@ -45,3 +45,37 @@ child faders. Ungrouping removes the group's processing, so confirmation makes
 the effect explicit. As with Ardour route removal, this is not undoable; keep
 children and restore routing before removing the bus. Failed routing operations
 restore the original connections and leave the existing tracks intact.
+
+## Validation completed (2026-11-18)
+
+- Native hierarchy/routing/reorder/save-reopen/ungroup: 3.26 seconds.
+- Native callback audio: 3.14 seconds. Two sources sum once through a group
+  processor and group gain; group mute/unmute works without changing child gains.
+- GTK group workflow: under 4 seconds, including nested folding, overhang
+  geometry, restored outputs, cancellation, and confirmed descendant deletion.
+- Track selection/shortcuts/removal regression: 1.34 seconds.
+- Native routing/monitoring/gain header regression: 0.99 seconds.
+- Native macOS build and ad-hoc bundle signature verification passed.
+
+Preparation (separate from the nine-second test budget):
+
+```sh
+python3 tools/dev/run-anticipation-probe.py . group_tracks_probe.cc --build-only
+```
+
+Focused native tests on the build host:
+
+```sh
+python3 tools/dev/test-group-tracks.py --case hierarchy
+python3 tools/dev/test-group-tracks.py --case audio
+```
+
+GTK check with the prepared app already running in a disposable session:
+
+```sh
+python3 tools/dev/verify-compact-workflow.py --case groups \
+  --session-path '/absolute/path/Group Tracks Verification'
+```
+
+The checks establish the group workflow and short native audio correctness, not
+a new sustained real-time performance or massive-plugin-chain benchmark.

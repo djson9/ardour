@@ -3,6 +3,7 @@
 #include "ardour/session.h"
 #include "ardour/selection.h"
 #include "widgets/choice.h"
+#include "gtkmm2ext/colors.h"
 #include "ardour_message.h"
 #include "editor.h"
 #include "route_time_axis.h"
@@ -23,6 +24,9 @@ void Editor::group_selected_tracks ()
 		message.run ();
 		return;
 	}
+	// Give the parent its own palette color so the inset remains visible
+	// against the first child's name block as well as the later children.
+	group->presentation_info ().set_color (Gtkmm2ext::gdk_color_to_rgba (AxisView::round_robin_palette_color ()));
 	queue_redisplay_track_views ();
 	// RouteAdded can be marshalled to the GUI asynchronously. Select using the
 	// model so the eventual view also starts selected.

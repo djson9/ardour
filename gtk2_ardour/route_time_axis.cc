@@ -62,6 +62,7 @@
 #include "ardour/profile.h"
 #include "ardour/route_group.h"
 #include "ardour/group_tracks.h"
+#include <ytkmm/alignment.h>
 #include "ardour/session.h"
 #include "ardour/surround_send.h"
 #include "ardour/track.h"
@@ -164,7 +165,10 @@ RouteTimeAxisView::setup_live_header ()
 	live_name_box.set_data ("compact-track-control", const_cast<char*> ("group-name"));
 	group_rail.signal_expose_event ().connect (sigc::mem_fun (*this, &RouteTimeAxisView::draw_group_rail));
 	live_name_box.add (live_name_content);
-	live_name_content.pack_start (group_fold_button, false, false);
+	auto* fold_alignment = manage (new Gtk::Alignment (0.5, 0., 0., 0.));
+	fold_alignment->add (group_fold_button);
+	fold_alignment->set_no_show_all (true);
+	live_name_content.pack_start (*fold_alignment, false, false);
 	live_name_content.pack_start (name_label, true, true);
 	group_fold_button.set_data ("compact-track-control", const_cast<char*> ("group-fold"));
 	group_fold_button.set_name ("route button");
@@ -244,8 +248,10 @@ RouteTimeAxisView::update_group_header ()
 		group_fold_button.set_text (folded ? "\u25b6" : "\u25bc");
 		set_tooltip (group_fold_button, folded ? _("Expand group") : _("Collapse group"));
 		group_fold_button.show ();
+		group_fold_button.get_parent ()->show ();
 	} else {
 		group_fold_button.hide ();
+		group_fold_button.get_parent ()->hide ();
 	}
 }
 
