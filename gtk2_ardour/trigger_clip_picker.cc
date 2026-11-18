@@ -353,8 +353,7 @@ TriggerClipPicker::clip_added (std::string const& path, void* src)
 	if (src == this) {
 		list_dir (clip_library_dir ());
 	} else {
-		_current_path = Glib::path_get_dirname (path);
-		list_dir (_current_path);
+		list_dir (Glib::path_get_dirname (path));
 	}
 }
 
@@ -818,11 +817,14 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 		_view.set_model (Glib::RefPtr<Gtk::TreeStore>(0));
 		_model->clear ();
 		_clip_dir_menu.set_active (display_name (path));
+		bool const navigated = _current_path != path;
 		_current_path = path;
 		_directory_label.set_text (path);
 		ArdourWidgets::set_tooltip (_directory_label, path);
-		UIConfiguration::instance ().set_browser_directory (path);
-		UIConfiguration::instance ().save_state ();
+		if (navigated) {
+			UIConfiguration::instance ().set_browser_directory (path);
+			UIConfiguration::instance ().save_state ();
+		}
 		if (_clip_library_dir == path) { _open_library_btn.show (); }
 		else { _open_library_btn.hide (); }
 		_browser_status.set_text ("");
