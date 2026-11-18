@@ -54,6 +54,7 @@
 #include "ardour_ui.h"
 #include "ardour_dialog.h"
 #include "browser_file_filter.h"
+#include "keyboard.h"
 #include "plugin_ui.h"
 #include "timers.h"
 #include "trigger_clip_picker.h"
@@ -211,6 +212,34 @@ TriggerClipPicker::TriggerClipPicker ()
 	_model = TreeStore::create (_columns);
 	_view.set_name ("browser-files");
 	_view.signal_map ().connect ([this] () { _view.grab_focus (); });
+	/* GTK's plain Left/Right scroll columns. In a file browser they navigate
+	 * the folder hierarchy; Up/Down and Shift selection keep GTK semantics. */
+	_view.signal_key_press_event ().connect ([this] (GdkEventKey* event) {
+		bool const right = event->keyval == GDK_Right || event->keyval == GDK_KP_Right;
+		bool const left = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
+		if ((!right && !left) || !Keyboard::modifier_state_equals (event->state, 0)) { return false; }
+		Gtk::TreeModel::Path path;
+		Gtk::TreeViewColumn* column = nullptr;
+		_view.get_cursor (path, column);
+		auto row = _model->get_iter (path);
+		if (!row) { return true; }
+		if (right && !(*row)[_columns.file]) {
+			if (!_view.row_expanded (path)) {
+				_view.expand_row (path, false);
+			} else if (!row->children ().empty ()) {
+				path.push_back (0);
+				_view.set_cursor (path);
+			}
+		} else if (left) {
+			if (_view.row_expanded (path)) {
+				_view.collapse_row (path);
+			} else if (path.size () > 1) {
+				path.up ();
+				_view.set_cursor (path);
+			}
+		}
+		return true;
+	}, false);
 	_view.set_model (_model);
 	_view.append_column (_("File Name"), _columns.name);
 	_view.set_headers_visible (false);  //TODO: show headers when we have size/tags/etc

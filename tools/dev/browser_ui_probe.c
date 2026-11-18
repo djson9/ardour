@@ -109,6 +109,7 @@ static gboolean tick(gpointer unused) {
    if(title&&strstr(title,"Verification - Ardour")) {browser=find(p->data,"file-browser");if(browser)break;}
   }
   g_list_free(list);if(!browser)return TRUE;
+  gtk_window_present(GTK_WINDOW(gtk_widget_get_toplevel(browser)));
   GtkWidget *child=browser,*parent;
   while((parent=gtk_widget_get_parent(child))) {if(GTK_IS_NOTEBOOK(parent))gtk_notebook_set_current_page(GTK_NOTEBOOK(parent),gtk_notebook_page_num(GTK_NOTEBOOK(parent),child));child=parent;}
   stage=!strcmp(mode,"restore")?30:40;break;
