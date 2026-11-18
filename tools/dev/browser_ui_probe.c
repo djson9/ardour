@@ -185,6 +185,7 @@ static gboolean tick(gpointer unused) {
   if(!files(1)||!row("Chords.MID",NULL)){finish("Final saved filter");break;}
   finish(NULL);break;
  case 50:
+  if(!gtk_widget_has_focus(find(browser,"browser-files")))return TRUE;
   if(gtk_window_get_focus(GTK_WINDOW(gtk_widget_get_toplevel(browser)))!=find(browser,"browser-files")){finish("Folder chooser did not return focus to files");break;}
   select_row("Nested");key(GDK_Down,0);stage=51;break;
  case 51:
@@ -219,7 +220,9 @@ static gboolean tick(gpointer unused) {
   if(!cursor("Bass.flac")){finish("Keyboard selection anchor");break;}
   key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
  case 59:
-  if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish("Shift-Down did not extend file selection");break;}
+  {gchar *message=g_strdup_printf("Shift selection count=%d",gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files")))));
+  if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish(message);g_free(message);break;}
+  g_free(message);}
   select_row("Nested");key(GDK_Return,0);stage=60;break;
  case 60:
   if(!row("Inside.wav",NULL)||row("Nested",NULL)){finish("Enter did not open selected folder");break;}
