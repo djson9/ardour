@@ -89,6 +89,9 @@ public:
 
 	std::shared_ptr<ARDOUR::MidiRegion> add_region (Temporal::timepos_t const &, Temporal::timecnt_t const &, bool);
 
+	/* Insert at the exact position within the caller's undo transaction. */
+	std::shared_ptr<ARDOUR::MidiRegion> add_region_at (Temporal::timepos_t const &, Temporal::timecnt_t const &);
+
 	void show_all_automation (bool apply_to_selection = false);
 	void show_existing_automation (bool apply_to_selection = false);
 	void create_automation_child (const Evoral::Parameter& param, bool show);

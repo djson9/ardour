@@ -459,15 +459,8 @@ AudioStreamView::color_handler ()
 {
 	_region_group->set_render_with_alpha (UIConfiguration::instance().modifier ("region alpha").a());
 
-	//case cAudioTrackBase:
-	if (_trackview.is_track()) {
-		canvas_rect->set_fill_color (UIConfiguration::instance().color_mod ("audio track base", "audio track base"));
-	}
-
-	//case cAudioBusBase:
-	if (!_trackview.is_track()) {
-		canvas_rect->set_fill_color (UIConfiguration::instance().color_mod ("audio bus base", "audio bus base"));
-	}
+	const char* base = _trackview.is_track () ? "audio track base" : "audio bus base";
+	apply_color (UIConfiguration::instance ().color_mod (base, base), StreamBaseColor);
 }
 
 void

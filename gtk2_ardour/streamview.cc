@@ -373,9 +373,19 @@ StreamView::apply_color (uint32_t color, ColorTarget target)
 
 	case StreamBaseColor:
 		stream_base_color = color;
-		canvas_rect->set_fill_color (stream_base_color);
+		update_lane_background ();
 		break;
 	}
+}
+
+void
+StreamView::update_lane_background ()
+{
+	uint32_t color = stream_base_color;
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && (_trackview.selected () || num_selected_regionviews () > 0)) {
+		color = Gtkmm2ext::change_alpha (UIConfiguration::instance ().color ("gtk_foreground"), 0.23);
+	}
+	canvas_rect->set_fill_color (color);
 }
 
 void
