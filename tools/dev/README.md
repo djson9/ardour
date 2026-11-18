@@ -722,3 +722,42 @@ rows, case-insensitive audio/MIDI filtering, lazy expansion, root-preserving
 refresh, invalid input, Cancel, empty filters, Reset, and startup restoration.
 The injection waits for a trigger and refuses to operate on non-Verification
 windows. Keep it out of production launch environments.
+
+### Audio preview waveform and normalization
+
+Audio selections show a waveform with playback position and duration. Click or
+drag the waveform to seek (or start previewing there while stopped). **Normalize**
+is on by default and remembered globally. It targets −18 LUFS with a −1 dB
+true-peak ceiling, falling back to peak normalization when no usable loudness
+measurement exists, including multichannel files. Amplification is capped at
++24 dB; silence stays silent. The separate audition volume knob still applies.
+Only the temporary audition region receives this gain: source files and imports
+are unchanged. MIDI keeps its existing synth and seek controls.
+
+Analysis runs off the GUI/audio threads through Ardour's existing decoders and
+loudness reader, in bounded blocks. Normalized playback waits for analysis;
+Stop cancels pending playback. New selections cancel obsolete work, and four
+recent results are cached by file identity, size, and modification time.
+
+```sh
+# On the native build host; preparation is outside test execution deadlines:
+python3 tools/dev/prepare-browser-audio-test.py
+python3 tools/dev/test-browser-audio.py
+python3 tools/dev/prepare-browser-audio-ui-probe.py artifacts/browser-audio-ui-probe.dylib
+# Inject only into the private Verification app, alongside its home interposer.
+# Set ARDOUR_BROWSER_AUDIO_UI_PROBE=/absolute/private/browser-audio-test.
+python3 tools/dev/test-browser-audio-ui.py /absolute/private/browser-audio-test --prepare
+# After app startup:
+python3 tools/dev/test-browser-audio-ui.py /absolute/private/browser-audio-test
+# Restart the same private app, then:
+python3 tools/dev/test-browser-audio-ui.py /absolute/private/browser-audio-test --restore
+```
+
+On 2026-11-18 the native analysis test passed in 0.88 seconds, checking equal
+perceived loudness, waveform peaks/duration, true intersample-peak limiting,
+silence, short clips, multichannel fallback, gain caps, invalid audio,
+cancellation, and unchanged source bytes. Native GUI playback passed in 0.90
+seconds: actual audition-region gain, advancing position, waveform seeking,
+toggling gain without losing position, Stop, and rapid selection without late
+playback. Restart preference restoration passed in 0.42 seconds. Every runner
+has a hard nine-second deadline; compilation and application startup are separate.

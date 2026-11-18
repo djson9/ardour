@@ -589,7 +589,7 @@ TriggerClipPicker::drag_begin (Glib::RefPtr<Gdk::DragContext> const& context)
 void
 TriggerClipPicker::drag_end (Glib::RefPtr<Gdk::DragContext> const&)
 {
-	_session->cancel_audition ();
+	stop_audition ();
 }
 
 void
@@ -1089,6 +1089,8 @@ TriggerClipPicker::stop_audition ()
 	_pending_audition.clear ();
 	_preview_start = -1;
 	_preview_playing = false;
+	_stop_btn.set_sensitive (false);
+	_audio_preview->set_position (0);
 	if (_session) {
 		_session->cancel_audition ();
 	}

@@ -32,6 +32,14 @@ static void click_at(GtkWidget* w,double fraction=.05) {
   gtk_widget_event(w,e);gdk_event_free(e);
  }
 }
+static void drag_wave(GtkWidget* w) {
+ for(auto type:{GDK_BUTTON_PRESS,GDK_MOTION_NOTIFY,GDK_BUTTON_RELEASE}) {
+  GdkEvent* e=gdk_event_new(type);
+  if(type==GDK_MOTION_NOTIFY){e->motion.window=GDK_WINDOW(g_object_ref(gtk_widget_get_window(w)));e->motion.send_event=true;e->motion.x=4+.7*(w->allocation.width-8);e->motion.y=40;e->motion.state=GDK_BUTTON1_MASK;}
+  else{e->button.window=GDK_WINDOW(g_object_ref(gtk_widget_get_window(w)));e->button.send_event=true;e->button.button=1;e->button.x=4+(type==GDK_BUTTON_PRESS?.2:.7)*(w->allocation.width-8);e->button.y=40;}
+  gtk_widget_event(w,e);gdk_event_free(e);
+ }
+}
 static gboolean click_idle(gpointer w) {click_at(GTK_WIDGET(w));g_object_unref(w);return FALSE;}
 static void click(GtkWidget* w) {g_idle_add(click_idle,g_object_ref(w));}
 static GtkWidget* control(int column) {
@@ -77,7 +85,7 @@ static gboolean tick(gpointer) {
  case 5:
   waiting="Normalized playback and advancing waveform";if(!session->is_auditioning()||wave->position()<.01)break;
   if(std::abs(actual_gain()-gain)>.001)return finish("Auditioner did not apply normalized gain");
-  click_at(widget,.7);stage=6;break;
+  drag_wave(widget);stage=6;break;
  case 6:
   waiting="Waveform seek";if(wave->position()<.7||wave->position()>.9)break;
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(find(browser,"browser-normalize")),FALSE);stage=7;break;
@@ -86,11 +94,19 @@ static gboolean tick(gpointer) {
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(find(browser,"browser-normalize")),TRUE);stage=8;break;
  case 8: {
   waiting="Reenabled normalization";if(!session->is_auditioning()||std::abs(actual_gain()-gain)>.001||wave->position()<.65)break;
-  GdkPixbuf* png=gdk_pixbuf_get_from_drawable(NULL,gtk_widget_get_window(widget),NULL,0,0,0,0,widget->allocation.width,widget->allocation.height);if(png){gdk_pixbuf_save(png,(root+"/waveform.png").c_str(),"png",NULL,NULL);g_object_unref(png);}
+  /* Native window capture is done externally: Quartz GTK drawable readback
+   * can return black pixels even when the on-screen waveform is correct. */
+
   click(control(1));stage=9;break;
  }
  case 9:
   waiting="Stop playback";if(session->is_auditioning())break;
+  click_at(widget,.4);stage=11;break;
+ case 11:
+  waiting="Click waveform to start at chosen position";if(!session->is_auditioning()||wave->position()<.4)break;
+  click(control(1));stage=12;break;
+ case 12:
+  if(session->is_auditioning())break;
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(control(3)),TRUE);
   if(!select("alternate.wav")||!select("latest.wav"))return finish("Missing rapid-selection fixtures");
   // Direct clicks happen before the worker result can be delivered to GTK.
@@ -99,6 +115,7 @@ static gboolean tick(gpointer) {
   waiting="Latest selection without stale autoplay";if(!data||data->path!=root+"/files/latest.wav")break;
   if(session->is_auditioning())return finish("Stop allowed delayed autoplay");
   if(g_get_monotonic_time()-stopped<300000)break;
+  if(gtk_widget_get_sensitive(control(1)))return finish("Stop remained enabled after pending analysis was cancelled");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(control(3)),FALSE);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(find(browser,"browser-normalize")),FALSE);return finish(nullptr);
  }
