@@ -23,6 +23,7 @@
 #include <string>
 
 #include <ytkmm/box.h>
+#include <ytkmm/entry.h>
 #include <ytkmm/filechooserdialog.h>
 #include <ytkmm/scale.h>
 #include <ytkmm/scrolledwindow.h>
@@ -42,6 +43,7 @@
 
 class PluginUIWindow;
 class BrowserAudioPreview;
+class BrowserFileSearch;
 
 class TriggerClipPicker : public Gtk::VBox, public ARDOUR::SessionHandlePtr
 {
@@ -50,12 +52,20 @@ public:
 	~TriggerClipPicker ();
 
 	void set_session (ARDOUR::Session*);
+	void focus_search ();
 
 	ARDOUR::PluginInfoPtr instrument_plugin () const {
 		return _auditioner_combo.selected_instrument ();
 	}
 
 private:
+	void search_changed ();
+	bool search_poll ();
+	bool search_key (GdkEventKey*);
+	Gtk::Entry _search_entry;
+	std::unique_ptr<BrowserFileSearch> _search;
+	sigc::connection _search_debounce, _search_poll;
+	bool _search_updating = false;
 	void list_dir (std::string const&, Gtk::TreeNodeChildren const* pc = NULL);
 	void open_dir ();
 	void open_downloader ();

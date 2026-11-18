@@ -62,6 +62,19 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 	Gtkmm2ext::BindingSet* bindings = nullptr;
 	Gtk::Window* window = 0;
 
+	if (ev->type == GDK_KEY_PRESS && event_window == &_main_window &&
+	    (ev->keyval == GDK_f || ev->keyval == GDK_F) &&
+	    Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
+		show_tabbable (editor);
+		if (auto action = ActionManager::get_action ("Editor", "search-files")) action->activate ();
+		return true;
+	}
+	GtkWidget* search_focus = gtk_window_get_focus (event_window->gobj ());
+	if (search_focus && std::string (gtk_widget_get_name (search_focus)) == "browser-search") {
+		gtk_window_propagate_key_event (event_window->gobj (), ev);
+		return true;
+	}
+
 	/* The file tree owns navigation while focused, including at its edges.
 	 * Handle this before arrangement bindings and the computer-keyboard piano. */
 	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
