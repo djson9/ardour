@@ -7520,6 +7520,11 @@ Session::set_owned_port_public_latency (bool playback)
 void
 Session::update_latency (bool playback)
 {
+	// Check lifecycle state before touching the anticipation helper.
+	if (inital_connect_or_deletion_in_progress ()) {
+		_engine.queue_latency_update (playback);
+		return;
+	}
 	if (_anticipation_enabled.load () &&
 	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
 		_anticipation_external_edit.store (true);
@@ -7537,7 +7542,7 @@ Session::update_latency (bool playback)
 				_route_deletion_in_progress
 				));
 
-	if (inital_connect_or_deletion_in_progress () || _adding_routes_in_progress || _route_deletion_in_progress) {
+	if (_adding_routes_in_progress || _route_deletion_in_progress) {
 		_engine.queue_latency_update (playback);
 		return;
 	}
@@ -7715,6 +7720,9 @@ Session::set_worst_input_latency ()
 void
 Session::update_latency_compensation (bool force_whole_graph, bool called_from_backend)
 {
+	// A backend graph notification can already be in flight when destroy()
+	// disconnects its signals and releases the anticipation helper.
+	if (inital_connect_or_deletion_in_progress ()) return;
 	if (_anticipation_enabled.load () &&
 	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
 		_anticipation_external_edit.store (true);
@@ -7725,10 +7733,6 @@ Session::update_latency_compensation (bool force_whole_graph, bool called_from_b
 	/* Called to update Ardour's internal latency values and compensation
 	 * planning. Typically case is from within ::graph_reordered()
 	 */
-
-	if (inital_connect_or_deletion_in_progress ()) {
-		return;
-	}
 
 	/* this lock is not usually contended, but under certain conditions,
 	 * update_latency_compensation may be called concurrently.

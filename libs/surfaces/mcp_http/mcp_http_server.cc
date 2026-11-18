@@ -8085,7 +8085,11 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 		std::string tool_name = canonical_tool_name (root.get<std::string> ("params.name", ""));
         if (tool_name == "ui/canvas_pointer") {
             const double x = root.get<double> ("params.arguments.x", -1), y = root.get<double> ("params.arguments.y", -1);
-            if (!std::isfinite (x) || !std::isfinite (y) || x < 0 || y < 0) return jsonrpc_error (id, -32602, "Invalid canvas coordinates");
+            // GTK decides whether negative header coordinates are inside an active grab.
+            const auto canvas = root.get<std::string> ("params.arguments.canvas", "");
+            const auto event = root.get<std::string> ("params.arguments.event", "");
+            const bool header_motion = canvas.compare (0, 12, "TrackHeader:") == 0 && (event == "move" || event == "release");
+            if (!std::isfinite (x) || !std::isfinite (y) || (!header_motion && (x < 0 || y < 0))) return jsonrpc_error (id, -32602, "Invalid canvas coordinates");
             const double magnification = root.get<double> ("params.arguments.magnification", 0.0);
             if (!std::isfinite (magnification) || magnification < -0.5 || magnification > 1.0) return jsonrpc_error (id, -32602, "Invalid magnification");
             const double dx = root.get<double> ("params.arguments.deltaX", 0), dy = root.get<double> ("params.arguments.deltaY", 0);

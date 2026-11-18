@@ -2336,6 +2336,10 @@ Editor::start_selection_grab (ArdourCanvas::Item* /*item*/, GdkEvent* event)
 void
 Editor::escape ()
 {
+	if (track_dragging ()) {
+		end_track_drag (); // Cancel without changing membership or routing.
+		return;
+	}
 	if (_drags->active ()) {
 		_drags->abort ();
 	} else if (_session) {

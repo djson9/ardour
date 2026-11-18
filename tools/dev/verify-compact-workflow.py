@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
 if a.case == 'native-scroll':
@@ -176,6 +176,76 @@ if a.case == 'groups':
     assert ids[2] in {r['id'] for r in routes()}
     remove_fixture(names[2:], ids[2:])
     checks += ['Cmd+G creates native group bus', 'exclusive child audio routing', 'parent-colored overhang keeps routing columns aligned', 'nested collapse preserves inner state', 'Cmd+Shift+G confirms and restores child outputs', 'cancelled deletion preserves folded children', 'confirmed deletion removes descendants only']
+
+elif a.case == 'group-drag':
+    names = ['UI Drag A', 'UI Drag B', 'UI Drag C']
+    assert not any(r['name'].startswith('UI Drag') for r in routes()), 'Remove old drag fixtures before rerunning'
+    ids = [create('Primary-t', name, 'audio_track') for name in names]
+    def group(name):
+        old = {r['id'] for r in routes()}
+        key('Primary-g')
+        new = wait(lambda: [r for r in routes() if r['id'] not in old])
+        assert len(new) == 1, new
+        call('track_rename', id=new[0]['id'], newName=name); header(name)
+        return new[0]['id']
+    def state():
+        call('session_save')
+        return {r.get('id'): r for r in ET.parse(a.session_path / (a.session_path.name + '.ardour')).findall('Routes/Route')}
+    def parent(route):
+        n = state()[route].find('Extra/GroupTrack')
+        return n.get('parent', '') if n is not None else ''
+    def routed(route, target):
+        out = state()[route].findall("IO[@direction='Output']/Port/Connection")
+        return len(out) == 2 and all(target + '/audio_in' in c.get('other') for c in out)
+    def visible(name):
+        try: return pointer('TrackHeader:' + name, 'move', 30, 14).get('delivered')
+        except AssertionError: return False
+    def fold(name):
+        for event in ['press', 'release']: pointer('TrackControl:' + name + '|group-fold', event, 8, 8)
+    def drag(source, target, fraction=.4, cancel=False):
+        src = 'TrackHeader:' + source
+        origin = pointer(src, 'move', 30, 14)
+        dest = pointer('TrackHeader:' + target, 'move', 30, 14)
+        x, y = dest['xRoot'] - origin['xRoot'] + 30, dest['yRoot'] - origin['yRoot'] + dest['height'] * fraction
+        pointer(src, 'press', 30, 14)
+        pointer(src, 'move', 30, 21, buttonDown=True)  # cross threshold before leaving source bounds
+        pointer(src, 'move', x, y, buttonDown=True)
+        if cancel:
+            key('Escape')
+            pointer(src, 'release', 30, 21)
+        else:
+            pointer(src, 'release', x, y)
+    header(names[0]); inner = group('UI Drag Inner')
+    fold('UI Drag Inner'); wait(lambda: not visible(names[0]))
+    header(names[1]); drag(names[1], 'UI Drag Inner')
+    wait(lambda: parent(ids[1]) == inner)
+    assert routed(ids[1], 'UI Drag Inner') and not visible(names[1])
+    expect_selection([inner])
+    fold('UI Drag Inner'); wait(lambda: visible(names[1]))
+    header(names[1]); drag(names[1], 'UI Drag Inner', .05)
+    wait(lambda: parent(ids[1]) == '')
+    assert routed(ids[1], 'Master')
+    header(names[0]); header(names[1], primary=True)
+    drag(names[1], 'UI Drag Inner')
+    wait(lambda: parent(ids[1]) == inner)
+    expect_selection(ids[:2])
+    header('UI Drag Inner'); header(names[2], primary=True)
+    outer = group('UI Drag Outer')
+    header(names[0]); drag(names[0], 'UI Drag Outer')
+    wait(lambda: parent(ids[0]) == outer)
+    assert routed(ids[0], 'UI Drag Outer') and parent(ids[1]) == inner
+    header('UI Drag Outer'); drag('UI Drag Outer', 'UI Drag Inner')
+    dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
+    choose(dialog, 'gtk-ok'); wait(lambda: not any(w['modal'] for w in windows()))
+    assert parent(outer) == '' and parent(inner) == outer
+    header(names[2]); drag(names[2], 'UI Drag Outer', .05)
+    wait(lambda: parent(ids[2]) == '')
+    assert routed(ids[2], 'Master')
+    header(names[2]); drag(names[2], 'UI Drag Inner', cancel=True)
+    assert parent(ids[2]) == '' and routed(ids[2], 'Master')
+    remove_fixture(['UI Drag Outer', names[2]], [outer, ids[2]])
+    assert not ({inner, *ids} & {r['id'] for r in routes()})
+    checks += ['native header drop into collapsed group', 'drop above group restores root routing', 'multi-selection survives drag', 'nested membership and routing', 'descendant cycle rejected', 'Escape cancels drop']
 
 elif a.case == 'master-clock':
     call('transport_stop')

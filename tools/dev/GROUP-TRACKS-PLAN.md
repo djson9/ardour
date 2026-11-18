@@ -10,6 +10,11 @@ plugin hosting, latency compensation and anticipation scheduler unchanged.
   them, route their audio through it, and indent the children. Continue the
   parent color down the left edge of each child as an overhang; nested groups
   have separate inset rails, with routing/mixer columns kept aligned.
+- Drag onto the middle of a group header to move tracks into it, including
+  collapsed groups. Drop at its top/bottom edge to place tracks alongside it.
+  Drop beside an ordinary track to join its parent, or into empty space below
+  the tracks to leave all groups. Selected tracks move together; Escape cancels.
+  Membership/routing changes happen only on release.
 - A disclosure button folds the children without muting them or changing their
   individual visibility settings. Groups can contain other groups.
 - The group has normal bus gain, mute, solo, metering and plugin controls.
@@ -39,14 +44,37 @@ plugin hosting, latency compensation and anticipation scheduler unchanged.
 
 ## Boundaries
 
-This first version groups existing tracks using Cmd+G; dragging tracks into or
-out of a group is a follow-up interaction. Grouping does not merge clips or link
-child faders. Ungrouping removes the group's processing, so confirmation makes
+Grouping and dragging do not merge clips or link child faders. Moving into a
+group replaces the moved roots' audio outputs with the group inputs; moving to
+the root follows the old ancestor buses' output destinations. MIDI connections
+and sends remain intact. Same-parent reordering preserves manual audio outputs.
+Incompatible channel layouts, descendant cycles and downstream audio feedback
+are rejected before any connections change. Ungrouping removes the group's processing, so confirmation makes
 the effect explicit. As with Ardour route removal, this is not undoable; keep
 children and restore routing before removing the bus. Failed routing operations
 restore the original connections and leave the existing tracks intact.
 
 ## Validation completed (2026-11-18)
+
+Drag/drop follow-up:
+
+- Native hierarchy, reparenting, multi-selection, feedback/channel-layout
+  rejection, ordering and save/reload: 4.09 seconds.
+- Native callback audio after moving a source out of and back into its group:
+  1.38 seconds. The old group's gain/effect no longer processes the moved source.
+- GTK mouse gestures: 3.27 seconds. Collapsed and nested destinations, moving
+  out, multiple selected tracks, invalid descendant drop, and Escape cancellation.
+- Existing GTK group workflow: 2.25 seconds; header selection/shortcut/deletion
+  regression: 1.22 seconds. The header check initially timed out waiting for its
+  saved-selection snapshot after dismissing a dialog; a clean fixture rerun passed.
+- The final combined build (including Reload and audio racks) exposed a late
+  backend latency callback during session teardown. Both latency entry points
+  now check lifecycle state before accessing the released anticipation helper.
+  A processor-destructor callback covers this deterministically. Final native
+  hierarchy/audio runs with this check passed in 1.03/1.30 seconds.
+- Tests retain a nine-second deadline; build/app startup is separate.
+
+Original grouping validation:
 
 - Native hierarchy/routing/reorder/save-reopen/ungroup: 3.26 seconds.
 - Native callback audio: 3.14 seconds. Two sources sum once through a group
@@ -74,6 +102,8 @@ GTK check with the prepared app already running in a disposable session:
 
 ```sh
 python3 tools/dev/verify-compact-workflow.py --case groups \
+  --session-path '/absolute/path/Group Tracks Verification'
+python3 tools/dev/verify-compact-workflow.py --case group-drag \
   --session-path '/absolute/path/Group Tracks Verification'
 ```
 

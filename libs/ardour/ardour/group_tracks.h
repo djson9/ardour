@@ -22,6 +22,10 @@ public:
 	static RouteList children (Session&, std::shared_ptr<Route> const&, bool recursive = false);
 	static void normalize_order (Session&);
 	static void move (Session&, RouteList const&, bool up);
+	// Move selected roots (with their descendants) before a sibling, or append.
+	// A null destination means the arrangement root. Validate all routes first.
+	static bool drop (Session&, RouteList, std::shared_ptr<Route> destination,
+	                  std::shared_ptr<Route> before, std::string& error);
 	static std::shared_ptr<Route> create (Session&, RouteList, std::string& error);
 	static bool ungroup (Session&, std::shared_ptr<Route>, std::string& error);
 };

@@ -84,6 +84,7 @@
 #include "ardour/route.h"
 #include "ardour/route_group.h"
 #include "ardour/group_tracks.h"
+#include "ardour/selection.h"
 #include "ardour/session_playlists.h"
 #include "ardour/tempo.h"
 #include "ardour/utils.h"
@@ -3491,7 +3492,7 @@ bool
 Editor::edit_controls_button_event (GdkEventButton* ev)
 {
 	if (ev->type == GDK_BUTTON_RELEASE && track_dragging()) {
-		end_track_drag ();
+		end_track_drag (true);
 		return true;
 	}
 
@@ -4994,6 +4995,7 @@ Editor::maybe_show_instrument_plugin (std::shared_ptr<MidiTrack> mt)
 void
 Editor::timeaxisview_deleted (TimeAxisView *tv)
 {
+	if (track_drag && (track_drag->track == tv || track_drag->drop_highlight == tv)) end_track_drag ();
 	if (tv == entered_track) {
 		entered_track = 0;
 	}
@@ -5149,6 +5151,7 @@ struct TrackViewStripableSorter
 void
 Editor::maybe_move_tracks ()
 {
+	if (track_drag->group_drop) return; // Stable targets until release.
 	for (auto & tv : track_views) {
 
 		if (!tv->marked_for_display () || tv->hidden () || (tv == track_drag->track)) {
@@ -5867,11 +5870,13 @@ Editor::start_track_drag (TimeAxisView& tav, int y, Gtk::Widget& w, bool can_cha
 
 	/* We do not allow dragging VCA Masters */
 
-	if (!rtav) {
+	if (!rtav || rtav->route ()->is_singleton ()) {
 		return;
 	}
+	end_track_drag ();
 
 	track_drag = new TrackDrag (rtav, *_session);
+	for (auto const& r : *_session->get_routes ()) if (GroupTracks::is_group (r)) track_drag->group_drop = true;
 	DEBUG_TRACE (DEBUG::TrackDrag, string_compose ("start track drag with %1\n", track_drag));
 
 	int xo, yo;
@@ -5896,6 +5901,9 @@ Editor::mid_track_drag (GdkEventMotion* ev, Gtk::Widget& w)
 	w.translate_coordinates (edit_controls_vbox, ev->x, ev->y, xo, yo);
 
 	if (track_drag->first_move) {
+		// A click can scroll its header into view between press and release.
+		// Only a real motion event may cross the drag threshold.
+		if (ev->type == GDK_BUTTON_RELEASE) return;
 
 		/* move threshold */
 
@@ -5915,8 +5923,16 @@ Editor::mid_track_drag (GdkEventMotion* ev, Gtk::Widget& w)
 		}
 
 		track_drag->first_move = false;
+		if (track_drag->group_drop) {
+			track_drag->grab_widget = &w;
+			gtk_grab_add (GTK_WIDGET (w.gobj ()));
+		}
 	}
 
+	if (track_drag->group_drop) {
+		update_group_drop (xo, yo);
+		return;
+	}
 	track_drag->current = yo;
 
 	if (track_drag->current > track_drag->previous) {
@@ -5939,12 +5955,16 @@ Editor::mid_track_drag (GdkEventMotion* ev, Gtk::Widget& w)
 	track_drag->previous = yo;
 }
 
-void
-Editor::end_track_drag ()
+bool
+Editor::end_track_drag (bool apply)
 {
-	if (!track_drag) {
-		return;
-	}
+	if (!track_drag) return false;
+	const bool dragged = !track_drag->first_move;
+	const bool drop = apply && dragged && track_drag->group_drop && track_drag->valid_drop;
+	auto destination = track_drag->destination, before = track_drag->before;
+	if (track_drag->drop_highlight) track_drag->drop_highlight->highlight_drop (false);
+	if (track_drag->grab_widget) gtk_grab_remove (GTK_WIDGET (track_drag->grab_widget->gobj ()));
+	if (track_drag->group_drop) _verbose_cursor->hide ();
 
 	if (track_drag->have_predrag_cursor) {
 		gdk_window_set_cursor (edit_controls_vbox.get_toplevel()->get_window()->gobj(), track_drag->predrag_cursor);
@@ -5953,6 +5973,20 @@ Editor::end_track_drag ()
 	DEBUG_TRACE (DEBUG::TrackDrag, string_compose ("ending track drag with %1\n", track_drag));
 	delete track_drag;
 	track_drag = nullptr;
+	if (drop && _session) {
+		RouteList selected;
+		for (auto* tv : selection->tracks) if (auto* r = dynamic_cast<RouteTimeAxisView*> (tv)) selected.push_back (r->route ());
+		std::string error;
+		if (!GroupTracks::drop (*_session, selected, destination, before, error)) {
+			if (!error.empty ()) Glib::signal_idle ().connect_once ([error] {
+				ArdourMessageDialog message (error, false, Gtk::MESSAGE_INFO, Gtk::BUTTONS_OK); message.run ();
+			});
+		} else if (destination && GroupTracks::collapsed (destination)) {
+			_session->selection ().select_stripable_and_maybe_group (destination, SelectionSet);
+		}
+		queue_redisplay_track_views ();
+	}
+	return dragged;
 }
 
 bool

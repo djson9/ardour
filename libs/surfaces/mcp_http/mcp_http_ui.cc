@@ -168,9 +168,10 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     }
    }
    auto* canvas_target = dynamic_cast<ArdourCanvas::GtkCanvas*> (target);
-   const bool grabbed = canvas_target && canvas_target->have_grab ();
+   const bool grabbed = (canvas_target && canvas_target->have_grab ()) ||
+    (target && group.compare (0, 12, "TrackHeader:") == 0 && gtk_grab_get_current () == GTK_WIDGET (target->gobj ()));
    double x=0,y=0;int button=1;bool shift=false,down=false;std::istringstream coordinates (key_name);coordinates.imbue (std::locale::classic ());
-   if (!target || !target->get_window () || !(coordinates >> x >> y >> shift >> down) || x < 0 || y < 0 || (!grabbed && (x >= target->get_allocation ().get_width () || y >= target->get_allocation ().get_height ())) || (action_name != "move" && action_name != "press" && action_name != "release" && action_name != "pinch" && action_name != "doublePress" && action_name != "scroll")) {
+   if (!target || !target->get_window () || !(coordinates >> x >> y >> shift >> down) || (!grabbed && (x < 0 || y < 0 || x >= target->get_allocation ().get_width () || y >= target->get_allocation ().get_height ())) || (action_name != "move" && action_name != "press" && action_name != "release" && action_name != "pinch" && action_name != "doublePress" && action_name != "scroll")) {
     out << "{\"error\":\"Invalid canvas, event, or local coordinates\"}";
    } else {
     double magnification = 0; bool primary = false; double dx = 0, dy = 0; coordinates >> button >> magnification >> primary >> dx >> dy;
