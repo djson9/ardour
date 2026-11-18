@@ -74,8 +74,15 @@ static gboolean tick(gpointer unused) {
   g_list_free(list);if(!browser)return TRUE;
   GtkWidget *child=browser,*parent;
   while((parent=gtk_widget_get_parent(child))) {if(GTK_IS_NOTEBOOK(parent))gtk_notebook_set_current_page(GTK_NOTEBOOK(parent),gtk_notebook_page_num(GTK_NOTEBOOK(parent),child));child=parent;}
-  stage=!strcmp(mode,"restore")?30:1;break;
+  stage=!strcmp(mode,"restore")?30:40;break;
  }
+ case 40: if(click("browser-file-types"))stage=41;break;
+ case 41:
+  dialog=top("Browser File Types");if(!dialog)break;
+  respond(dialog,GTK_RESPONSE_APPLY);stage=42;break;
+ case 42:
+  dialog=top("Browser File Types");if(!dialog)break;
+  respond(dialog,GTK_RESPONSE_OK);stage=1;break;
  case 1: if(click("browser-open-folder"))stage=2;break;
  case 2:
   dialog=top("Open Browser Folder");if(!dialog)break;
