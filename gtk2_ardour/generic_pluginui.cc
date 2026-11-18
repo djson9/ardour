@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include <ytkmm/messagedialog.h>
 #include <ytkmm/separator.h>
 
 #include "pbd/stl_delete.h"
@@ -47,6 +48,7 @@
 
 #include "midi++/midnam_patch.h"
 
+#include "ardour/event_type_map.h"
 #include "ardour/midi_patch_manager.h"
 #include "ardour/midi_track.h"
 #include "ardour/plugin.h"
@@ -54,6 +56,8 @@
 #include "ardour/session.h"
 #include "ardour/value_as_string.h"
 
+#include "gtkmm2ext/colors.h"
+#include "gtkmm2ext/keyboard.h"
 #include "gtkmm2ext/menu_elems.h"
 #include "gtkmm2ext/utils.h"
 #include "gtkmm2ext/doi.h"
@@ -314,93 +318,68 @@ std::size_t s1pos, s2pos, n = 0;
 static const guint32 min_controls_per_column = 17, max_controls_per_column = 24;
 static const float default_similarity_threshold = 0.3;
 
+GenericPluginUI::ControlUI*
+GenericPluginUI::build_parameter (Evoral::Parameter const& param)
+{
+	auto c = std::dynamic_pointer_cast<AutomationControl> (_pib->control (param));
+	if (param.type () == PluginPropertyAutomation) {
+		auto const& properties = plugin->get_supported_properties ();
+		auto it = properties.find (param.id ());
+		if (it == properties.end () || it->second.label == X_("hidden")) {
+			return nullptr;
+		}
+		if (!c) {
+			error << string_compose (_("Plugin Editor: no control for property %1"), param.id ()) << endmsg;
+			return nullptr;
+		}
+		return build_control_ui (param, it->second, c, c->get_value (), true);
+	}
+
+	uint32_t id = param.id ();
+	if (param.type () != PluginAutomation || id >= plugin->parameter_count () || !plugin->parameter_is_control (id)) {
+		return nullptr;
+	}
+	bool input = plugin->parameter_is_input (id);
+	if ((input && !c) || (_max_controls && !input) || (c && (c->flags () & Controllable::HiddenControl))) {
+		return nullptr;
+	}
+	auto name = plugin->describe_parameter (param);
+	if (name == X_("latency") || name == X_("hidden")) {
+		return nullptr;
+	}
+
+	ParameterDescriptor desc;
+	plugin->get_parameter_descriptor (id, desc);
+	auto cui = build_control_ui (param, desc, c, plugin->get_parameter (id), input);
+	if (!cui) {
+		error << string_compose (_("Plugin Editor: could not build control element for port %1"), id) << endmsg;
+		return nullptr;
+	}
+	auto docs = plugin->get_parameter_docs (id);
+	if (!docs.empty ()) {
+		set_tooltip (cui, docs.c_str ());
+	}
+	return cui;
+}
+
 void
 GenericPluginUI::build ()
 {
-	std::vector<ControlUI *> control_uis;
-	bool more_controls = false;
+	std::vector<ControlUI*> control_uis;
+	auto const& descs = plugin->get_supported_properties ();
 	if (_max_controls && _pi) {
-		auto learned = manage (new Gtk::Button (_("Learned controls…")));
-		learned->signal_clicked ().connect (sigc::mem_fun (*this, &GenericPluginUI::show_learned_controls));
-		main_contents.pack_start (*learned, false, false); learned->show ();
-	}
-
-	// Build a ControlUI for each control port
-	for (size_t i = 0; i < plugin->parameter_count(); ++i) {
-
-		if (_max_controls && control_uis.size () >= _max_controls) {
-			more_controls = true;
-			break;
-		}
-
-		if (plugin->parameter_is_control (i)) {
-
-			/* Don't show latency control ports */
-
-			const Evoral::Parameter param(PluginAutomation, 0, i);
-			if (plugin->describe_parameter (param) == X_("latency")) {
-				continue;
+		build_compact_list ();
+	} else {
+		for (size_t i = 0; i < plugin->parameter_count (); ++i) {
+			if (auto cui = build_parameter (Evoral::Parameter (PluginAutomation, 0, i))) {
+				control_uis.push_back (cui);
 			}
-
-			if (plugin->describe_parameter (param) == X_("hidden")) {
-				continue;
+		}
+		for (auto const& property : descs) {
+			if (auto cui = build_parameter (Evoral::Parameter (PluginPropertyAutomation, 0, property.second.key))) {
+				control_uis.push_back (cui);
 			}
-
-			const float value = plugin->get_parameter(i);
-
-			ControlUI* cui;
-
-			std::shared_ptr<ARDOUR::AutomationControl> c (std::dynamic_pointer_cast<ARDOUR::AutomationControl>(_pib->control (param)));
-
-			if (c && c->flags () & Controllable::HiddenControl) {
-				continue;
-			}
-
-			ParameterDescriptor desc;
-			plugin->get_parameter_descriptor(i, desc);
-			if ((cui = build_control_ui (param, desc, c, value, plugin->parameter_is_input(i))) == 0) {
-				error << string_compose(_("Plugin Editor: could not build control element for port %1"), i) << endmsg;
-				continue;
-			}
-
-			const std::string param_docs = plugin->get_parameter_docs(i);
-			if (!param_docs.empty()) {
-				set_tooltip(cui, param_docs.c_str());
-			}
-
-			control_uis.push_back(cui);
 		}
-	}
-
-	// Build a ControlUI for each property
-	const Plugin::PropertyDescriptors& descs = plugin->get_supported_properties();
-	for (Plugin::PropertyDescriptors::const_iterator d = descs.begin(); d != descs.end(); ++d) {
-		if (_max_controls && control_uis.size () >= _max_controls) {
-			more_controls = true;
-			break;
-		}
-		const ParameterDescriptor& desc = d->second;
-		const Evoral::Parameter    param(PluginPropertyAutomation, 0, desc.key);
-
-		if (desc.label == X_("hidden")) {
-			continue;
-		}
-
-		std::shared_ptr<ARDOUR::AutomationControl> c (std::dynamic_pointer_cast<ARDOUR::AutomationControl>(_pib->control (param)));
-
-		if (!c) {
-			error << string_compose(_("Plugin Editor: no control for property %1"), desc.key) << endmsg;
-			continue;
-		}
-
-		ControlUI* cui = build_control_ui(param, desc, c, c->get_value(), true);
-		if (!cui) {
-			error << string_compose(_("Plugin Editor: could not build control element for property %1"),
-			                        desc.key) << endmsg;
-			continue;
-		}
-
-		control_uis.push_back(cui);
 	}
 	if (!descs.empty()) {
 		/* Listen for property changes that are not notified normally because
@@ -414,34 +393,18 @@ GenericPluginUI::build ()
 		plugin->announce_property_values();
 	}
 
-	if (control_uis.empty () && _pi) {
-		if (_max_controls) {
-			/* Preset-only plugins still need an entry point to their editor. */
-			more_controls = true;
-			_empty = false;
-		} else if (has_descriptive_presets ()) {
-			preset_gui = new PluginPresetsUI (_pi); // XXX
+	if (!_compact_list) {
+		if (control_uis.empty () && _pi && has_descriptive_presets ()) {
+			preset_gui = new PluginPresetsUI (_pi);
 			hpacker.pack_start (*preset_gui, true, true);
 			_empty = false;
 			if (is_scrollable) {
 				preset_gui->show_all ();
-				GtkRequisition request = preset_gui->size_request();
-				prefheight = std::max (prefheight, request.height);
+				prefheight = std::max (prefheight, preset_gui->size_request ().height);
 			}
+		} else if (!control_uis.empty ()) {
+			automatic_layout (control_uis);
 		}
-	} else {
-		automatic_layout (control_uis);
-	}
-
-	if (more_controls) {
-		/* Bound widget construction and realization in the compact device
-		 * panel. The full editor remains available on explicit request. */
-		Gtk::Button* more = manage (new Gtk::Button (_("All controls…")));
-		more->set_name ("PluginAllControls");
-		more->signal_clicked ().connect ([this] () { FullControlsRequested (); });
-		main_contents.pack_start (*more, false, false);
-		main_contents.reorder_child (*more, 0);
-		more->show ();
 	}
 
 	output_update ();
@@ -456,6 +419,283 @@ GenericPluginUI::build ()
 	plugin->PresetLoaded.connect (*this, invalidator (*this), std::bind (&GenericPluginUI::update_input_displays, this), gui_context ());
 }
 
+
+void
+GenericPluginUI::build_compact_list ()
+{
+	auto toolbar = manage (new HBox (false, 3));
+	auto all = manage (new Button (_("All controls…")));
+	all->set_name ("PluginAllControls");
+	all->signal_clicked ().connect ([this] { FullControlsRequested (); });
+	_configure = manage (new ToggleButton (_("Configure")));
+	_configure->set_name ("PluginConfigure");
+	_configure->set_tooltip_text (_("Add controls to this list by touching parameters in the plugin editor."));
+	_configure->signal_toggled ().connect (sigc::mem_fun (*this, &GenericPluginUI::configure_compact_list));
+	toolbar->pack_start (*all);
+	toolbar->pack_start (*_configure, false, false);
+	main_contents.pack_start (*toolbar, false, false);
+	main_contents.reorder_child (*toolbar, 0);
+
+	auto learned = manage (new Button (_("Learned controls…")));
+	learned->signal_clicked ().connect (sigc::mem_fun (*this, &GenericPluginUI::show_learned_controls));
+	main_contents.pack_end (*learned, false, false);
+
+	auto frame = manage (new Gtk::Frame (_("Controls")));
+	frame->set_name ("BaseFrame");
+	_compact_list = manage (new VBox (false, 2));
+	_compact_list->set_name ("PluginParameterList");
+	_compact_list->set_can_focus ();
+	_compact_list->signal_key_press_event ().connect (sigc::mem_fun (*this, &GenericPluginUI::compact_key_press), false);
+	frame->add (*_compact_list);
+	hpacker.pack_start (*frame);
+
+	if (auto state = _pi->extra_xml ("CompactPluginParameters")) {
+		for (auto child : state->children ()) {
+			std::string symbol;
+			if (child->get_property ("parameter", symbol)) {
+				append_compact_parameter (EventTypeMap::instance ().from_symbol (symbol));
+			}
+		}
+	} else {
+		for (uint32_t i = 0; i < plugin->parameter_count () && _compact_rows.size () < _max_controls; ++i) {
+			append_compact_parameter (Evoral::Parameter (PluginAutomation, 0, i));
+		}
+		for (auto const& property : plugin->get_supported_properties ()) {
+			if (_compact_rows.size () == _max_controls) {
+				break;
+			}
+			append_compact_parameter (Evoral::Parameter (PluginPropertyAutomation, 0, property.second.key));
+		}
+	}
+	_empty = false; // The toolbar is available even with an empty list.
+	prefheight = 30 * _compact_rows.size () * UIConfiguration::instance ().get_ui_scale ();
+	show_all ();
+}
+
+bool
+GenericPluginUI::append_compact_parameter (Evoral::Parameter const& param)
+{
+	auto cached = _compact_cache.find (param);
+	EventBox* row;
+	if (cached != _compact_cache.end ()) {
+		row = cached->second;
+		if (row->get_visible ()) {
+			return false;
+		}
+		row->set_no_show_all (false);
+		_compact_list->reorder_child (*row, -1);
+	} else {
+		auto cui = build_parameter (param);
+		if (!cui) {
+			return false;
+		}
+		row = manage (new EventBox ());
+		cui->label.set_padding (3, 0);
+		row->add (*cui);
+		row->signal_style_changed ().connect ([row] (Glib::RefPtr<Gtk::Style> const&) {
+			auto control = static_cast<ControlUI*> (row->get_child ());
+			if (!control) {
+				return;
+			}
+			Gdk::Color text;
+			auto bg = gdk_color_to_rgba (row->get_style ()->get_bg (STATE_SELECTED));
+			set_color_from_rgba (text, contrasting_text_color (bg));
+			control->label.modify_fg (STATE_SELECTED, text);
+		});
+		_compact_list->pack_start (*row, false, false);
+		_compact_cache.emplace (param, row);
+		row->signal_button_press_event ().connect (sigc::bind (sigc::mem_fun (*this, &GenericPluginUI::compact_row_press), row), false);
+		/* Knobs and switches consume their own button events. Keep their
+		 * normal gestures and expose the row menu on secondary click. */
+		auto widget = cui->controller ? cui->controller->widget () : static_cast<Widget*> (cui->combo);
+		if (widget) {
+			widget->signal_button_press_event ().connect ([this, row] (GdkEventButton* ev) {
+				if (Keyboard::is_context_menu_event (ev)) {
+					return compact_row_press (ev, row);
+				}
+				if (ev->button == 1) {
+					compact_row_press (ev, row);
+				}
+				return false;
+			}, false);
+		}
+	}
+	_compact_rows.push_back (row);
+	row->show_all ();
+	return true;
+}
+
+void
+GenericPluginUI::configure_compact_list ()
+{
+	_configure_connections.drop_connections ();
+	if (!_configure->get_active () || !_pi) {
+		return;
+	}
+	Controllable::ControlTouched.connect (_configure_connections, invalidator (*this), [this] (std::weak_ptr<Controllable> weak) {
+		auto c = std::dynamic_pointer_cast<AutomationControl> (weak.lock ());
+		if (c && _pi && _pi->control (c->parameter ()) == c) {
+			learn_compact_parameter (c->parameter ());
+		}
+	}, gui_context ());
+	/* AU and VST3 also publish value changes during preset loads. Learn
+	 * their gestures, so a preset cannot populate the entire panel. */
+	plugin->StartTouch.connect (_configure_connections, invalidator (*this), [this] (uint32_t id) {
+		learn_compact_parameter (Evoral::Parameter (PluginAutomation, 0, id));
+	}, gui_context ());
+	if (_pi->type () == Windows_VST || _pi->type () == MacVST || _pi->type () == LXVST) {
+		/* Older VST editors can send audioMasterAutomate without beginEdit. */
+		plugin->ParameterChangedExternally.connect (_configure_connections, invalidator (*this), [this] (uint32_t id, float) {
+			learn_compact_parameter (Evoral::Parameter (PluginAutomation, 0, id));
+		}, gui_context ());
+	}
+}
+
+void
+GenericPluginUI::learn_compact_parameter (Evoral::Parameter const& param)
+{
+	if (_pi && _configure->get_active () && get_mapped () && append_compact_parameter (param)) {
+		if (param.type () == PluginPropertyAutomation) {
+			string_property_changed (param.id (), plugin->get_property_value (param.id ()));
+		}
+		save_compact_list ();
+	}
+}
+
+void
+GenericPluginUI::save_compact_list ()
+{
+	auto node = new XMLNode ("CompactPluginParameters");
+	for (auto row : _compact_rows) {
+		auto cui = static_cast<ControlUI*> (row->get_child ());
+		node->add_child ("Control")->set_property ("parameter", EventTypeMap::instance ().to_symbol (cui->parameter ()));
+	}
+	_pi->add_extra_xml (*node);
+	_pi->session ().set_dirty ();
+}
+
+void
+GenericPluginUI::select_compact_row (int index, bool extend)
+{
+	if (!extend || _compact_anchor < 0) {
+		_compact_anchor = index;
+	}
+	_compact_cursor = index;
+	auto range = std::minmax (_compact_anchor, _compact_cursor);
+	for (int i = 0; i < (int)_compact_rows.size (); ++i) {
+		_compact_rows[i]->set_state (i >= range.first && i <= range.second ? STATE_SELECTED : STATE_NORMAL);
+	}
+	int x, y;
+	auto row = _compact_rows[index];
+	if (row->translate_coordinates (hpacker, 0, 0, x, y)) {
+		scroller.get_vadjustment ()->clamp_page (y, y + row->get_height ());
+	}
+}
+
+bool
+GenericPluginUI::compact_row_press (GdkEventButton* ev, EventBox* row)
+{
+	bool context = Keyboard::is_context_menu_event (ev);
+	if (!context && ev->button != 1) {
+		return false;
+	}
+	auto it = std::find (_compact_rows.begin (), _compact_rows.end (), row);
+	if (it == _compact_rows.end ()) {
+		return false;
+	}
+	int index = std::distance (_compact_rows.begin (), it);
+	_compact_list->grab_focus ();
+	auto range = std::minmax (_compact_anchor, _compact_cursor);
+	if (!context || index < range.first || index > range.second) {
+		select_compact_row (index, !context && Keyboard::modifier_state_equals (ev->state, Gdk::SHIFT_MASK));
+	}
+	if (context) {
+		_compact_menu.reset (new Menu ());
+		auto label = _compact_anchor == _compact_cursor ? _("Hide parameter") : _("Hide selected parameters");
+		_compact_menu->items ().push_back (Menu_Helpers::MenuElem (label, sigc::mem_fun (*this, &GenericPluginUI::hide_compact_selection)));
+		_compact_menu->popup (ev->button, ev->time);
+	}
+	return true;
+}
+
+bool
+GenericPluginUI::compact_key_press (GdkEventKey* ev)
+{
+	if (!_compact_list->is_focus ()) {
+		return false;
+	}
+	int last = (int)_compact_rows.size () - 1;
+	if ((ev->keyval == GDK_a || ev->keyval == GDK_A) && Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
+		if (last >= 0) {
+			_compact_anchor = 0;
+			select_compact_row (last, true);
+		}
+		return true;
+	}
+	bool shift = Keyboard::modifier_state_equals (ev->state, Gdk::SHIFT_MASK);
+	if (!shift && !Keyboard::modifier_state_equals (ev->state, 0)) {
+		return false;
+	}
+	switch (ev->keyval) {
+	case GDK_Up: case GDK_KP_Up:
+	case GDK_Down: case GDK_KP_Down:
+		if (last >= 0) {
+			int step = (ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up) ? -1 : 1;
+			select_compact_row (std::max (0, std::min (last, _compact_cursor + step)), shift);
+		}
+		return true;
+	case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
+		if (!shift && _compact_cursor >= 0) {
+			confirm_compact_removal ();
+		}
+		return !shift;
+	default:
+		return false;
+	}
+}
+
+void
+GenericPluginUI::confirm_compact_removal ()
+{
+	auto count = std::abs (_compact_anchor - _compact_cursor) + 1;
+	auto cui = static_cast<ControlUI*> (_compact_rows[_compact_cursor]->get_child ());
+	auto question = count == 1 ? string_compose (_("Remove “%1” from this list?"), cui->label.get_text ())
+	                           : string_compose (_("Remove %1 parameters from this list?"), count);
+	_compact_dialog.reset (new MessageDialog (*static_cast<Window*> (get_toplevel ()), question, false, MESSAGE_QUESTION, BUTTONS_NONE, true));
+	_compact_dialog->set_secondary_text (_("Use Configure to add a parameter again."));
+	_compact_dialog->add_button (_("Cancel"), RESPONSE_CANCEL);
+	_compact_dialog->add_button (_("Remove"), RESPONSE_ACCEPT);
+	_compact_dialog->set_default_response (RESPONSE_CANCEL);
+	_compact_dialog->signal_response ().connect ([this] (int response) {
+		_compact_dialog->hide ();
+		if (response == RESPONSE_ACCEPT) {
+			hide_compact_selection ();
+		}
+	});
+	_compact_dialog->show ();
+}
+
+void
+GenericPluginUI::hide_compact_selection ()
+{
+	if (!_pi || _compact_cursor < 0) {
+		return;
+	}
+	int first = std::min (_compact_anchor, _compact_cursor);
+	int end = std::max (_compact_anchor, _compact_cursor) + 1;
+	for (int i = first; i < end; ++i) {
+		auto row = _compact_rows[i];
+		row->set_state (STATE_NORMAL);
+		row->set_no_show_all ();
+		row->hide ();
+	}
+	_compact_rows.erase (_compact_rows.begin () + first, _compact_rows.begin () + end);
+	_compact_cursor = _compact_anchor = -1;
+	if (!_compact_rows.empty ()) {
+		select_compact_row (std::min (first, (int)_compact_rows.size () - 1), false);
+	}
+	save_compact_list ();
+}
 
 void
 GenericPluginUI::automatic_layout (const std::vector<ControlUI*>& control_uis)
@@ -964,6 +1204,10 @@ GenericPluginUI::build_control_ui (const Evoral::Parameter&             param,
 		} else if (desc.datatype == Variant::STRING) {
 			// Like the above, but an Entry instead of FileChooserButton
 			control_ui->string_entry = manage(new Gtk::Entry());
+			control_ui->string_entry->signal_focus_in_event ().connect ([mcontrol] (GdkEventFocus*) {
+				Controllable::ControlTouched (mcontrol);
+				return false;
+			});
 			control_ui->pack_start (control_ui->label, false, true);
 			control_ui->pack_start (*control_ui->string_entry, true, true);
 
@@ -1340,6 +1584,7 @@ void
 GenericPluginUI::control_combo_changed (ControlUI* cui, float value)
 {
 	if (!cui->ignore_change) {
+		Controllable::ControlTouched (cui->control);
 		cui->combo->get_controllable ()->set_value (value, Controllable::NoGroup);
 	}
 }
@@ -1385,6 +1630,8 @@ void
 GenericPluginUI::set_path_property (const ParameterDescriptor& desc,
                                     Gtk::FileChooserButton*    widget)
 {
+	auto control = std::dynamic_pointer_cast<AutomationControl> (_pib->control (Evoral::Parameter (PluginPropertyAutomation, 0, desc.key)));
+	Controllable::ControlTouched (control);
 	plugin->set_property(desc.key, Variant(Variant::PATH, widget->get_filename()));
 }
 

@@ -75,9 +75,13 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 		return true;
 	}
 
-	/* The file tree owns navigation while focused, including at its edges.
-	 * Handle this before arrangement bindings and the computer-keyboard piano. */
+	/* Let focused lists handle their own keys before arrangement bindings
+	 * and the computer-keyboard piano. */
 	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
+	if (ev->type == GDK_KEY_PRESS && focus && std::string (gtk_widget_get_name (focus)) == "PluginParameterList" &&
+	    gtk_widget_event (focus, reinterpret_cast<GdkEvent*> (ev))) {
+		return true;
+	}
 	if (ev->type == GDK_KEY_PRESS && focus && std::string (gtk_widget_get_name (focus)) == "browser-files") {
 		switch (ev->keyval) {
 		case GDK_Up: case GDK_Down: case GDK_Left: case GDK_Right:
