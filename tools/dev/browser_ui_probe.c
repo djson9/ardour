@@ -2,6 +2,7 @@
  * Inject only into a disposable Verification GUI. The trigger starts a bounded
  * test after app startup; no production hooks or user session changes. */
 #include <ytk/ytk.h>
+#include <ydk/gdkkeysyms.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -58,6 +59,38 @@ static int files(int expected) {
  if(gtk_tree_model_get_iter_first(m,&i))do {gboolean file=FALSE;gtk_tree_model_get(m,&i,3,&file,-1);if(file)count++;}while(gtk_tree_model_iter_next(m,&i));
  return count==expected;
 }
+/* Dispatch to the real window handler, not directly to the tree: this catches
+ * arrangement accelerators stealing navigation keys. */
+static void key(guint keyval,guint modifiers) {
+ GtkWidget *w=gtk_widget_get_toplevel(browser);
+ GdkKeymapKey *keys=NULL;gint count=0;
+ gdk_keymap_get_entries_for_keyval(gdk_keymap_get_default(),keyval,&keys,&count);
+ for(int release=0;release<2;release++) {
+  GdkEvent *e=gdk_event_new(release?GDK_KEY_RELEASE:GDK_KEY_PRESS);
+  e->key.window=g_object_ref(gtk_widget_get_window(w));e->key.send_event=TRUE;
+  e->key.time=GDK_CURRENT_TIME;e->key.keyval=keyval;e->key.state=modifiers;
+  if(count){e->key.hardware_keycode=keys[0].keycode;e->key.group=keys[0].group;}
+  e->key.string=g_strdup("");gdk_event_put(e);gdk_event_free(e);
+ }
+ g_free(keys);
+}
+static int cursor(const char *name) {
+ GtkTreePath *path=NULL;GtkTreeIter iter;char *text=NULL;
+ gtk_tree_view_get_cursor(GTK_TREE_VIEW(find(browser,"browser-files")),&path,NULL);
+ if(!path)return 0;
+ if(gtk_tree_model_get_iter(model(),&iter,path))gtk_tree_model_get(model(),&iter,0,&text,-1);
+ int match=text&&!strcmp(text,name);g_free(text);gtk_tree_path_free(path);return match;
+}
+static void select_row(const char *name) {
+ GtkTreeIter iter;if(!row(name,&iter)){finish("Missing keyboard fixture row");return;}
+ GtkTreePath *path=gtk_tree_model_get_path(model(),&iter);
+ gtk_tree_view_set_cursor(GTK_TREE_VIEW(find(browser,"browser-files")),path,NULL,FALSE);gtk_tree_path_free(path);
+}
+static int expanded(const char *name) {
+ GtkTreeIter iter;if(!row(name,&iter))return 0;
+ GtkTreePath *path=gtk_tree_model_get_path(model(),&iter);
+ int result=gtk_tree_view_row_expanded(GTK_TREE_VIEW(find(browser,"browser-files")),path);gtk_tree_path_free(path);return result;
+}
 static void respond(GtkWidget *dialog,int response) {gtk_dialog_response(GTK_DIALOG(dialog),response);}
 static void edit(GtkWidget *dialog,const char *text) {gtk_entry_set_text(GTK_ENTRY(find(dialog,"browser-extension-entry")),text);}
 static gboolean tick(gpointer unused) {
@@ -97,6 +130,7 @@ static gboolean tick(gpointer unused) {
   if(ready){respond(dialog,GTK_RESPONSE_OK);stage=4;}break;
  }
  case 4:
+  if(!strcmp(mode,"keys")){stage=50;break;}
   if(!row("Nested",NULL)||!row("Piano.WaV",NULL)||!row("Chords.MID",NULL)||!row("Bass.flac",NULL)||!files(3)||row("notes.txt",NULL)||row("pipe.wav",NULL)){finish("Default audio/MIDI directory listing");break;}
   row("Nested",&i);{
    GtkTreePath *p=gtk_tree_model_get_path(model(),&i);gtk_tree_view_expand_row(GTK_TREE_VIEW(find(browser,"browser-files")),p,FALSE);gtk_tree_path_free(p);
@@ -144,6 +178,45 @@ static gboolean tick(gpointer unused) {
   edit(dialog,"mid");respond(dialog,GTK_RESPONSE_OK);stage=18;break;
  case 18:
   if(!files(1)||!row("Chords.MID",NULL)){finish("Final saved filter");break;}
+  finish(NULL);break;
+ case 50:
+  if(gtk_window_get_focus(GTK_WINDOW(gtk_widget_get_toplevel(browser)))!=find(browser,"browser-files")){finish("Folder chooser did not return focus to files");break;}
+  select_row("Nested");key(GDK_Down,0);stage=51;break;
+ case 51:
+  if(!cursor("Bass.flac")){finish("Down did not select next file");break;}
+  key(GDK_Up,0);stage=52;break;
+ case 52:
+  if(!cursor("Nested")){finish("Up did not select previous row");break;}
+  key(GDK_Right,0);stage=53;break;
+ case 53:
+  if(!expanded("Nested")){finish("Right did not expand folder");break;}
+  key(GDK_Down,0);stage=54;break;
+ case 54:
+  if(!cursor("Inside.wav")){finish("Down did not enter expanded folder");break;}
+  key(GDK_Left,0);stage=55;break;
+ case 55:
+  if(!cursor("Nested")){finish("Left did not select parent row");break;}
+  key(GDK_Left,0);stage=56;break;
+ case 56:
+  if(expanded("Nested")){finish("Left did not collapse folder");break;}
+  key(GDK_Home,0);stage=57;break;
+ case 57:
+  if(!cursor("..")){finish("Home did not select first row");break;}
+  key(GDK_Up,0);stage=58;break;
+ case 58:
+  if(!cursor("..")){finish("Top boundary changed browser cursor");break;}
+  select_row("Bass.flac");key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
+ case 59:
+  if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish("Shift-Down did not extend file selection");break;}
+  select_row("Nested");key(GDK_Return,0);stage=60;break;
+ case 60:
+  if(!row("Inside.wav",NULL)||row("Nested",NULL)){finish("Enter did not open selected folder");break;}
+  select_row("..");key(GDK_Return,0);stage=61;break;
+ case 61:
+  if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)){finish("Enter on parent did not return to root");break;}
+  key(GDK_End,0);stage=62;break;
+ case 62:
+  if(!cursor("Piano.WaV")){finish("End did not select last file");break;}
   finish(NULL);break;
  case 30:
   if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)||!files(1)||!row("Chords.MID",NULL)||!row("Nested",NULL)){finish("Folder/filter not restored at startup");break;}
