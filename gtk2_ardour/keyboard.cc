@@ -122,7 +122,7 @@ remove_hidden_toolbar_shortcuts ()
 				    "Editing/set-mouse-mode-", "Editor/set-mouse-mode-", "Editing/snap-", "Snap/grid-type-",
 				    "Editing/cycle-snap-mode", "Editing/next-grid-choice", "Editing/prev-grid-choice",
 				    "Editor/set-edit-mode-", "Editor/cycle-edit-mode", "Editor/set-edit-point-", "Editor/cycle-edit-point",
-				    "Editor/nudge-", "Common/nudge-", "Editor/playhead-to-next-grid", "Editor/playhead-to-prev-grid"}) {
+				    "Editor/playhead-to-next-grid", "Editor/playhead-to-prev-grid"}) {
 					if (match.compare (0, std::char_traits<char>::length (prefix), prefix) == 0) {
 						bindings->remove (operation->name () == "Release" ? Bindings::Release : Bindings::Press, name, false);
 						break;

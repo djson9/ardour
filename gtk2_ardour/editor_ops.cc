@@ -622,7 +622,7 @@ Editor::nudge_backward (bool next, bool force_playhead)
 		for (RegionSelection::iterator i = rs.begin(); i != rs.end(); ++i) {
 			std::shared_ptr<Region> r ((*i)->region());
 
-			distance = get_nudge_distance (r->position(), next_distance);
+			distance = directional_nudge_distance (r->position(), next_distance, false);
 
 			if (next) {
 				distance = next_distance;
@@ -654,7 +654,7 @@ Editor::nudge_backward (bool next, bool force_playhead)
 				XMLNode& before (loc->get_state());
 
 				if (is_start) {
-					distance = get_nudge_distance (loc->start(), next_distance);
+					distance = directional_nudge_distance (loc->start(), next_distance, false);
 					if (next) {
 						distance = next_distance;
 					}
@@ -664,7 +664,7 @@ Editor::nudge_backward (bool next, bool force_playhead)
 						loc->set_start (timepos_t(), false);
 					}
 				} else {
-					distance = get_nudge_distance (loc->end(), next_distance);
+					distance = directional_nudge_distance (loc->end(), next_distance, false);
 
 					if (next) {
 						distance = next_distance;
@@ -699,7 +699,7 @@ Editor::nudge_backward (bool next, bool force_playhead)
 			AutomationList::iterator n = m;
 
 			const timepos_t p = (*m)->when;
-			distance = get_nudge_distance (p, next_distance);
+			distance = directional_nudge_distance (p, next_distance, false);
 			if (next) {
 				distance = next_distance;
 			}
@@ -728,7 +728,7 @@ Editor::nudge_backward (bool next, bool force_playhead)
 			commit_reversible_command ();
 		}
 	} else {
-		distance = get_nudge_distance (timepos_t (playhead_cursor()->current_sample ()), next_distance);
+		distance = directional_nudge_distance (timepos_t (playhead_cursor()->current_sample ()), next_distance, false);
 		if (_playhead_cursor->current_sample () > distance.samples()) {
 			_session->request_locate ((timepos_t (_playhead_cursor->current_sample ()).earlier (distance)).samples());
 		} else {
@@ -5431,7 +5431,7 @@ Editor::nudge_track (bool use_edit, bool forwards)
 		start = get_preferred_edit_position();
 	}
 
-	if ((distance = get_nudge_distance (start, next_distance)) == 0) {
+	if ((distance = directional_nudge_distance (start, next_distance, forwards)) == 0) {
 		return;
 	}
 

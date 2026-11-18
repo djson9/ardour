@@ -2721,7 +2721,7 @@ EditingContext::on_velocity_scroll_event (GdkEventScroll* ev)
 }
 
 void
-EditingContext::set_common_editing_state (XMLNode const & node)
+EditingContext::set_common_editing_state (XMLNode const & node, GridType default_grid)
 {
 	EC_LOCAL_TEMPO_SCOPE;
 
@@ -2735,7 +2735,7 @@ EditingContext::set_common_editing_state (XMLNode const & node)
 
 	GridType grid_type;
 	if (!node.get_property ("grid-type", grid_type)) {
-		grid_type = GridTypeNone;
+		grid_type = default_grid;
 	}
 	set_grid_type (grid_type);
 

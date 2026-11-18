@@ -1101,10 +1101,68 @@ edit_last_mark_label (std::vector<ArdourCanvas::Ruler::Mark>& marks, const std::
 	marks.push_back (copy);
 }
 
+/* Use the selected musical division as long as the lines fit in the viewport.
+ * At overview zooms the ordinary bar/beat ruler handles thinning and labels. */
+int
+Editor::live_grid_step_ticks () const
+{
+	if (!_session || Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || current_page_samples () <= 0) {
+		return 0;
+	}
+	const int divisions = get_grid_beat_divisions (grid_type ());
+	if (divisions <= 0 || Beats::PPQN % divisions != 0) {
+		return 0;
+	}
+	const auto map = TempoMap::use ();
+	const auto span = map->quarters_at_sample (_leftmost_sample + current_page_samples ()) - map->quarters_at_sample (_leftmost_sample);
+	const int step = Beats::PPQN / divisions;
+	return span.to_ticks () <= (_visible_canvas_width / 5.0) * step ? step : 0;
+}
+
 void
 Editor::metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>& marks, int64_t lower, int64_t upper, gint /*maxchars*/)
 {
 	if (_session == 0) {
+		return;
+	}
+
+	if (const int step = live_grid_step_ticks ()) {
+		using Mark = ArdourCanvas::Ruler::Mark;
+		const auto map = TempoMap::use ();
+		lower = std::max<int64_t> (0, lower);
+		if (upper < lower) {
+			return;
+		}
+
+		/* Bar boundaries can fall between quarter notes, e.g. in 3/8. Merge
+		 * the actual bars into the fixed note grid in sample order. */
+		TempoMapPoints bars;
+		const auto rate = _session->sample_rate ();
+		map->get_grid (bars, samples_to_superclock (lower, rate), samples_to_superclock (upper, rate), 1);
+		auto bar = bars.begin ();
+		auto add_bar = [&] {
+			marks.push_back ({std::to_string (bar->bbt ().bars), double (bar->sample_is_dangerous (rate)), Mark::Major});
+			++bar;
+		};
+		const int64_t first = map->quarters_at_sample (lower).to_ticks ();
+		const int64_t last = map->quarters_at_sample (upper).to_ticks ();
+		for (int64_t tick = (first / step) * step; tick <= last; tick += step) {
+			const auto sample = map->sample_at (Beats::ticks (tick));
+			if (sample < lower || sample > upper) {
+				continue;
+			}
+			while (bar != bars.end () && bar->sample_is_dangerous (rate) < sample) {
+				add_bar ();
+			}
+			if (bar != bars.end () && bar->sample_is_dangerous (rate) == sample) {
+				add_bar ();
+			} else {
+				marks.push_back ({"", double (sample), tick % Beats::PPQN == 0 ? Mark::Minor : Mark::Micro});
+			}
+		}
+		while (bar != bars.end ()) {
+			add_bar ();
+		}
 		return;
 	}
 
