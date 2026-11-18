@@ -367,6 +367,13 @@ void
 Session::set_transport_speed (double speed)
 {
 	ENSURE_PROCESS_THREAD;
+	/* A speed change need not schedule a stop or locate in the ordinary FSM.
+	 * Its guard has cancelled the future owner, so explicitly reclaim that
+	 * generation before using a different resampled callback size. */
+	anticipation_edit_ready ();
+	if (_anticipation_enabled.load () && speed == 1.0 && _engine_speed != 1.0) {
+		request_anticipative_refresh ();
+	}
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("@ %1 Set transport speed to %2 from %3 (es = %4)\n", _transport_sample, speed, _transport_fsm->transport_speed(), _engine_speed));
 
 	if (synced_to_engine() && speed != 1.0) {
@@ -625,7 +632,7 @@ Session::start_transport (bool after_loop)
 
 	if (!after_loop && _anticipation_enabled.load () &&
 	    (!_anticipative_process || !_anticipative_process->size ()) &&
-	    _transport_fsm->transport_speed () == 1.0 && !_count_in_samples && !_exporting && !transport_master_is_external ()) {
+	    _transport_fsm->transport_speed () == 1.0 && _engine_speed == 1.0 && !_count_in_samples && !_exporting && !transport_master_is_external ()) {
 		_anticipation_priming = true;
 		_anticipation_prepare_failed.store (false);
 		_anticipation_preparing.store (true);
