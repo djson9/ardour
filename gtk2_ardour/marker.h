@@ -91,6 +91,7 @@ public:
 	void set_show_line (bool);
 	void set_line_height (double);
 
+	void set_loop_end (Temporal::timepos_t const&);
 	virtual void reposition ();
 	virtual void set_position (Temporal::timepos_t const &);
 	void set_name (const std::string&, const std::string & tooltip = std::string());
@@ -139,6 +140,8 @@ protected:
 	ArdourCanvas::Points *points;
 	ArdourCanvas::Line* _track_canvas_line;
 	ArdourCanvas::Rectangle* _name_flag;
+	ArdourCanvas::Rectangle* _loop_bracket;
+	Temporal::timepos_t _loop_end;
 
 	std::string  _name;
 	double        unit_position;

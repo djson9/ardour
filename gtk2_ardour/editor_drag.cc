@@ -4512,6 +4512,17 @@ MarkerDrag::start_grab (GdkEvent* event, Gdk::Cursor* cursor)
 		break;
 	}
 
+	/* A loop bracket moves the range; an unmodified end grip only resizes
+	 * that end, even immediately after dragging the whole bracket. */
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && location->is_auto_loop () && op == SelectionSet) {
+		editing_context.get_selection ().set (_marker);
+		if (_item->get_data ("loop-bracket")) {
+			Editor::LocationMarkers* lm = _editor.find_location_markers (location);
+			if (lm && lm->end) editing_context.get_selection ().add (lm->end);
+		}
+		_selection_changed = true;
+	}
+
 	/* Set up copies for us to manipulate during the drag
 	 */
 
@@ -5711,7 +5722,11 @@ SelectionDrag::motion (GdkEvent* event, bool first_move)
 	switch (_operation) {
 		case CreateSelection: {
 			timepos_t grab (grab_time ());
-			if (first_move) {
+			if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+				/* Anchor at the press, even when the first motion event skips
+				 * several bars (common with a trackpad or a busy UI). */
+				grab = adjusted_time (raw_grab_time (), event, true);
+			} else if (first_move) {
 				grab = adjusted_current_time (event, false);
 				if (grab < pending_position) {
 					editing_context.snap_to (grab, RoundDownMaybe);

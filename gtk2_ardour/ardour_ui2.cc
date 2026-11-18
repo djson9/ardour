@@ -35,6 +35,7 @@
 #include <cerrno>
 #include <iostream>
 #include <cmath>
+#include <glibmm/miscutils.h>
 
 #include <ytkmm/menu.h>
 #include <ytkmm/menuitem.h>
@@ -281,8 +282,8 @@ ARDOUR_UI::error_blink (bool onoff)
 {
 	switch (_log_not_acknowledged) {
 		case LogLevelError:
-			// blink
-			if (onoff) {
+			// Keep unacknowledged errors visible without flashing in the compact bar.
+			if (onoff || Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
 				error_alert_button.set_custom_led_color(0xff0000ff); // bright red
 			} else {
 				error_alert_button.set_custom_led_color(0x880000ff); // dark red

@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
 if a.case == 'native-scroll':
@@ -137,6 +137,88 @@ elif a.case == 'search':
     expect_selection([ids[1]])
     checks += ['command T audio', 'command shift T MIDI', 'slash opens search', 'first result selected; Down chooses second', 'typing resets selection to first', 'typo match', 'command A edits text in search']
     remove_fixture(names, ids)
+
+elif a.case == 'loop':
+    call('transport_stop')
+    call('ui_activate_action', action='EditorEditing/set-mouse-mode-object')
+    call('ui_activate_action', action='EditorEditing/snap-normal')
+    call('ui_activate_action', action='Editor/zoom-to-session')
+    pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=-1000, deltaX=-1000)
+    state = instant().attrib
+    zoom, left = int(state['zoom']), int(state['left-frame'])
+    info = call('session_get_info')
+    bar = int(info['sampleRate'] * 60 / info['tempoBpm'] * 4)
+    assert left == 0 and state['grid-type'] == 'GridTypeBar', state
+    first = min((r for r in routes() if r['type'].endswith('_track') and not r['hidden']), key=lambda r: r['presentationOrder'])
+    regions = call('track_get_regions', id=first['id'])['regions']
+    assert regions and all(r['endSample'] < 2 * bar for r in regions), 'Use the compact verification fixture with empty bars 3–9'
+    def canvas(): return next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+    c = canvas()
+    label = next(l for l in c['labels'] if regions[0]['name'] in l['text'])
+    box = label['ancestors'][0]
+    y = (box['y0'] + box['y1']) / 2
+    def x(b): return ((b-1) * bar - left) / zoom
+    assert 0 < y < c['height'] and x(9) < c['width'], c
+    def drag(x1, y1, x2, y2, cancel=False):
+        pointer('EditorMainCanvas', 'move', x1, y1)
+        pointer('EditorMainCanvas', 'press', x1, y1)
+        # One coalesced motion must still anchor at the original press.
+        pointer('EditorMainCanvas', 'move', x2, y2, buttonDown=True)
+        if cancel: key('Escape')
+        pointer('EditorMainCanvas', 'release', x2, y2)
+    def loop(): return next((m for m in call('markers_list')['markers'] if m['isAutoLoop']), None)
+    def bounds():
+        m = loop()
+        return (m['startSample'], m['endSample']) if m else None
+    def expect(b1, b2): wait(lambda: bounds() == ((b1-1)*bar, (b2-1)*bar))
+    before = call('session_get_info')['transport']['sample']
+    drag(x(3.12), y, x(5.14), y)
+    assert call('session_get_info')['transport']['sample'] == before
+    assert first['id'] in selected()  # Native linked track groups may join the selection.
+    time_selection = instant().find('Selection')
+    assert len(list(time_selection)), ET.tostring(time_selection)
+    key('Primary-l'); expect(3, 5)
+    time.sleep(.1)  # Allow the audio thread to process SetLoop.
+    assert not call('session_get_info')['transport']['rolling']
+    call('session_save')
+    saved = ET.parse(a.session_path / (a.session_path.name + '.ardour'))
+    ruler = saved.find('.//RulerVisibility')
+    assert ruler.get('bbt') == '1' and ruler.get('rangemarker') == '1', ruler.attrib
+    start_marker = next(l for l in canvas()['labels'] if l['text'] == 'start')
+    bracket_y = start_marker['y0'] + 5
+    drag(x(4), bracket_y, x(5), bracket_y); expect(4, 6)
+    drag(x(6)-2, bracket_y, x(7)-2, bracket_y); expect(4, 7)
+    drag(x(4)+2, bracket_y, x(5)+2, bracket_y); expect(5, 7)
+    call('session_undo'); expect(4, 7)
+    call('session_redo'); expect(5, 7)
+    drag(x(6), bracket_y, x(7), bracket_y, cancel=True); expect(5, 7)
+    checks += ['empty bars select from original press', 'Cmd+L works without regions and keeps transport stopped', 'bar and loop rulers default on', 'bracket moves both ends', 'end grips resize independently', 'loop undo/redo', 'Escape cancels bracket drag']
+    # Zoom refreshes the bracket width as well as its handles.
+    pointer('EditorMainCanvas', 'pinch', 0, y, magnification=-.2)
+    state = instant().attrib
+    zoom, left = int(state['zoom']), int(state['left-frame'])
+    drag(x(6), bracket_y, x(5), bracket_y); expect(4, 6)
+    # A reversed empty-space drag must also produce an ordered snapped range.
+    drag(x(8.1), y, x(3.1), y)
+    key('Primary-l'); expect(3, 8)
+    pointer('EditorMainCanvas', 'move', x(9.1), y)
+    pointer('EditorMainCanvas', 'press', x(9.1), y)
+    pointer('EditorMainCanvas', 'release', x(9.1), y)
+    wait(lambda: call('session_get_info')['transport']['sample'] == 8 * bar)
+    assert call('track_get_regions', id=first['id'])['regions'] == regions
+    call('session_save')
+    checks += ['bracket remains draggable after zoom', 'reverse selection snaps', 'plain click still locates', 'regions unchanged', 'loop saved']
+    # Cross the boundary twice, with a Stop/Play between, rather than waiting
+    # for a whole song. This checks actual transport looping, not just drawing.
+    for _ in range(2):
+        call('transport_play')
+        wait(lambda: call('session_get_info')['transport']['rolling'])
+        call('transport_locate_sample', sample=7 * bar - info['sampleRate'] // 5)
+        wait(lambda: call('session_get_info')['transport']['sample'] > 6 * bar)
+        wait(lambda: 2 * bar <= call('session_get_info')['transport']['sample'] < 3 * bar)
+        call('transport_stop')
+        wait(lambda: not call('session_get_info')['transport']['rolling'])
+    checks += ['audio transport actually wraps', 'Stop/Play retains loop mode']
 
 elif a.case == 'curves':
     name = 'UI Curve Fixture'

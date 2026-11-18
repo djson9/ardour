@@ -722,6 +722,13 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 		}
 	}
 
+	/* Empty arrangement space is a time selection without a mode switch. */
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && eff == MouseObject &&
+	    (item_type == StreamItem || item_type == DropZoneItem || item_type == SelectionItem ||
+	     item_type == StartSelectionTrimItem || item_type == EndSelectionTrimItem)) {
+		eff = MouseRange;
+	}
+
 	switch (eff) {
 	case MouseRange:
 		switch (item_type) {

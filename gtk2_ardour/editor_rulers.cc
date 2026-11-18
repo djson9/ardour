@@ -401,6 +401,7 @@ Editor::store_ruler_visibility ()
 {
 	XMLNode* node = new XMLNode(X_("RulerVisibility"));
 	node->set_property ("live-layout", Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1");
+	node->set_property ("live-loop-ruler", Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1");
 
 	node->set_property (X_("minsec"), ruler_minsec_action->get_active());
 	node->set_property (X_("timecode"), ruler_timecode_action->get_active());
@@ -489,8 +490,19 @@ Editor::restore_ruler_visibility ()
 		ruler_video_action->set_active (false);
 	}
 
+	bool saved_loop_ruler = false;
+	if (node) node->get_property ("live-loop-ruler", saved_loop_ruler);
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !saved_loop_ruler) {
+		/* Migrate older compact sessions once; respect later visibility edits. */
+		ruler_bbt_action->set_active (true);
+		ruler_range_action->set_active (true);
+	}
+
 	no_ruler_shown_update = false;
 	update_ruler_visibility ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !saved_loop_ruler) {
+		store_ruler_visibility ();
+	}
 }
 
 void

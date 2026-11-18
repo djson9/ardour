@@ -6947,7 +6947,10 @@ Editor::set_loop_from_selection (bool play)
 	set_loop_range (start, end,  _("set loop range from selection"));
 
 	if (play) {
-		_session->request_play_loop (true, true);
+		/* Loop-as-mode keeps Stop/Play independent of enabling the loop. */
+		const bool compact = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+		if (compact) Config->set_loop_is_mode (true);
+		_session->request_play_loop (true, !compact);
 	}
 }
 

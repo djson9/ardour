@@ -453,3 +453,33 @@ fixture creation and confirmed removal, under the nine-second deadline.
 The macOS arm64 build, install and signature verification also passed. This
 checks native event translation and exact movement, not compositor frame pacing
 or a complete physical-trackpad usability session.
+
+## Empty arrangement ranges and the loop bracket
+
+With `ARDOUR_LIVE_LAYOUT=1`, drag empty track space to select time on the visible
+tracks without switching tools. Selection grips still trim the range, and a plain
+click still locates at the grid. A coalesced first pointer movement retains the
+original press as its anchor. Cmd+L loops either a time selection or selected clips;
+it enables Ardour's persistent loop mode without starting a stopped transport.
+Stop/Play retains looping. The middle of the joined bracket moves both endpoints;
+each end grip resizes only that end. These use native marker snapping, cancellation,
+and undo. The bracket follows zoom and saved loop locations, including when stopped.
+Bars and the loop ruler default on, with a one-time migration for older compact
+sessions; later explicit visibility changes are preserved. The Charcoal theme uses
+teal selections and a translucent teal loop bracket. Log errors remain accessible
+through a steady indicator in the compact bar.
+
+```sh
+python3 tools/dev/verify-compact-workflow.py \
+  --session-path '/path/to/Compact UI Verification' --case loop
+```
+
+The disposable compact fixture needs its small MIDI region before bar 3 and empty
+bars 3–9 on the first track, 4/4 meter, and the Bar grid. The test checks forward and
+reverse selection, Cmd+L with no regions selected, ruler defaults, body/end drags,
+undo/redo, Escape, zoom, click-to-locate, and unchanged regions. It also runs across
+the loop boundary twice with a Stop/Play between: checking the visible bracket alone
+misses Ardour's temporary-loop versus persistent-loop distinction. All checks share
+a 9-second deadline; the verified run took 2.08 seconds. Saved bounds were also
+checked after an application restart. Theme resources must be copied by normal
+packaging (the incremental Mach-O delta does not include `.colors` files).
