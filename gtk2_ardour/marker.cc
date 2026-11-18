@@ -25,6 +25,7 @@
  */
 
 #include <sstream>
+#include <glibmm/miscutils.h>
 
 #include <sigc++/bind.h>
 #include "ardour/tempo.h"
@@ -87,6 +88,7 @@ ArdourMarker::ArdourMarker (PublicEditor& ed, ArdourCanvas::Item& parent, std::s
 	: editor (ed)
 	, _parent (&parent)
 	, _track_canvas_line (0)
+	, _loop_bracket (0)
 	, _type (type)
 	, _selected (false)
 	, _entered (false)
@@ -382,6 +384,16 @@ ArdourMarker::ArdourMarker (PublicEditor& ed, ArdourCanvas::Item& parent, std::s
 		_name_item->set_position (ArdourCanvas::Duple (_label_offset, 1 + floor (.5 * (marker_height - name_descent)) - padding));
 	}
 
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && _type == LoopStart) {
+		_loop_bracket = new ArdourCanvas::Rectangle (group);
+		_loop_bracket->lower_to_bottom ();
+		_loop_bracket->set_data ("marker", this);
+		_loop_bracket->set_data ("loop-bracket", this);
+		_loop_bracket->set_tooltip (_("Drag to move loop; drag either end to resize"));
+		if (handle_events) {
+			_loop_bracket->Event.connect (sigc::bind (sigc::mem_fun (editor, &PublicEditor::canvas_marker_event), _loop_bracket, this));
+		}
+	}
 	apply_color ();
 
 	set_name (annotation.c_str());
@@ -459,7 +471,8 @@ ArdourMarker::set_show_line (bool s)
 void
 ArdourMarker::setup_line ()
 {
-	if (_shown && (_selected || _line_shown)) {
+	const bool loop = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && (_type == LoopStart || _type == LoopEnd);
+	if (_shown && (_selected || _line_shown || loop)) {
 
 		ArdourCanvas::Item* line_parent;
 
@@ -546,6 +559,11 @@ ArdourMarker::label_on_left () const
 void
 ArdourMarker::setup_name_display ()
 {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && (_type == LoopStart || _type == LoopEnd)) {
+		_name_item->hide ();
+		if (_name_flag) _name_flag->hide ();
+		return;
+	}
 	double limit = DBL_MAX;
 
 	if (label_on_left ()) {
@@ -647,6 +665,17 @@ ArdourMarker::set_position (timepos_t const & pos)
 	group->set_x_position (unit_position);
 	setup_line ();
 	_position = pos;
+	set_loop_end (_loop_end);
+}
+
+void
+ArdourMarker::set_loop_end (timepos_t const& end)
+{
+	_loop_end = end;
+	if (_loop_bracket) {
+		double width = std::max (0., editor.sample_to_pixel (end.samples ()) - editor.sample_to_pixel (_position.samples ()));
+		_loop_bracket->set (ArdourCanvas::Rect (0, 0, width, marker_height - .5));
+	}
 }
 
 void
@@ -699,6 +728,10 @@ ArdourMarker::apply_color ()
 	uint32_t c = color (_entered ? "entered marker" : _color); 
 	uint32_t cs = color (_selected || _entered ? "entered marker" : _color); 
 
+	if (_loop_bracket) {
+		_loop_bracket->set_fill_color ((c & 0xffffff00) | 0x55);
+		_loop_bracket->set_outline_color (cs);
+	}
 	_pcue->set_fill_color (cs);
 	_pmark->set_fill_color (cs);
 	_pmark->set_outline_color (cs);

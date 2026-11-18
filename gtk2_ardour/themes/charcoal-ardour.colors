@@ -197,7 +197,7 @@
     <ColorAlias name="latency button: led active" alias="alert:ruddy"/>
     <ColorAlias name="location arrangement marker" alias="theme:contrasting alt"/>
     <ColorAlias name="location cd marker" alias="theme:contrasting less"/>
-    <ColorAlias name="location loop" alias="alert:blue"/>
+    <ColorAlias name="location loop" alias="theme:contrasting"/>
     <ColorAlias name="location marker" alias="theme:contrasting less"/>
     <ColorAlias name="location punch" alias="widget:ruddy"/>
     <ColorAlias name="location range" alias="theme:contrasting less"/>
@@ -404,12 +404,12 @@
     <ColorAlias name="selected time axis frame" alias="alert:ruddy"/>
     <ColorAlias name="selected waveform fill" alias="neutral:foregroundest"/>
     <ColorAlias name="selected waveform outline" alias="theme:bg2"/>
-    <ColorAlias name="selection" alias="alert:red"/>
+    <ColorAlias name="selection" alias="theme:contrasting"/>
     <ColorAlias name="selection clock: background" alias="theme:bg2"/>
     <ColorAlias name="selection clock: cursor" alias="alert:ruddy"/>
     <ColorAlias name="selection clock: edited text" alias="alert:ruddy"/>
     <ColorAlias name="selection clock: text" alias="theme:contrasting clock"/>
-    <ColorAlias name="selection rect" alias="theme:contrasting selection"/>
+    <ColorAlias name="selection rect" alias="theme:contrasting"/>
     <ColorAlias name="send alert button: fill" alias="theme:contrasting selection"/>
     <ColorAlias name="send alert button: fill active" alias="alert:cyan"/>
     <ColorAlias name="send alert button: led active" alias="alert:red"/>
@@ -534,7 +534,7 @@
     <Modifier name="region mark" modifier="= alpha:1.0"/>
     <Modifier name="scroomer alpha" modifier="= alpha:0.25"/>
     <Modifier name="selected midi note" modifier="= alpha:0.7529"/>
-    <Modifier name="selection rect" modifier="= alpha:0.15"/>
+    <Modifier name="selection rect" modifier="= alpha:0.35"/>
     <Modifier name="silence" modifier="= alpha:0.4784"/>
     <Modifier name="stereo panner inverted" modifier="= alpha:0.7882"/>
     <Modifier name="stereo panner inverted bg" modifier="= alpha:0.7529"/>

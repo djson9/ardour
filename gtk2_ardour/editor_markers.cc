@@ -193,6 +193,7 @@ Editor::add_new_location_internal (Location* location)
 					 location->name(), marker_type (location), location->start());
 		lam->end   = new ArdourMarker (*this, *group, color,
 					 location->name(), marker_type (location, false), location->end());
+		lam->start->set_loop_end (location->end ());
 
 	} else if (location->is_auto_punch()) {
 
@@ -785,6 +786,7 @@ Editor::LocationMarkers::set_position (timepos_t const & startt,
 	start->set_position (startt);
 	if (end && !endt.is_zero ()) {
 		end->set_position (endt);
+		start->set_loop_end (endt);
 	}
 }
 

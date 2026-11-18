@@ -136,6 +136,10 @@ remove_hidden_toolbar_shortcuts ()
 		std::string previous;
 		if (editor->is_bound (slash, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);
 		editor->replace (slash, Bindings::Press, "Editor/find-and-display-stripable", false);
+		Gtkmm2ext::KeyboardKey loop;
+		Gtkmm2ext::KeyboardKey::make_key ("Primary-l", loop);
+		if (editor->is_bound (loop, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);
+		editor->replace (loop, Bindings::Press, "Editor/loop-selection", false);
 	}
 
 	for (const char* group : {"Editor", "Global"}) {
