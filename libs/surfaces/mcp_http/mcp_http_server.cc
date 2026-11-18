@@ -8150,9 +8150,11 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
 			return track_tool_response;
 		}
 
-		/* Undo commands can change editor selection and destroy region views.
-		 * Execute their entire history transaction on the GUI event loop. */
-		if (tool_name == "session/undo" || tool_name == "session/redo") {
+		/* History edits change GUI objects. Saving may ask hosted plugins for
+		 * their UI-thread state: doing that under the save mutex on this server
+		 * thread deadlocks against a simultaneous GUI autosave/record-stop save.
+		 * Execute the entire transaction on the GUI event loop. */
+		if (tool_name == "session/undo" || tool_name == "session/redo" || tool_name == "session/save") {
 			if (!_event_loop) return jsonrpc_error (id, -32000, "UI event loop unavailable");
 			struct HistoryReply {
 				std::mutex mutex;
