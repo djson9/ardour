@@ -208,7 +208,7 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	}
 
 	const bool horizontal = ev->keyval == GDK_Left || ev->keyval == GDK_Right;
-	if (horizontal && focus && editor && !loading_session () && !editor->internal_editing () &&
+	if (horizontal && focus && editor && !editor->internal_editing () &&
 	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
 		const bool canvas = std::string (gtk_widget_get_name (focus)) == "EditorMainCanvas";
 		const bool forward = ev->keyval == GDK_Right;
