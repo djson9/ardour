@@ -197,6 +197,12 @@ RoutePropertiesBox::set_session (ARDOUR::Session* s) {
 	_insert_box = new ProcessorBox (_session, std::bind (&Mixer_UI::plugin_selector, Mixer_UI::instance()), Mixer_UI::instance()->selection(), 0);
 	_insert_box->show_all ();
 	_insert_box->ProcessorSelected.connect ([this] (std::shared_ptr<Processor> p) {
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+			if (_selected_processor.lock () == p) return;
+			_selected_processor = p;
+			idle_refill_processors ();
+			return;
+		}
 		for (auto ui : _rack_uis) if (ui->rack () == p) {
 			int x, y;
 			if (ui->translate_coordinates (_box, 0, 0, x, y)) _scroller.get_hadjustment ()->set_value (x);
@@ -230,6 +236,7 @@ RoutePropertiesBox::set_route (std::shared_ptr<Route> r, bool force_update)
 		return;
 	}
 
+	_selected_processor.reset ();
 	_route = r;
 	_route_connections.drop_connections ();
 
@@ -243,7 +250,8 @@ RoutePropertiesBox::set_route (std::shared_ptr<Route> r, bool force_update)
 	}
 
 	_insert_box->set_route (r);
-	refill_processors ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") idle_refill_processors ();
+	else refill_processors ();
 }
 
 void
@@ -267,6 +275,7 @@ void
 RoutePropertiesBox::update_processor_box_visibility ()
 {
 	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+	_empty_device_hint.set_text (_has_devices ? _("Select a plugin or rack to view its controls") : _("Double-click the empty processor list to add a device"));
 	_empty_device_hint.set_visible (live_layout && (_proc_uis.empty () && _rack_uis.empty ()));
 	_show_insert = !ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-mixer"))->get_active ();
 	/* In the compact layout the processor list is also the entry point for
@@ -296,6 +305,8 @@ void
 RoutePropertiesBox::drop_route ()
 {
 	drop_plugin_uis ();
+	_selected_processor.reset ();
+	_has_devices = false;
 	_route.reset ();
 	_route_connections.drop_connections ();
 	if (_idle_refill_processors_id >= 0) {
@@ -395,7 +406,17 @@ RoutePropertiesBox::refill_processors ()
 		return;
 	}
 
-	_route->foreach_processor (sigc::mem_fun (*this, &RoutePropertiesBox::add_processor_to_display));
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		auto selected = _selected_processor.lock ();
+		_has_devices = false;
+		_route->foreach_processor ([this, selected] (std::weak_ptr<Processor> weak) {
+			auto p = weak.lock ();
+			_has_devices |= bool (std::dynamic_pointer_cast<PlugInsertBase> (p) || std::dynamic_pointer_cast<AudioRack> (p));
+			if (p && p == selected) add_processor_to_display (p);
+		});
+	} else {
+		_route->foreach_processor (sigc::mem_fun (*this, &RoutePropertiesBox::add_processor_to_display));
+	}
 	if ((_proc_uis.empty () && _rack_uis.empty ())) {
 		_scroller.hide ();
 	} else {

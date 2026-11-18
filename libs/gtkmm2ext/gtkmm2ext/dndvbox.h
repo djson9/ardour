@@ -204,6 +204,15 @@ public:
 		SelectionChanged (); /* EMIT SIGNAL */
 	}
 
+	void select (T* child)
+	{
+		clear_selection ();
+		if (child) {
+			add_to_selection (child);
+		}
+		SelectionChanged (); /* EMIT SIGNAL */
+	}
+
 	/** @param y y coordinate.
 	 *  @return Pair consisting of the child under y (or 0) and the (fractional) index of the child under y (or -1)
 	 */

@@ -40,6 +40,7 @@
 #include "debug.h"
 #include "keyboard.h"
 #include "public_editor.h"
+#include "time_axis_view.h"
 #include "virtual_keyboard_window.h"
 
 #include "gtkmm2ext/debug.h"
@@ -132,6 +133,15 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	bool special_handling_of_unmodified_accelerators = false;
 	const guint mask = (Keyboard::RelevantModifierKeyMask & ~(Gdk::SHIFT_MASK|Gdk::LOCK_MASK));
 	bool cutcopypaste = false;
+
+	/* Header navigation/renaming takes precedence over editor accelerators.
+	 * Entry widgets and the rename dialog retain their own keyboard handling. */
+	if (focus) {
+		auto* header = static_cast<TimeAxisView*> (g_object_get_data (G_OBJECT (focus), "ardour-track-header"));
+		if (header && header->track_header_key_press (ev)) {
+			return true;
+		}
+	}
 
 	if (focus && std::string (gtk_widget_get_name (focus)) == "AutomationClipCanvas" && gtk_window_propagate_key_event (win, ev)) {
 		return true;
