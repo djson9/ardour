@@ -1008,7 +1008,12 @@ Editor::entered_track_canvas (GdkEventCrossing* ev)
 
 	if (!was_within) {
 
-		_track_canvas->grab_focus ();
+		/* Closing a browser dialog can uncover the canvas under the pointer.
+		 * Keep file navigation active until the user actually clicks elsewhere. */
+		Gtk::Window* window = dynamic_cast<Gtk::Window*> (_track_canvas->get_toplevel ());
+		if (!window || !window->get_focus () || window->get_focus ()->get_name () != "browser-files") {
+			_track_canvas->grab_focus ();
+		}
 
 		if (ev->detail == GDK_NOTIFY_NONLINEAR ||
 		    ev->detail == GDK_NOTIFY_NONLINEAR_VIRTUAL) {
