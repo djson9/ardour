@@ -552,6 +552,11 @@ elif a.case == 'midi-clip-focus':
     assert not selected()
     key('Up')
     expect_selection([midi['id']])
+    key('Tab')
+    key('Down')
+    expect_selection(following)
+    key('Up')
+    expect_selection([midi['id']])
     call('transport_locate_sample', sample=2 * bar)
     wait(lambda: call('transport_get_state')['sample'] == 2 * bar)
     key('Right')
@@ -562,9 +567,32 @@ elif a.case == 'midi-clip-focus':
     call('session_undo')
     call('session_undo')
     wait(lambda: not new_regions())
+    call('ui_activate_action', action='EditorEditing/snap-off')
+    select_bars(midi, .25, 1.25)
+    off_grid = instant().find('Selection/TimelineRange').attrib
+    call('ui_activate_action', action='EditorEditing/snap-normal')
+    key('Primary-Tertiary-m')
+    off_grid_clip, = wait(new_regions)
+    call('session_save')
+    session_xml = ET.parse(a.session_path / (a.session_path.name + '.ardour'))
+    saved = session_xml.find(".//Playlist/Region[@id='" + off_grid_clip['regionId'] + "']")
+    assert saved is not None
+    length, position = saved.get('length').split('@')
+    assert position == off_grid['start']
+    assert off_grid['start'][0] == off_grid['end'][0] == length[0] == 'b'
+    assert int(off_grid['end'][1:]) - int(off_grid['start'][1:]) == int(length[1:])
+    assert off_grid_clip['startSample'] % bar and off_grid_clip['endSample'] % bar
+    call('session_undo')
+    wait(lambda: not new_regions())
+    audio = next(r for r in routes() if r['type'] == 'audio_track' and not r['hidden'])
+    before_audio = call('track_get_regions', id=audio['id'])['regions']
+    select_bars(audio, 2, 4)
+    key('Primary-Tertiary-m')
+    assert call('track_get_regions', id=audio['id'])['regions'] == before_audio and not new_regions()
     checks += ['empty MIDI clip matches dragged range', 'repeat skips occupied range',
-               'undo and redo', 'adjacent MIDI insertion', 'vertical navigation resumes after Escape',
-               'horizontal arrows move the playhead and retain track focus']
+               'undo and redo', 'adjacent MIDI insertion', 'vertical navigation resumes after Escape and from the device list',
+               'horizontal arrows move the playhead and retain track focus',
+               'off-grid selection survives snap changes', 'audio range is skipped']
 
 elif a.case == 'loop':
     call('transport_stop')
