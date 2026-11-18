@@ -9,8 +9,11 @@
 #include <ytkmm/container.h>
 #include <ytkmm/label.h>
 #include <ytkmm/window.h>
+#include "widgets/ardour_knob.h"
 #include <ytkmm/checkmenuitem.h>
 #include <ytkmm/menu.h>
+#include <ytkmm/messagedialog.h>
+#include "gtkmm2ext/keyboard.h"
 #ifdef __APPLE__
 extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #endif
@@ -132,6 +135,54 @@ static std::vector<std::shared_ptr<Processor>> visible_order (std::shared_ptr<Ro
  route->foreach_processor ([&] (std::weak_ptr<Processor> w) { auto p = w.lock (); if (p && p->display_to_user ()) order.push_back (p); });
  return order;
 }
+static void check_plugin_knob_scroll (GenericPluginUI* ui) {
+ auto* knob = find<ArdourWidgets::ArdourKnob> (ui);
+ auto* scroller = find<Gtk::ScrolledWindow> (ui);
+ if (!knob || !scroller) throw std::runtime_error ("Missing compact plugin knob or scroller");
+ auto* adj = scroller->get_vadjustment ();
+ const bool overflows = adj->get_upper () - adj->get_page_size () > adj->get_lower ();
+
+ const double original_scroll = adj->get_value ();
+ const auto control = knob->get_controllable ();
+ const double original_value = control->get_value ();
+ adj->set_value (adj->get_lower ());
+ auto scroll = [&] (GdkScrollDirection direction, bool smooth) {
+  GdkEvent* event = gdk_event_new (GDK_SCROLL);
+  event->scroll.window = GDK_WINDOW (g_object_ref (knob->get_window ()->gobj ()));
+  event->scroll.send_event = true;
+  event->scroll.direction = direction;
+  event->scroll.has_deltas = smooth;
+  event->scroll.delta_y = direction == GDK_SCROLL_UP ? -5 : 5;
+  gtk_propagate_event (GTK_WIDGET (knob->gobj ()), event);
+  gdk_event_free (event);
+  if (control->get_value () != original_value) throw std::runtime_error ("Scrolling edited a compact plugin parameter");
+ };
+ scroll (GDK_SCROLL_UP, false); // At the top edge.
+ scroll (GDK_SCROLL_DOWN, false);
+ const double after_wheel = adj->get_value ();
+ if (overflows && after_wheel <= adj->get_lower ()) throw std::runtime_error ("Wheel did not scroll the plugin list");
+ scroll (GDK_SCROLL_UP, true);
+ if (overflows && adj->get_value () >= after_wheel) throw std::runtime_error ("Smooth scroll did not scroll the plugin list");
+ adj->set_value (original_scroll);
+
+ const double step = control->get_interface (true) < 0.5 ? -60 : 60;
+ double y = 8;
+ for (auto type : {GDK_BUTTON_PRESS, GDK_MOTION_NOTIFY, GDK_MOTION_NOTIFY, GDK_BUTTON_RELEASE}) {
+  GdkEvent* event = gdk_event_new (type);
+  event->any.window = GDK_WINDOW (g_object_ref (knob->get_window ()->gobj ()));
+  event->any.send_event = true;
+  if (type == GDK_MOTION_NOTIFY) {
+   y += step;
+   event->motion.state = GDK_BUTTON1_MASK; event->motion.x = 8; event->motion.y = y;
+  } else {
+   event->button.button = 1; event->button.x = 8; event->button.y = y;
+  }
+  gtk_widget_event (GTK_WIDGET (knob->gobj ()), event);
+  gdk_event_free (event);
+ }
+ if (control->get_value () == original_value) throw std::runtime_error ("Dragging did not edit the compact plugin parameter");
+ control->set_value (original_value, PBD::Controllable::NoGroup);
+}
 static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  auto* window = dynamic_cast<Gtk::Window*> (widget.get_toplevel ());
  GdkEvent* event = gdk_event_new (GDK_KEY_PRESS);
@@ -148,6 +199,90 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
 }
+static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<PluginInsert> eq, std::shared_ptr<PluginInsert> other)
+{
+ auto* list = dynamic_cast<Gtk::Box*> (named (&props, "PluginParameterList"));
+ auto* configure = dynamic_cast<Gtk::ToggleButton*> (named (&props, "PluginConfigure"));
+ auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
+ check (list && configure && !configure->get_active (), "Missing compact list/configure toggle");
+ auto rows = [&] () {
+  std::vector<Gtk::Widget*> visible;
+  for (auto row : list->get_children ()) if (row->get_visible ()) visible.push_back (row);
+  return visible;
+ };
+ auto selected = [&] () {
+  auto visible = rows ();
+  return std::count_if (visible.begin (), visible.end (), [] (Gtk::Widget* row) { return row->get_state () == Gtk::STATE_SELECTED; });
+ };
+ auto respond = [&] (int response) {
+  for (auto w : Gtk::Window::list_toplevels ()) if (auto dialog = dynamic_cast<Gtk::MessageDialog*> (w)) {
+   if (dialog->get_visible () && dialog->get_transient_for () == props.get_toplevel ()) {
+    dialog->response (response);
+    return;
+   }
+  }
+  throw std::runtime_error ("Expected a parameter removal dialog");
+ };
+ auto before = rows ();
+ check (before.size () >= 4, "Too few EQ parameters");
+ click (*before[1]);
+ check (list->is_focus () && selected () == 1 && before[1]->get_state () == Gtk::STATE_SELECTED, "Click did not select the parameter");
+ key (props, GDK_Down);
+ key (props, GDK_Down, GDK_SHIFT_MASK);
+ key (props, GDK_Up, GDK_SHIFT_MASK);
+ check (selected () == 1 && before[2]->get_state () == Gtk::STATE_SELECTED, "Shift range did not shrink to its anchor");
+ key (props, GDK_Up, GDK_SHIFT_MASK);
+ snapshot (find<GenericPluginUI> (&props), ".parameter-selection");
+ key (props, GDK_BackSpace);
+ respond (Gtk::RESPONSE_CANCEL);
+ check (rows () == before && selected () == 2, "Cancel changed the list/selection");
+ key (props, GDK_Delete);
+ respond (Gtk::RESPONSE_ACCEPT);
+ auto after = rows ();
+ check (after.size () == before.size () - 2 && after[0] == before[0] && after[1] == before[3], "Delete removed the wrong range");
+ click (*after.front (), 3);
+ auto grab = gtk_grab_get_current ();
+ check (grab && GTK_IS_MENU (grab), "Missing parameter context menu");
+ auto menu = Glib::wrap (GTK_MENU (grab));
+ check (label (menu, "Hide parameter"), "Missing Hide parameter item");
+ menu->items ().front ().activate ();
+ menu->popdown ();
+ check (rows ().size () == after.size () - 1, "Hide parameter did not remove the row");
+ click (*rows ().front ());
+ key (props, GDK_a, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (selected () == (int) rows ().size (), "Select All missed parameters");
+ key (props, GDK_BackSpace);
+ respond (Gtk::RESPONSE_ACCEPT);
+ check (rows ().empty () && eq->extra_xml ("CompactPluginParameters"), "Empty list was not persisted");
+
+ auto control = find<AutomationController> (before.back ())->controllable ();
+ auto param = control->parameter ();
+ auto value = control->get_value ();
+ eq->plugin ()->StartTouch (param.id ());
+ eq->plugin ()->EndTouch (param.id ());
+ check (rows ().empty (), "Configure off added a row");
+ configure->set_active (true);
+ other->plugin ()->StartTouch (0);
+ other->plugin ()->EndTouch (0);
+ eq->plugin ()->ParameterChangedExternally (param.id (), value);
+ check (rows ().empty (), "Another plugin populated this list");
+ control->start_touch (timepos_t (0));
+ control->stop_touch (timepos_t (0));
+ eq->plugin ()->StartTouch (param.id ());
+ eq->plugin ()->EndTouch (param.id ());
+ check (rows ().size () == 1 && rows ()[0] == before.back (), "Touch did not restore exactly one parameter");
+ auto gain = eq->automation_control (Evoral::Parameter (PluginAutomation, 0, 16));
+ check (gain && gain->desc ().label == "Master Gain", "Missing EQ parameter outside the default list");
+ eq->plugin ()->StartTouch (16);
+ eq->plugin ()->EndTouch (16);
+ check (rows ().size () == 2 && label (rows ().back (), "Master Gain"), "Could not learn a parameter beyond the initial limit");
+ configure->set_active (false);
+ std::unique_ptr<XMLNode> insert_state (&eq->get_state ());
+ auto extra = insert_state->child ("Extra");
+ auto state = extra ? extra->child ("CompactPluginParameters") : nullptr;
+ check (state && state->children ().size () == 2 && control->get_value () == value, "Wrong serialized parameter list or value");
+}
+
 static gboolean tick (gpointer) {
  const char* output = getenv ("ARDOUR_DEVICE_UI_PROBE"); if (!output) return FALSE;
  static int stage = 0;
@@ -357,6 +492,7 @@ static gboolean tick (gpointer) {
   auto* view = PublicEditor::instance ().time_axis_view_from_stripable (route);
   if (stage == 1) {
    if (!single ("Detail EQ")) return TRUE;
+   check_plugin_knob_scroll (find<GenericPluginUI> (props));
    if (visible_order (route) != std::vector<std::shared_ptr<Processor>> {eq, delay, rack, route->amp ()}) return finish ("Reorder moved the pinned fader");
    click (entry (list, eq)->action_widget (), 3);
    auto* menu = dynamic_cast<Gtk::Menu*> (ActionManager::get_widget ("/ProcessorMenu"));
@@ -444,6 +580,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 2) {
    if (!single ("Detail EQ") || label (props, "Detail Delay") || label (props, "Detail Rack")) return TRUE;
+   verify_parameter_list (*props, eq, delay);
    list->select (entry (list, delay)); stage = 3; return TRUE;
   }
   if (stage == 3) {
@@ -470,6 +607,8 @@ static gboolean tick (gpointer) {
   }
   if (stage == 8) {
    if (!single ("Detail EQ") || count<AudioRackUI> (props)) return TRUE;
+   auto* restored = dynamic_cast<Gtk::Box*> (named (props, "PluginParameterList"));
+   if (!restored || restored->get_children ().size () != 2 || !label (restored, "Master Gain")) return finish ("Configured list was lost on device switch");
    session->selection ().select_stripable_and_maybe_group (session->master_out (), SelectionSet, false); stage = 9; return TRUE;
   }
   if (stage == 9) {

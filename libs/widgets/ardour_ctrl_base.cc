@@ -94,7 +94,9 @@ ArdourCtrlBase::on_size_request (Gtk::Requisition* req)
 bool
 ArdourCtrlBase::on_scroll_event (GdkEventScroll* ev)
 {
-	/* mouse wheel */
+	if (_flags & NoScroll) {
+		return false;
+	}
 
 	float scale = 0.05;  //by default, we step in 1/20ths of the knob travel
 	if (ev->state & Keyboard::GainFineScaleModifier) {
