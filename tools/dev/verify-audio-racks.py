@@ -7,7 +7,7 @@ The script prepares the job; launch it explicitly with launchctl bootstrap.
 import argparse, ast, os, pathlib, plistlib, shlex, subprocess, xml.etree.ElementTree as ET
 root=pathlib.Path(__file__).resolve().parents[2]
 out=root/'artifacts/audio-racks'
-p=argparse.ArgumentParser();p.add_argument('--prepare-gui',action='store_true');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--prepare-gui',action='store_true');p.add_argument('--embedded',action='store_true');args=p.parse_args()
 out.mkdir(parents=True,exist_ok=True)
 home=out/('private-home' if args.prepare_gui else 'engine-home');prefs=home/'Library/Preferences/Ardour9';prefs.mkdir(parents=True,exist_ok=True)
 interpose=out/'private-home.dylib'
@@ -33,7 +33,8 @@ extra=session.find('Extra')
 if extra is None:extra=ET.SubElement(session,'Extra')
 ui=extra.find('UI')
 if ui is None:ui=ET.SubElement(extra,'UI')
-ET.SubElement(ui,'Window',{'name':f"P-{route.get('id')}-{rack.get('id')}",'visible':'1','custom-ui':'1','x-size':'1050','y-size':'560'})
+ET.SubElement(ui,'Window',{'name':f"P-{route.get('id')}-{rack.get('id')}",'visible':'0' if args.embedded else '1','custom-ui':'1','x-size':'1080','y-size':'280'})
+editor=ET.SubElement(ui,'Editor');editor.set('show-editor-props','1')
 tree.write(fixture/'Rack Verification.ardour',encoding='UTF-8',xml_declaration=True)
 config=ET.Element('Ardour');options=ET.SubElement(config,'Config')
 for name,value in {'check-announcements':'0','show-splash':'0','discover-plugins-on-start':'0','default-session-parent-dir':str(out),'anticipative-processing':'0'}.items(): ET.SubElement(options,'Option',name=name,value=value)
@@ -55,4 +56,5 @@ subprocess.run(['/usr/bin/clang','-dynamiclib','-undefined','dynamic_lookup','-W
 exe=root/'build/gtk2_ardour'/('ardour-'+cache['VERSION'])
 command=common+'export DYLD_INSERT_LIBRARIES='+shlex.quote(str(interpose)+':'+str(probe))+'\nexec '+shlex.join([str(exe),'-a','-n',str(fixture)])
 job=dict(Label='dev.ardour.audio-racks-verification',ProgramArguments=['/bin/bash','-c',command],RunAtLoad=True,EnvironmentVariables={'ARDOUR_PROBE_HOME':str(home),'ARDOUR_RACK_UI_PROBE':str(out),'ARDOUR_LIVE_LAYOUT':'1'},StandardOutPath=str(out/'gui.log'),StandardErrorPath=str(out/'gui.log'))
+if args.embedded:job['EnvironmentVariables']['ARDOUR_RACK_UI_EMBEDDED']='1'
 (out/'gui.plist').write_bytes(plistlib.dumps(job));print(out/'gui.plist')

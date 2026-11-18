@@ -36,6 +36,7 @@
 #include "widgets/tooltips.h"
 
 #include "ardour_ui.h"
+#include "audio_rack_ui.h"
 #include "mixer_ui.h"
 #include "plugin_selector.h"
 #include "plugin_ui.h"
@@ -195,6 +196,12 @@ RoutePropertiesBox::set_session (ARDOUR::Session* s) {
 	delete _insert_box;
 	_insert_box = new ProcessorBox (_session, std::bind (&Mixer_UI::plugin_selector, Mixer_UI::instance()), Mixer_UI::instance()->selection(), 0);
 	_insert_box->show_all ();
+	_insert_box->ProcessorSelected.connect ([this] (std::shared_ptr<Processor> p) {
+		for (auto ui : _rack_uis) if (ui->rack () == p) {
+			int x, y;
+			if (ui->translate_coordinates (_box, 0, 0, x, y)) _scroller.get_hadjustment ()->set_value (x);
+		}
+	});
 
 	float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
 	_insert_frame.remove ();
@@ -260,20 +267,20 @@ void
 RoutePropertiesBox::update_processor_box_visibility ()
 {
 	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
-	_empty_device_hint.set_visible (live_layout && _proc_uis.empty ());
+	_empty_device_hint.set_visible (live_layout && (_proc_uis.empty () && _rack_uis.empty ()));
 	_show_insert = !ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-mixer"))->get_active ();
 	/* In the compact layout the processor list is also the entry point for
 	 * adding the first device to an empty track. */
-	if (!_show_insert || (_proc_uis.empty () && Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1")) {
+	if (!_show_insert || ((_proc_uis.empty () && _rack_uis.empty ()) && Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1")) {
 		_insert_frame.hide ();
 	} else {
 		_insert_frame.show ();
 	}
 
 #ifndef MIXBUS
-	if (_show_insert || !_proc_uis.empty ()) {
+	if (_show_insert || !(_proc_uis.empty () && _rack_uis.empty ())) {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
-		set_size_request (-1, (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? 180 : 365) * ui_scale);
+		set_size_request (-1, (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? (_rack_uis.empty () ? 180 : 270) : 365) * ui_scale);
 	} else {
 		set_size_request (-1, -1);
 	}
@@ -314,6 +321,8 @@ RoutePropertiesBox::drop_plugin_uis ()
 
 	_processor_connections.drop_connections ();
 	_proc_uis.clear ();
+	for (auto ui : _rack_uis) delete ui;
+	_rack_uis.clear ();
 	_insert_frame.hide ();
 }
 
@@ -321,10 +330,10 @@ void
 RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 {
 	std::shared_ptr<Processor> p = w.lock ();
-	if (std::dynamic_pointer_cast<AudioRack> (p)) {
-		auto open = manage (new Gtk::Button (p->name () + _(" — Macros and chains…")));
-		open->signal_clicked ().connect ([this, p] () { _insert_box->edit_processor (p); });
-		_box.pack_start (*open, false, false); open->show (); return;
+	if (auto rack = std::dynamic_pointer_cast<AudioRack> (p)) {
+		auto ui = new AudioRackUI (rack); _rack_uis.push_back (ui);
+		auto frame = new Gtk::Frame (rack->name ()); frame->add (*ui);
+		_box.pack_start (*frame, false, false); frame->show_all (); return;
 	}
 	std::shared_ptr<PlugInsertBase> pib = std::dynamic_pointer_cast<PlugInsertBase> (p);
 	if (!pib) {
@@ -387,11 +396,11 @@ RoutePropertiesBox::refill_processors ()
 	}
 
 	_route->foreach_processor (sigc::mem_fun (*this, &RoutePropertiesBox::add_processor_to_display));
-	if (_proc_uis.empty ()) {
+	if ((_proc_uis.empty () && _rack_uis.empty ())) {
 		_scroller.hide ();
 	} else {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
-		int h = 100 * ui_scale;
+		int h = (_rack_uis.empty () ? 100 : 250) * ui_scale;
 		for (auto const& ui : _proc_uis) {
 			h = std::max<int> (h, ui->get_preferred_height () + /* frame label */ 34 * ui_scale);
 		}

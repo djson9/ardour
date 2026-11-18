@@ -4132,7 +4132,7 @@ ProcessorBox::get_editor_window (std::shared_ptr<Processor> processor, bool use_
 
 	} else if (auto rack = std::dynamic_pointer_cast<AudioRack> (processor)) {
 		gidget = get_processor_ui (processor);
-		if (!gidget) { gidget = new AudioRackUI (rack); set_processor_ui (processor, gidget); }
+		if (!gidget) { gidget = new AudioRackWindow (rack); set_processor_ui (processor, gidget); }
 	} else if ((plugin_insert = std::dynamic_pointer_cast<PluginInsert> (processor)) != 0) {
 
 		PluginUIWindow *plugin_ui;
