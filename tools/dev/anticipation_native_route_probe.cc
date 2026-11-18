@@ -108,7 +108,8 @@ int main(int argc,char** argv){try{
   auto& plan=s->anticipative_process();
   if(getenv("ARDOUR_PROBE_AUTOMATIC")){
    for(auto route:std::vector<std::shared_ptr<Route>>{ra,rb,sink,rsink})route->set_anticipative_processing_disabled(true);
-   s->set_anticipative_processing(true,200);s->request_roll();engine->set_session(s);
+   // Exercise the default configuration through ordinary playback startup.
+   s->request_roll();engine->set_session(s);
    until=Clock::now()+std::chrono::seconds(10);bool ready=false;
    while(!ready&&Clock::now()<until){{PBD::Mutex::Lock lock(engine->process_lock());ready=plan.running()&&plan.find_node(a.get())&&plan.find_node(b.get())&&tap->frames>0;}std::this_thread::sleep_for(std::chrono::milliseconds(1));}
    need(ready,"automatic native plan");
