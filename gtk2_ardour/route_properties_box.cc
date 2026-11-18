@@ -249,6 +249,14 @@ RoutePropertiesBox::set_session (ARDOUR::Session* s) {
 			if (ui->translate_coordinates (_box, 0, 0, x, y)) _scroller.get_hadjustment ()->set_value (x);
 		}
 	});
+	_insert_box->RackFocusRequested.connect ([this] (std::shared_ptr<Processor> p) {
+		if (_idle_refill_processors_id < 0) {
+			for (auto ui : _rack_uis) if (ui->rack () == p && ui->focus_chains ()) return;
+		}
+		// Selection may have queued the panel's first build in this event loop.
+		_focus_rack = p;
+		idle_refill_processors ();
+	});
 
 	float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
 	_insert_frame.remove ();
@@ -278,6 +286,7 @@ RoutePropertiesBox::set_route (std::shared_ptr<Route> r, bool force_update)
 	}
 
 	_selected_processor.reset ();
+	_focus_rack.reset ();
 	_route = r;
 	_route_connections.drop_connections ();
 
@@ -420,6 +429,7 @@ RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 	}
 	if (auto rack = std::dynamic_pointer_cast<AudioRack> (p)) {
 		auto ui = new AudioRackUI (rack); _rack_uis.push_back (ui);
+		ui->ParentFocusRequested.connect ([this] () { return _insert_box && _insert_box->focus_processors (); });
 		auto frame = new Gtk::Frame (rack->name ()); frame->add (*ui);
 		_box.pack_start (*frame, false, false); frame->show_all (); return;
 	}
@@ -509,4 +519,8 @@ RoutePropertiesBox::refill_processors ()
 	}
 	update_processor_box_visibility ();
 	_idle_refill_processors_id = -1;
+	if (auto rack = _focus_rack.lock ()) {
+		_focus_rack.reset ();
+		if (rack == _selected_processor.lock ()) for (auto ui : _rack_uis) if (ui->rack () == rack) ui->focus_chains ();
+	}
 }

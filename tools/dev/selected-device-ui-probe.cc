@@ -198,6 +198,58 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
 }
+static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<AudioRack> rack, List& devices)
+{
+ auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
+ auto* ui = find<AudioRackUI> (&props);
+ auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+ auto* plugins = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackPluginList"));
+ check (chains && plugins && chains->is_focus (), "Enter on the rack did not focus chains after a queued panel build");
+ auto index = [] (Gtk::TreeView* list) {
+  auto row = list->get_selection ()->get_selected ();
+  return row ? list->get_model ()->get_path (row)[0] : -1;
+ };
+ auto selected_rack = [&] () { return devices.selection ().size () == 1 && devices.selection ().front ()->processor () == rack; };
+ check (index (chains) == 0, "Wrong initial chain");
+ key (props, GDK_Up);
+ check (index (chains) == 0, "Chain navigation wrapped at the start");
+ key (props, GDK_Down);
+ check (chains->is_focus () && index (chains) == 1 && selected_rack (), "Down left the chain list");
+ key (props, GDK_Right); key (props, GDK_Left);
+ check (index (chains) == 1, "Horizontal arrows did not navigate chains");
+ key (props, GDK_KP_Enter);
+ check (plugins->is_focus () && index (plugins) == 0, "Enter on chain did not focus its first plugin");
+ key (props, GDK_Down);
+ check (plugins->is_focus () && index (plugins) == 1 && selected_rack (), "Down left the plugin list");
+ key (props, GDK_Down);
+ check (index (plugins) == 1, "Plugin navigation wrapped at the end");
+ key (props, GDK_KP_Up);
+ check (index (plugins) == 0, "Keypad Up did not select the previous plugin");
+ key (props, GDK_Up);
+ check (index (plugins) == 0, "Plugin navigation wrapped at the start");
+ key (props, GDK_Down);
+ key (props, GDK_Escape);
+ check (chains->is_focus () && index (chains) == 1, "Escape from plugins did not preserve the chain");
+ key (props, GDK_Return);
+ check (plugins->is_focus () && index (plugins) == 1, "Reentering the chain lost the selected plugin");
+ key (props, GDK_Escape);
+ key (props, GDK_Down); key (props, GDK_Return);
+ check (plugins->is_focus () && plugins->get_model ()->children ().empty (), "Cannot enter an empty chain");
+ key (props, GDK_Down);
+ check (plugins->is_focus () && selected_rack (), "Empty chain arrow changed track/device selection");
+ key (props, GDK_Escape);
+ check (chains->is_focus () && index (chains) == 2, "Cannot escape an empty chain");
+ key (props, GDK_Up); key (props, GDK_Return); key (props, GDK_Escape); key (props, GDK_Escape);
+ check (devices.is_focus () && selected_rack (), "Escape from chains did not return to the rack row");
+ key (props, GDK_Escape);
+ auto route = dynamic_cast<Route*> (rack->owner ());
+ auto* view = route ? PublicEditor::instance ().time_axis_view_from_stripable (route->shared_from_this ()) : nullptr;
+ check (view && view->track_header_has_focus (), "Escape from devices did not return to the track");
+ key (props, GDK_Tab); key (props, GDK_KP_Enter);
+ check (chains->is_focus () && index (chains) == 1, "Reentering rack lost the selected chain");
+ key (props, GDK_Return); key (props, GDK_Escape); key (props, GDK_Escape);
+ check (devices.is_focus () && selected_rack (), "Repeated Enter/Escape lost rack selection");
+}
 static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<PluginInsert> eq, std::shared_ptr<PluginInsert> other)
 {
  auto* list = dynamic_cast<Gtk::Box*> (named (&props, "PluginParameterList"));
@@ -295,7 +347,17 @@ static gboolean tick (gpointer) {
  static std::shared_ptr<AudioTrack> automation_track;
  static std::shared_ptr<Region> automation_region;
  static double active_title_brightness = 0;
- if (!started && !g_file_test ((std::string (output) + ".trigger").c_str (), G_FILE_TEST_EXISTS)) return TRUE;
+ if (!started && !g_file_test ((std::string (output) + ".trigger").c_str (), G_FILE_TEST_EXISTS)) {
+  if (getenv ("ARDOUR_DEVICE_UI_PROBE_RACK_KEYS")) {
+   for (auto* window : Gtk::Window::list_toplevels ()) if (window->get_visible ()) {
+    if (auto* dialog = dynamic_cast<Gtk::Dialog*> (window)) {
+     if (window->get_title () == "Pre-Release Warning") { dialog->response (Gtk::RESPONSE_OK); return TRUE; }
+     if (window->get_title () == "Discover VST/AU Plugins?") { dialog->response (Gtk::RESPONSE_NO); return TRUE; }
+    }
+   }
+  }
+  return TRUE;
+ }
  if (!started) started = g_get_monotonic_time ();
  auto finish = [&] (const char* error) {
   std::ofstream (output) << "{\"passed\":" << (error ? "false" : "true") << ",\"stage\":" << stage
@@ -445,10 +507,12 @@ static gboolean tick (gpointer) {
    }
   }
   if (stage == 0) {
+   g_printerr ("Device UI probe: preparing device/rack fixture\n");
    for (auto const& r : *session->get_routes ()) if (r->name () == "Audio") route = r;
    if (!route) return finish ("Fixture needs an Audio track");
    if (!route->fader_last ()) return finish ("Existing session did not default to fader last");
    if (!session->master_out ()->set_fader_last (false)) return finish ("Per-route option fixture");
+   g_printerr ("Device UI probe: creating rack effects\n");
    auto plugin = [&] (std::string const& name, std::string const& instance) {
     for (auto const& info : PluginManager::instance ().lv2_plugin_info ()) if (info->name == name) {
      auto p = std::make_shared<PluginInsert> (*session, *route, info->load (*session)); p->set_name (instance); return p;
@@ -457,6 +521,9 @@ static gboolean tick (gpointer) {
    };
    eq = plugin ("ACE EQ", "Detail EQ"); delay = plugin ("ACE Delay", "Detail Delay");
    rack = std::make_shared<AudioRack> (*session, *route); rack->set_name ("Detail Rack");
+   if (!rack->add_chain ("Effects") || !rack->add_chain ("Empty") ||
+       !rack->add_plugin (1, plugin ("ACE EQ", "Chain EQ")) || !rack->add_plugin (1, plugin ("ACE Delay", "Chain Delay"))) return finish ("Rack navigation fixture");
+   g_printerr ("Device UI probe: inserting rack devices\n");
    if (route->add_processor (eq, PreFader) || !route->set_fader_last (false) || route->add_processor (delay, PostFader)) return finish ("Fixture insertion");
    auto order = visible_order (route);
    if (std::find (order.begin (), order.end (), route->amp ()) > std::find (order.begin (), order.end (), delay)) return finish ("Disabled option did not allow a post-fader plugin");
@@ -490,6 +557,7 @@ static gboolean tick (gpointer) {
   auto selected = [&] (std::shared_ptr<Processor> p) { return list->selection ().size () == 1 && list->selection ().front ()->processor () == p; };
   auto* view = PublicEditor::instance ().time_axis_view_from_stripable (route);
   if (stage == 1) {
+   if (!selected (eq)) { list->select (entry (list, eq)); return TRUE; }
    if (!single ("Detail EQ")) return TRUE;
    check_plugin_knob_scroll (find<GenericPluginUI> (props));
    if (visible_order (route) != std::vector<std::shared_ptr<Processor>> {eq, delay, rack, route->amp ()}) return finish ("Reorder moved the pinned fader");
@@ -518,11 +586,12 @@ static gboolean tick (gpointer) {
   if (stage == 12) {
    if (!list->is_focus () || !selected (delay)) return finish ("Down did not select Delay");
    if (!single ("Detail Delay")) return TRUE;
-   key (*props, GDK_Right); stage = 13; return TRUE;
+   key (*props, GDK_Right); key (*props, GDK_Return); stage = 13; return TRUE;
   }
   if (stage == 13) {
    if (!selected (rack)) return finish ("Right did not select the rack");
    if (count<AudioRackUI> (props) != 1 || count<GenericPluginUI> (props)) return TRUE;
+   verify_rack_navigation (*props, rack, *list);
    auto* text = find<Gtk::Entry> (find<AudioRackUI> (props));
    if (!text) return finish ("Missing rack name entry");
    text->grab_focus (); text->select_region (2, 2); text->set_position (2); key (*props, GDK_Left);
@@ -530,6 +599,7 @@ static gboolean tick (gpointer) {
    key (*props, GDK_Tab);
    if (view->track_header_has_focus () || list->is_focus () || !selected (rack)) return finish ("Entry Tab was intercepted");
    if (!props->focus_processors ()) return finish ("Could not refocus the device list after entry Tab");
+   if (getenv ("ARDOUR_DEVICE_UI_PROBE_RACK_KEYS")) return finish (nullptr);
    key (*props, GDK_Right); stage = 25; return TRUE;
   }
   if (stage == 25) {

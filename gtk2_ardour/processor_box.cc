@@ -2655,6 +2655,15 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 		return TrackFocusRequested ();
 	}
 	if (!Keyboard::modifier_state_equals (event->state, 0)) return false;
+	if (event->keyval == GDK_Escape) return TrackFocusRequested ();
+	if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter) {
+		auto selection = processor_display.selection ();
+		if (!selection.empty () && std::dynamic_pointer_cast<AudioRack> (selection.back ()->processor ()) && !RackFocusRequested.empty ()) {
+			RackFocusRequested (selection.back ()->processor ());
+			return true;
+		}
+		return false;
+	}
 	bool previous;
 	switch (event->keyval) {
 	case GDK_Up: case GDK_KP_Up: case GDK_Left: case GDK_KP_Left:

@@ -76,6 +76,7 @@ private:
 
 	std::shared_ptr<ARDOUR::Route> _route;
 	std::weak_ptr<ARDOUR::Processor> _selected_processor;
+	std::weak_ptr<ARDOUR::Processor> _focus_rack;
 	bool _has_devices = false;
 	std::vector <GenericPluginUI*> _proc_uis;
 	std::vector<AudioRackUI*> _rack_uis;
