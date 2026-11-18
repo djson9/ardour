@@ -41,7 +41,11 @@ AnticipativeProcess::Timeline::Timeline (Session& session, samplepos_t start, bo
 	_boundaries.push_back (_preroll);
 	std::sort (_boundaries.begin (), _boundaries.end ());
 	if (session.get_play_loop ()) {
-		if (auto loop = session.locations ()->auto_loop_location ()) { _loop_start = loop->start_sample (); _loop_end = loop->end_sample (); }
+		if (auto loop = session.locations ()->auto_loop_location ()) {
+			// A locate beyond the loop end plays outside the bracket. The host
+			// won't encounter its wrap event, so lookahead must stay linear too.
+			if (start <= loop->end_sample ()) { _loop_start = loop->start_sample (); _loop_end = loop->end_sample (); }
+		}
 	}
 }
 

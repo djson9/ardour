@@ -1562,8 +1562,7 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 	    clicked_axisview == pinned_master_view () && !_drags->active ()) {
 		if (!_session->config.get_external_sync ()) {
 			if (snap_mode () != SnapOff) where = snap_to_grid (where, Temporal::RoundNearest, SnapToGrid_Scaled);
-			// Keep the user's running-playback intent across queued transport work.
-			_session->request_locate (where.samples (), false, _session->transport_rolling () ? MustRoll : RollIfAppropriate);
+			_session->request_locate (where.samples ());
 		}
 		return true;
 	}
@@ -1834,8 +1833,7 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 			if (snap_mode () != SnapOff) {
 				where = snap_to_grid (where, Temporal::RoundNearest, SnapToGrid_Scaled);
 			}
-			// Keep the user's running-playback intent across queued transport work.
-			_session->request_locate (where.samples (), false, _session->transport_rolling () ? MustRoll : RollIfAppropriate);
+			_session->request_locate (where.samples ());
 		}
 
 		/* do any (de)selection operations that should occur on button release */
