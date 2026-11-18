@@ -1102,6 +1102,7 @@ Editor::presentation_info_changed (PropertyChange const & what_changed)
 		return;
 	}
 
+	if (what_changed.contains (Properties::color)) queue_redisplay_track_views ();
 	uint32_t n_tracks = 0;
 	uint32_t n_busses = 0;
 	uint32_t n_vcas = 0;

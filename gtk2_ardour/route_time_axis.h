@@ -35,6 +35,7 @@
 #include <ytkmm/radiomenuitem.h>
 #include <ytkmm/checkmenuitem.h>
 #include <ytkmm/adjustment.h>
+#include <ytkmm/drawingarea.h>
 
 #include "widgets/ardour_button.h"
 
@@ -280,7 +281,10 @@ protected:
 
 	GainMeterBase gm;
 	Gtk::EventBox live_name_box;
+	Gtk::HBox live_name_column;
+	Gtk::DrawingArea group_rail;
 	Gtk::HBox live_name_content;
+	bool draw_group_rail (GdkEventExpose*);
 	ArdourWidgets::ArdourButton group_fold_button;
 	Gtk::VBox live_io_box;
 	Gtk::HBox live_monitor_box;

@@ -156,6 +156,13 @@ RouteTimeAxisView::setup_live_header ()
 	/* Repack native controls: their routing dialogs, automation, grouping,
 	 * record safety and metering continue using Ardour's existing paths. */
 	controls_table.remove (name_label);
+	live_name_column.set_size_request (160 * UIConfiguration::instance().get_ui_scale (), -1);
+	live_name_column.pack_start (group_rail, false, false);
+	live_name_column.pack_start (live_name_box, true, true);
+	group_rail.set_no_show_all (true);
+	group_rail.set_data ("compact-track-control", const_cast<char*> ("group-rail"));
+	live_name_box.set_data ("compact-track-control", const_cast<char*> ("group-name"));
+	group_rail.signal_expose_event ().connect (sigc::mem_fun (*this, &RouteTimeAxisView::draw_group_rail));
 	live_name_box.add (live_name_content);
 	live_name_content.pack_start (group_fold_button, false, false);
 	live_name_content.pack_start (name_label, true, true);
@@ -167,9 +174,11 @@ RouteTimeAxisView::setup_live_header ()
 	live_name_content.show ();
 	name_label.set_alignment (0., 0.);
 	name_label.set_padding (5, 5);
-	name_label.set_size_request (118 * UIConfiguration::instance().get_ui_scale (), -1);
-	top_hbox.pack_start (live_name_box, false, false, 0);
-	top_hbox.reorder_child (live_name_box, 0);
+	name_label.set_size_request (0, -1);
+	name_label.set_ellipsize (Pango::ELLIPSIZE_END);
+	top_hbox.pack_start (live_name_column, false, false, 0);
+	top_hbox.reorder_child (live_name_column, 0);
+	live_name_column.show ();
 	live_name_box.show ();
 
 	live_io_box.set_spacing (2);
@@ -226,7 +235,10 @@ void
 RouteTimeAxisView::update_group_header ()
 {
 	if (!live_header || !_session) return;
-	name_label.set_padding (5 + 12 * std::min<size_t> (8, ARDOUR::GroupTracks::ancestors (*_session, _route).size ()), 5);
+	const auto depth = std::min<size_t> (8, ARDOUR::GroupTracks::ancestors (*_session, _route).size ());
+	name_label.set_padding (5, 5);
+	group_rail.set_size_request (12 * depth * UIConfiguration::instance().get_ui_scale (), -1);
+	if (depth) { group_rail.show (); group_rail.queue_draw (); } else group_rail.hide ();
 	if (ARDOUR::GroupTracks::is_group (_route)) {
 		const bool folded = ARDOUR::GroupTracks::collapsed (_route);
 		group_fold_button.set_text (folded ? "\u25b6" : "\u25bc");
@@ -235,6 +247,25 @@ RouteTimeAxisView::update_group_header ()
 	} else {
 		group_fold_button.hide ();
 	}
+}
+
+bool
+RouteTimeAxisView::draw_group_rail (GdkEventExpose*)
+{
+	if (!_session || !group_rail.get_window ()) return true;
+	auto chain = GroupTracks::ancestors (*_session, _route);
+	chain.reverse ();
+	auto cr = group_rail.get_window ()->create_cairo_context ();
+	const double step = 12 * UIConfiguration::instance().get_ui_scale ();
+	double x = 0;
+	for (auto const& parent : chain) {
+		const auto color = parent->presentation_info ().color ();
+		cr->set_source_rgb (((color >> 24) & 255) / 255., ((color >> 16) & 255) / 255., ((color >> 8) & 255) / 255.);
+		cr->rectangle (x, 0, step, group_rail.get_allocation ().get_height ());
+		cr->fill ();
+		x += step;
+	}
+	return true;
 }
 
 void

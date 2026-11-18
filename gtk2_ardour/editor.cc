@@ -4829,6 +4829,11 @@ Editor::add_vcas (VCAList& vlist)
 void
 Editor::add_routes (RouteList& rlist)
 {
+	// Native track creation can insert a new root between existing children.
+	// Keep group blocks contiguous without implicitly changing membership.
+	for (auto const& route : *_session->get_routes ()) {
+		if (GroupTracks::is_group (route)) { GroupTracks::normalize_order (*_session); break; }
+	}
 	StripableList sl;
 
 	for (RouteList::iterator r = rlist.begin(); r != rlist.end(); ++r) {

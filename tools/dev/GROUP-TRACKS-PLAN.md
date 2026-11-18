@@ -7,7 +7,9 @@ plugin hosting, latency compensation and anticipation scheduler unchanged.
 ## User behavior
 
 - Select sibling tracks/buses and press Cmd+G. Create a named group bus above
-  them, route their audio through it, and indent the children.
+  them, route their audio through it, and indent the children. Continue the
+  parent color down the left edge of each child as an overhang; nested groups
+  have separate inset rails, with routing/mixer columns kept aligned.
 - A disclosure button folds the children without muting them or changing their
   individual visibility settings. Groups can contain other groups.
 - The group has normal bus gain, mute, solo, metering and plugin controls.

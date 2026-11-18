@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
 if a.case == 'native-scroll':
@@ -68,6 +68,19 @@ def create(shortcut, name, kind):
     call('track_rename', id=new[0]['id'], newName=name)
     return new[0]['id']
 
+def choose(dialog, label):
+    # Dialog focus can start on either button depending on native activation.
+    # Observe the actual label instead of assuming one Tab means confirmation.
+    title = dialog['title']
+    for _ in range(4):
+        current = next(w for w in windows() if w['title'] == title)
+        if current.get('focusText') == label:
+            key('Return', title)
+            return
+        key('Tab', title)
+        time.sleep(.02)
+    raise AssertionError('Could not focus dialog button: ' + label)
+
 def remove_fixture(names, ids):
     header(names[0])
     for name in names[1:]: header(name, primary=True)
@@ -75,7 +88,7 @@ def remove_fixture(names, ids):
     key('BackSpace')
     dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
     assert {r['id'] for r in routes()}.issuperset(ids)
-    key('Tab', dialog['title']); key('Return', dialog['title'])
+    choose(dialog, 'Yes, remove them.' if len(ids) > 1 else 'Yes, remove it.')
     wait(lambda: not ({r['id'] for r in routes()} & set(ids)))
 
 assert 'verification' in a.session_path.name.lower(), 'Use a disposable verification session'
@@ -90,7 +103,80 @@ subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (fi
 header(next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track')))
 checks = []
 
-if a.case == 'master-clock':
+if a.case == 'groups':
+    names = ['UI Group Child A', 'UI Group Child B', 'UI Group Child C']
+    assert not any(r['name'].startswith('UI Group') for r in routes()), 'Remove old group fixtures before rerunning'
+    ids = [create('Primary-t', name, 'audio_track') for name in names]
+    def group(name):
+        before = {r['id'] for r in routes()}
+        key('Primary-g')
+        created = wait(lambda: [r for r in routes() if r['id'] not in before])
+        assert len(created) == 1 and created[0]['type'] == 'bus', created
+        call('track_rename', id=created[0]['id'], newName=name)
+        header(name)
+        return created[0]['id']
+    def saved_routes():
+        call('session_save')
+        return {r.get('id'): r for r in ET.parse(a.session_path / (a.session_path.name + '.ardour')).findall('Routes/Route')}
+    def parent(route): return saved_routes()[route].find('Extra/GroupTrack').get('parent')
+    def visible(name):
+        try: return pointer('TrackHeader:' + name, 'move', 30, 14).get('delivered')
+        except AssertionError: return False
+    def fold(name):
+        for event in ['press', 'release']: pointer('TrackControl:' + name + '|group-fold', event, 8, 8)
+    def ungroup(name, group_id):
+        header(name); key('Primary-Tertiary-g')
+        dialog = wait(lambda: next((w for w in windows() if w['title'] == 'Ungroup tracks'), None))
+        assert group_id in {r['id'] for r in routes()}
+        choose(dialog, 'Ungroup')
+        wait(lambda: group_id not in {r['id'] for r in routes()})
+    header(names[0]); header(names[1], primary=True)
+    inner = group('UI Group Inner')
+    assert parent(ids[0]) == inner and parent(ids[1]) == inner
+    state = saved_routes()
+    assert int(state[inner].find('PresentationInfo').get('order')) < int(state[ids[0]].find('PresentationInfo').get('order'))
+    for child in ids[:2]:
+        outputs = state[child].findall("IO[@direction='Output']/Port/Connection")
+        assert len(outputs) == 2 and all('UI Group Inner/audio_in' in c.get('other') for c in outputs), [c.attrib for c in outputs]
+    def name_geometry(name): return pointer('TrackControl:' + name + '|group-name', 'move', 2, 2)
+    parent_box = name_geometry('UI Group Inner'); child_box = name_geometry(names[0])
+    rail = pointer('TrackControl:' + names[0] + '|group-rail', 'move', 2, 2)
+    assert child_box['xRoot'] == parent_box['xRoot'] + rail['width'], (parent_box, child_box, rail)
+    assert child_box['xRoot'] + child_box['width'] == parent_box['xRoot'] + parent_box['width'], 'Routing columns shifted with child indentation'
+    fold('UI Group Inner'); wait(lambda: not visible(names[0]) and not visible(names[1]))
+    assert all(not r['hidden'] for r in routes() if r['id'] in ids)
+    header('UI Group Inner'); header(names[2], primary=True)
+    outer = group('UI Group Outer')
+    assert parent(inner) == outer and parent(ids[2]) == outer
+    fold('UI Group Outer'); wait(lambda: not visible('UI Group Inner') and not visible(names[2]))
+    fold('UI Group Outer'); wait(lambda: visible('UI Group Inner') and visible(names[2]))
+    assert not visible(names[0]), 'Inner fold state was lost'
+    ungroup('UI Group Outer', outer)
+    wait(lambda: visible('UI Group Inner') and visible(names[2]))
+    assert not visible(names[0])
+    ungroup('UI Group Inner', inner)
+    wait(lambda: all(visible(name) for name in names))
+    state = saved_routes()
+    for child in ids[:2]:
+        outputs = state[child].findall("IO[@direction='Output']/Port/Connection")
+        assert len(outputs) == 2 and all('Master/audio_in' in c.get('other') for c in outputs), [c.attrib for c in outputs]
+    header(names[0]); header(names[1], primary=True)
+    doomed = group('UI Group Delete')
+    fold('UI Group Delete'); wait(lambda: not visible(names[0]))
+    key('BackSpace')
+    dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
+    key('Escape', dialog['title'])
+    wait(lambda: not any(w['modal'] for w in windows()))
+    assert {doomed, *ids}.issubset({r['id'] for r in routes()})
+    key('BackSpace')
+    dialog = wait(lambda: next((w for w in windows() if w['modal']), None))
+    choose(dialog, 'Yes, remove them.')
+    wait(lambda: not ({doomed, *ids[:2]} & {r['id'] for r in routes()}))
+    assert ids[2] in {r['id'] for r in routes()}
+    remove_fixture(names[2:], ids[2:])
+    checks += ['Cmd+G creates native group bus', 'exclusive child audio routing', 'parent-colored overhang keeps routing columns aligned', 'nested collapse preserves inner state', 'Cmd+Shift+G confirms and restores child outputs', 'cancelled deletion preserves folded children', 'confirmed deletion removes descendants only']
+
+elif a.case == 'master-clock':
     call('transport_stop')
     wait(lambda: not call('session_get_info')['transport']['rolling'])
     def clock():

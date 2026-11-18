@@ -300,6 +300,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 					gint start = 0, end = 0;
 					gtk_editable_get_selection_bounds (GTK_EDITABLE (w->get_focus ()->gobj ()), &start, &end);
 					out << ",\"selectionStart\":" << start << ",\"selectionEnd\":" << end;
+				} else if (w->get_focus () && GTK_IS_BUTTON (w->get_focus ()->gobj ())) {
+					const char* label = gtk_button_get_label (GTK_BUTTON (w->get_focus ()->gobj ()));
+					out << ",\"focusText\":" << quote (label ? label : "");
 				}
 				if (auto* view = dynamic_cast<Gtk::TreeView*> (w->get_focus ())) {
 					auto row = view->get_selection ()->get_selected ();
