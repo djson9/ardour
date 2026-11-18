@@ -1805,7 +1805,7 @@ Session::set_play_loop (bool yn, bool change_transport_state)
 		}
 		TransportStateChange (); /* EMIT SIGNAL */
 	} else {
-		unset_play_loop ();
+		unset_play_loop (change_transport_state);
 	}
 
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("send TSC2 with speed = %1\n", _transport_fsm->transport_speed()));
