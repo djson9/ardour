@@ -610,3 +610,38 @@ in 1.77 seconds with the fixes. It verifies device-time DSP positions, active
 lookahead, continued playback beyond the seek, inside/outside/end-boundary
 positions, loop wrapping, and stopped locates. The native GTK mouse test passed
 in 1.64 seconds. App startup and compilation are outside those test budgets.
+
+## Files browser and editable whitelist
+
+In the left **Files** tab, **Open Folder…** opens a directory. The existing
+folder menu also supports adding bookmarks. **File Types…** edits a global,
+persistent extension whitelist; defaults include audio and MIDI. Extensions
+are case-insensitive and accept `wav`, `.wav`, or `*.wav`, separated by commas,
+spaces, or semicolons. Cancel discards edits, Reset restores audio/MIDI defaults,
+and an empty whitelist displays folders only. This filters listings; adding an
+extension does not install a decoder. Folders stay navigable, expansion stays
+lazy, and preview/drag-to-import use the existing clip browser paths.
+
+The last opened root directory is restored at startup. Expanding a subfolder
+does not change that root or Refresh's target. Missing folders report an error
+instead of asserting. Hidden files and nonregular files are not listed.
+
+```sh
+python3 tools/dev/test-browser-file-filter.py
+# On a configured native build host, prepare the test-only GTK dylib:
+python3 tools/dev/prepare-browser-ui-probe.py artifacts/browser-ui-probe.dylib
+# Inject it only into a disposable app whose session title ends in Verification.
+# Set ARDOUR_BROWSER_UI_PROBE=/absolute/private/browser-test and add the dylib
+# to DYLD_INSERT_LIBRARIES alongside that app's private-home interposer.
+# Once the GUI is ready:
+python3 tools/dev/test-browser-ui.py /absolute/private/browser-test
+# Restart that same private app, then verify saved directory/filter restoration:
+python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --restore
+```
+
+Each test has a hard nine-second limit; native compilation and GUI startup are
+separate preparation. The GUI test exercises the folder chooser, actual tree
+rows, case-insensitive audio/MIDI filtering, lazy expansion, root-preserving
+refresh, invalid input, Cancel, empty filters, Reset, and startup restoration.
+The injection waits for a trigger and refuses to operate on non-Verification
+windows. Keep it out of production launch environments.

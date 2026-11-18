@@ -93,7 +93,7 @@ static gboolean tick(gpointer unused) {
   if(ready){respond(dialog,GTK_RESPONSE_OK);stage=4;}break;
  }
  case 4:
-  if(!row("Nested")||!row("Piano.WaV")||!row("Chords.MID")||!row("Bass.flac")||!files(3)||row("notes.txt")||row("pipe.wav")){finish("Default audio/MIDI directory listing");break;}
+  if(!row("Nested",NULL)||!row("Piano.WaV",NULL)||!row("Chords.MID",NULL)||!row("Bass.flac",NULL)||!files(3)||row("notes.txt",NULL)||row("pipe.wav",NULL)){finish("Default audio/MIDI directory listing");break;}
   row("Nested",&i);{
    GtkTreePath *p=gtk_tree_model_get_path(model(),&i);gtk_tree_view_expand_row(GTK_TREE_VIEW(find(browser,"browser-files")),p,FALSE);gtk_tree_path_free(p);
   }
@@ -103,13 +103,13 @@ static gboolean tick(gpointer unused) {
   if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)){finish("Expansion changed root folder");break;}
   if(click("browser-refresh"))stage=6;break;
  case 6:
-  if(!row("Nested")||!row("Piano.WaV")){finish("Refresh lost root folder");break;}
+  if(!row("Nested",NULL)||!row("Piano.WaV",NULL)){finish("Refresh lost root folder");break;}
   if(click("browser-file-types"))stage=7;break;
  case 7:
   dialog=top("Browser File Types");if(!dialog)break;
   edit(dialog,"*.MID, .mid");respond(dialog,GTK_RESPONSE_OK);stage=8;break;
  case 8:
-  if(!files(1)||!row("Chords.MID")||!row("Nested")){finish("Custom MIDI whitelist");break;}
+  if(!files(1)||!row("Chords.MID",NULL)||!row("Nested",NULL)){finish("Custom MIDI whitelist");break;}
   if(click("browser-file-types"))stage=9;break;
  case 9:
   dialog=top("Browser File Types");if(!dialog)break;
@@ -118,13 +118,13 @@ static gboolean tick(gpointer unused) {
   dialog=top("Browser File Types");if(!dialog||!strlen(gtk_label_get_text(GTK_LABEL(find(dialog,"browser-filter-error"))))){finish("Invalid filter was accepted");break;}
   edit(dialog,"wav");respond(dialog,GTK_RESPONSE_CANCEL);stage=11;break;
  case 11:
-  if(!files(1)||!row("Chords.MID")){finish("Cancel changed filter");break;}
+  if(!files(1)||!row("Chords.MID",NULL)){finish("Cancel changed filter");break;}
   if(click("browser-file-types"))stage=12;break;
  case 12:
   dialog=top("Browser File Types");if(!dialog)break;
   edit(dialog,"");respond(dialog,GTK_RESPONSE_OK);stage=13;break;
  case 13:
-  if(!files(0)||!row("Nested")||!strlen(gtk_label_get_text(GTK_LABEL(find(browser,"browser-status"))))){finish("Empty whitelist behavior");break;}
+  if(!files(0)||!row("Nested",NULL)||!strlen(gtk_label_get_text(GTK_LABEL(find(browser,"browser-status"))))){finish("Empty whitelist behavior");break;}
   if(click("browser-file-types"))stage=14;break;
  case 14:
   dialog=top("Browser File Types");if(!dialog)break;
@@ -139,10 +139,10 @@ static gboolean tick(gpointer unused) {
   dialog=top("Browser File Types");if(!dialog)break;
   edit(dialog,"mid");respond(dialog,GTK_RESPONSE_OK);stage=18;break;
  case 18:
-  if(!files(1)||!row("Chords.MID")){finish("Final saved filter");break;}
+  if(!files(1)||!row("Chords.MID",NULL)){finish("Final saved filter");break;}
   finish(NULL);break;
  case 30:
-  if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)||!files(1)||!row("Chords.MID")||!row("Nested")){finish("Folder/filter not restored at startup");break;}
+  if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)||!files(1)||!row("Chords.MID",NULL)||!row("Nested",NULL)){finish("Folder/filter not restored at startup");break;}
   finish(NULL);break;
  }
  return TRUE;
