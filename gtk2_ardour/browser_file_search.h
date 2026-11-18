@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -26,7 +27,7 @@ public:
  }
  std::shared_ptr<Result> take () { std::lock_guard<std::mutex> lock (_mutex); auto result=_result; _result.reset (); return result; }
  static std::string fold (std::string const& text) {
-  char* valid=g_utf8_make_valid (text.c_str (), text.size ());
+  char* valid=g_utf8_validate (text.c_str (), text.size (), nullptr) ? g_strdup (text.c_str ()) : g_filename_display_name (text.c_str ());
   char* normalized=g_utf8_normalize (valid,-1,G_NORMALIZE_ALL_COMPOSE); g_free (valid);
   char* folded=g_utf8_casefold (normalized,-1); g_free (normalized);
   std::string result=folded; g_free (folded); return result;
