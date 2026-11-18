@@ -210,6 +210,7 @@ TriggerClipPicker::TriggerClipPicker ()
 	/* TreeView */
 	_model = TreeStore::create (_columns);
 	_view.set_name ("browser-files");
+	_view.signal_map ().connect ([this] () { _view.grab_focus (); });
 	_view.set_model (_model);
 	_view.append_column (_("File Name"), _columns.name);
 	_view.set_headers_visible (false);  //TODO: show headers when we have size/tags/etc
@@ -341,6 +342,8 @@ TriggerClipPicker::edit_file_types ()
 		UIConfiguration::instance ().save_state ();
 		break;
 	}
+	dialog.hide ();
+	_view.grab_focus ();
 }
 
 void
@@ -796,6 +799,7 @@ TriggerClipPicker::open_dir ()
 		default:
 			break;
 	}
+	_view.grab_focus ();
 }
 
 void
@@ -906,6 +910,7 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 
 	if (!pc) {
 		_view.set_model (_model);
+		if (_view.get_mapped ()) { _view.grab_focus (); }
 		if (_browser_status.get_text ().empty () && files.empty ()) {
 			_browser_status.set_text (_file_extensions.empty () ? _("No file types enabled. Edit File Types to show files.") : _("No matching files in this folder."));
 		}

@@ -60,6 +60,23 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 	Gtkmm2ext::BindingSet* bindings = nullptr;
 	Gtk::Window* window = 0;
 
+	/* The file tree owns navigation while focused, including at its edges.
+	 * Handle this before arrangement bindings and the computer-keyboard piano. */
+	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
+	if (ev->type == GDK_KEY_PRESS && focus && std::string (gtk_widget_get_name (focus)) == "browser-files") {
+		switch (ev->keyval) {
+		case GDK_Up: case GDK_Down: case GDK_Left: case GDK_Right:
+		case GDK_KP_Up: case GDK_KP_Down: case GDK_KP_Left: case GDK_KP_Right:
+		case GDK_Home: case GDK_End: case GDK_Page_Up: case GDK_Page_Down:
+		case GDK_KP_Home: case GDK_KP_End: case GDK_KP_Page_Up: case GDK_KP_Page_Down:
+		case GDK_Return: case GDK_KP_Enter:
+			gtk_window_propagate_key_event (event_window->gobj (), ev);
+			return true;
+		default:
+			break;
+		}
+	}
+
 	if (virtual_keyboard_window && virtual_keyboard_window->get_visible()) {
 		if (gtk_window_propagate_key_event (virtual_keyboard_window->gobj(), ev)) {
 			return true;
