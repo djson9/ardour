@@ -7,8 +7,9 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag', 'loop-locate'], required=True)
+p.add_argument('--case', choices=['headers', 'track-title', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag', 'loop-locate'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
+p.add_argument('--no-activate', action='store_true', help='Skip AppleEvents activation for native GTK-only checks on an isolated GUI')
 a = p.parse_args()
 if a.case == 'native-scroll':
     assert a.native_scroll_helper and a.native_scroll_helper.is_file(), 'Compile tests/native-scroll.swift and pass --native-scroll-helper'
@@ -99,11 +100,83 @@ start = time.monotonic()
 # Tests use GTK events; activation allows native dialogs/completion to own focus.
 port = a.url.split(':')[-1].split('/')[0]
 pid = subprocess.check_output(['lsof', '-t', '-iTCP:' + port, '-sTCP:LISTEN'], text=True).strip()
-subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (first application process whose unix id is ' + pid + ') to set frontmost to true'], check=True)
+if not a.no_activate:
+    subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (first application process whose unix id is ' + pid + ') to set frontmost to true'], check=True)
 header(next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track')))
 checks = []
 
-if a.case == 'groups':
+if a.case == 'track-title':
+    names = ['UI Title A', 'UI Title B', 'UI Title C']
+    assert not any(r['name'].lower().startswith('ui title') for r in routes()), 'Remove old title fixtures before rerunning'
+    # Insert the fixtures after the last visible scrolling route, before Master.
+    for route in sorted((r for r in routes() if not r['hidden'] and r['name'] != 'Master'), key=lambda r: r['presentationOrder'], reverse=True):
+        try: pointer('TrackHeader:' + route['name'], 'move', 30, 14)
+        except AssertionError: continue
+        header(route['name']); break
+    ids = [create('Primary-t', name, 'audio_track') for name in names]
+    def step(shortcut, route_id):
+        key(shortcut); expect_selection([route_id])
+    def rename_dialog(shortcut, title, original):
+        key(shortcut)
+        dialog = wait(lambda: next((w for w in windows() if w['title'] == title), None))
+        assert dialog['textEntry'] and dialog['focusText'] == original, dialog
+        return dialog
+    def closed(title): wait(lambda: not any(w['title'] == title for w in windows()))
+    first = min((r for r in routes() if not r['hidden'] and r['name'] != 'Master'), key=lambda r: r['presentationOrder'])
+    header(first['name']); step('Up', first['id'])
+    header(names[0]); step('Down', ids[1]); step('Up', ids[0])
+    rename_dialog('Return', 'Rename Track', names[0])
+    for shortcut in ['Left', 'Right', 'Up', 'Down']: key(shortcut, 'Rename Track')
+    expect_selection(ids[:1])
+    key('Escape', 'Rename Track'); closed('Rename Track')
+    assert next(r for r in routes() if r['id'] == ids[0])['name'] == names[0]
+    rename_dialog('KP_Enter', 'Rename Track', names[0])
+    key('Primary-a', 'Rename Track')
+    names[0] = 'ui title renamed'
+    for ch in names[0]: key('space' if ch == ' ' else ch, 'Rename Track')
+    key('Return', 'Rename Track'); closed('Rename Track')
+    wait(lambda: next(r for r in routes() if r['id'] == ids[0])['name'] == names[0])
+    step('Down', ids[1]); step('Up', ids[0])  # Rename restores header focus.
+    checks += ['Return and keypad Enter open rename', 'entry arrows preserve track selection', 'Escape cancels', 'Enter commits and restores header navigation']
+
+    def group(name):
+        old = {r['id'] for r in routes()}; key('Primary-g')
+        new = wait(lambda: [r for r in routes() if r['id'] not in old])
+        assert len(new) == 1 and new[0]['type'] == 'bus', new
+        call('track_rename', id=new[0]['id'], newName=name); header(name)
+        return new[0]['id']
+    def fold(name):
+        for event in ['press', 'release']: pointer('TrackControl:' + name + '|group-fold', event, 8, 8)
+        instant()  # Wait for queued redisplay before navigating.
+    header(names[1], primary=True)
+    inner = group('UI Title Inner')
+    header(names[2], primary=True)
+    outer = group('UI Title Outer')
+    header('UI Title Outer')
+    for route_id in [inner, *ids]: step('Down', route_id)
+    for route_id in [ids[1], ids[0], inner, outer]: step('Up', route_id)
+    fold('UI Title Inner'); header('UI Title Inner')
+    step('Down', ids[2]); step('Up', inner)
+    fold('UI Title Outer'); header('UI Title Outer')
+    master = next(r['id'] for r in routes() if r['name'] == 'Master')
+    step('Down', master); step('Down', master); step('Up', outer)
+    rename_dialog('Return', 'Rename Bus', 'UI Title Outer')
+    key('Primary-a', 'Rename Bus')
+    for ch in 'ui title group': key('space' if ch == ' ' else ch, 'Rename Bus')
+    key('Return', 'Rename Bus'); closed('Rename Bus')
+    wait(lambda: next(r for r in routes() if r['id'] == outer)['name'] == 'ui title group')
+    step('Down', master); step('Up', outer)
+    fold('ui title group')
+    step('Down', inner); step('Down', ids[2]); step('Up', inner)
+    call('session_save')
+    saved = {r.get('id'): r for r in ET.parse(a.session_path / (a.session_path.name + '.ardour')).findall('Routes/Route')}
+    assert saved[inner].find('Extra/GroupTrack').get('parent') == outer
+    for child in ids[:2]: assert saved[child].find('Extra/GroupTrack').get('parent') == inner
+    assert saved[ids[2]].find('Extra/GroupTrack').get('parent') == outer
+    checks += ['expanded nested groups navigate in display order both ways', 'collapsed descendants skipped', 'Master remains last without wrapping', 'collapsed group rename preserves hierarchy and inner fold state']
+    # Keep the saved nested fixture for inspection in this disposable session.
+
+elif a.case == 'groups':
     names = ['UI Group Child A', 'UI Group Child B', 'UI Group Child C']
     assert not any(r['name'].startswith('UI Group') for r in routes()), 'Remove old group fixtures before rerunning'
     ids = [create('Primary-t', name, 'audio_track') for name in names]
