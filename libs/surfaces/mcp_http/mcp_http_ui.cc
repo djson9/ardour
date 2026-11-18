@@ -87,6 +87,15 @@ Gtk::Widget* track_header (Gtk::Widget* widget, std::string const& name) {
  }
  return nullptr;
 }
+Gtk::Widget* track_control (Gtk::Widget* widget, std::string const& role) {
+ if (!widget || !widget->get_visible ()) return nullptr;
+ const auto* name = static_cast<const char*> (widget->get_data ("compact-track-control"));
+ if (name && role == name) return widget;
+ if (auto* container = dynamic_cast<Gtk::Container*> (widget)) for (auto* child : container->get_children ()) {
+  if (auto* found = track_control (child, role)) return found;
+ }
+ return nullptr;
+}
 void canvas_labels (ArdourCanvas::Item* item, std::ostringstream& out, unsigned& count, unsigned depth=0) {
  if (!item || !item->visible () || count >= 256 || depth > 64) return;
  if (auto* text = dynamic_cast<ArdourCanvas::Text*> (item)) {
@@ -134,11 +143,13 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 		} else if (tool == "ui/close_dialog") {
 			bool found = false;
 			for (Gtk::Window* w : Gtk::Window::list_toplevels ()) {
-				if (!w->get_visible () || w->get_title () != window_name || !GTK_IS_DIALOG (w->gobj ())) continue;
+				if (!w->get_visible () || w->get_title () != window_name || (!GTK_IS_DIALOG (w->gobj ()) && !gtk_window_get_transient_for (w->gobj ()) && w->get_name () != "IOSelectorWindow2")) continue;
 				GdkEvent* event = gdk_event_new (GDK_DELETE);
 				event->any.window = GDK_WINDOW (g_object_ref (w->get_window ()->gobj ()));
 				event->any.send_event = true;
-				gtk_widget_event (GTK_WIDGET (w->gobj ()), event);
+				/* Let GTK apply normal window-manager delete handling when the
+				 * window returns false (e.g. native I/O routing windows). */
+				gdk_event_put (event);
 				gdk_event_free (event);
 				found = true;
 				break;
@@ -151,6 +162,10 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     std::vector<Gtk::Widget*> canvases; canvas_widgets (w, canvases);
     for (auto* c : canvases) if (c->get_name () == group) target = c;
     if (group.compare (0, 12, "TrackHeader:") == 0) target = track_header (w, group.substr (12));
+    if (group.compare (0, 13, "TrackControl:") == 0) {
+     const auto split = group.rfind ('|');
+     if (split != std::string::npos && split > 13) target = track_control (track_header (w, group.substr (13, split - 13)), group.substr (split + 1));
+    }
    }
    auto* canvas_target = dynamic_cast<ArdourCanvas::GtkCanvas*> (target);
    const bool grabbed = canvas_target && canvas_target->have_grab ();
@@ -161,7 +176,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     double magnification = 0; bool primary = false; double dx = 0, dy = 0; coordinates >> button >> magnification >> primary >> dx >> dy;
     if (button != 1 && button != 3) button = 1;
     const auto type = (action_name == "pinch" || action_name == "scroll") ? GDK_SCROLL : action_name == "move" ? GDK_MOTION_NOTIFY : action_name == "press" ? GDK_BUTTON_PRESS : action_name == "doublePress" ? GDK_2BUTTON_PRESS : GDK_BUTTON_RELEASE;
-    auto* event = gdk_event_new (type);event->any.window = GDK_WINDOW (g_object_ref (target->get_window ()->gobj ()));event->any.send_event = true;
+    /* GtkEntry handles clicks on its inner text window, not its outer frame. */
+    GdkWindow* event_window = GTK_IS_ENTRY (target->gobj ()) ? GTK_ENTRY (target->gobj ())->text_area : target->get_window ()->gobj ();
+    auto* event = gdk_event_new (type);event->any.window = GDK_WINDOW (g_object_ref (event_window));event->any.send_event = true;
     int ox=0,oy=0;target->get_window ()->get_origin (ox, oy);
     const guint state = (primary ? Gtkmm2ext::Keyboard::PrimaryModifier : 0) | (shift ? GDK_SHIFT_MASK : 0) | (down ? (button == 3 ? GDK_BUTTON3_MASK : GDK_BUTTON1_MASK) : 0);
     if (type == GDK_SCROLL) {
@@ -171,8 +188,19 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     } else {
      event->button.time = guint32 (g_get_monotonic_time ()/1000);event->button.x=x;event->button.y=y;event->button.x_root=x+ox;event->button.y_root=y+oy;event->button.state=state;event->button.button=button;
     }
+    /* Native buttons require a pointer-enter before a press to establish
+     * hover/grab state. Canvas items perform their own crossing dispatch. */
+    if (type == GDK_BUTTON_PRESS && group.compare (0, 13, "TrackControl:") == 0) {
+     GdkEvent* enter = gdk_event_new (GDK_ENTER_NOTIFY);
+     enter->crossing.window = GDK_WINDOW (g_object_ref (target->get_window ()->gobj ()));
+     enter->crossing.send_event = true;enter->crossing.x=x;enter->crossing.y=y;
+     enter->crossing.x_root=x+ox;enter->crossing.y_root=y+oy;
+     enter->crossing.mode=GDK_CROSSING_NORMAL;enter->crossing.detail=GDK_NOTIFY_NONLINEAR;
+     gtk_widget_event (target->gobj (), enter);gdk_event_free (enter);
+    }
     const bool handled = gtk_widget_event (target->gobj (), event);gdk_event_free (event);
-    out << "{\"delivered\":true,\"handled\":" << (handled ? "true" : "false") << "}";
+    out << "{\"delivered\":true,\"handled\":" << (handled ? "true" : "false")
+        << ",\"xRoot\":" << ox << ",\"yRoot\":" << oy << ",\"width\":" << target->get_allocation ().get_width () << ",\"height\":" << target->get_allocation ().get_height () << "}";
    }
   } else if (tool == "ui/set_warp_control") {
    Gtk::Widget* target = nullptr;

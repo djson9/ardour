@@ -89,6 +89,7 @@
 #include "ardour/vca_manager.h"
 #include "ardour/vca.h"
 
+#include "canvas/scroll_group.h"
 #include "canvas/debug.h"
 #include "canvas/note.h"
 #include "canvas/text.h"
@@ -520,10 +521,12 @@ Editor::Editor ()
 	if (live_layout) {
 		/* Keep time/track coordinates inside their existing canvas; only
 		 * rearrange the GTK containers around it. */
-		edit_packer.attach (*_track_canvas_viewport, 1, 2, 0, 2, FILL|EXPAND, FILL|EXPAND, 0, 0);
+		edit_packer.attach (*_track_canvas_viewport, 1, 2, 0, 3, FILL|EXPAND, FILL|EXPAND, 0, 0);
 		edit_packer.attach (time_bars_event_box, 2, 4, 0, 1, FILL, SHRINK, 5, 0);
 		edit_packer.attach (*_group_tabs, 2, 3, 1, 2, FILL, FILL|EXPAND, 0, 0);
 		edit_packer.attach (controls_layout, 3, 4, 1, 2, FILL, FILL|EXPAND, 0, 0);
+		edit_packer.attach (master_controls_vbox, 3, 4, 2, 3, FILL, SHRINK, 0, 0);
+		master_controls_vbox.show ();
 	} else {
 		edit_packer.attach (time_bars_event_box,     1, 3, 0, 1,    FILL,        SHRINK,      5, 0);
 		/* track controls */
@@ -2545,6 +2548,12 @@ Editor::trackview_by_y_position (double y, bool trackview_relative_offset) const
 
 	if (y < 0) {
 		return std::make_pair ((TimeAxisView *) 0, 0);
+	}
+
+	/* The pinned row is drawn over the scrolling tracks. Hit it first. */
+	if (auto* master = pinned_master_view ()) {
+		auto r = master->covers_y_position (y);
+		if (r.first) return r;
 	}
 
 	for (TrackViewList::const_iterator iter = track_views.begin(); iter != track_views.end(); ++iter) {
@@ -5179,6 +5188,30 @@ Editor::maybe_move_tracks ()
 	}
 }
 
+TimeAxisView*
+Editor::pinned_master_view () const
+{
+	if (!_session || Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") return nullptr;
+	for (auto* tv : track_views) {
+		auto* route = dynamic_cast<RouteTimeAxisView*> (tv);
+		if (route && route->route ()->is_master ()) return tv;
+	}
+	return nullptr;
+}
+
+void
+Editor::position_pinned_master ()
+{
+	auto* master = pinned_master_view ();
+	if (!master || _visible_canvas_height <= 0) return;
+	/* Keep the native view and its automation lanes. Only its header leaves
+	 * the scrolling GTK layout; its canvas position compensates for scroll. */
+	int n = 0;
+	const int y = std::max (0., vertical_adjustment.get_value () + _visible_canvas_height
+	                        - hv_scroll_group->position ().y - master->effective_height ());
+	master->show_at (y, n, &master_controls_vbox);
+}
+
 bool
 Editor::redisplay_track_views ()
 {
@@ -5204,8 +5237,10 @@ Editor::redisplay_track_views ()
 	 */
 	int n = 0;
 	uint32_t position = 0;
+	auto* master = pinned_master_view ();
 
 	for (auto & tv : track_views) {
+		if (tv == master) continue;
 
 		if (tv->marked_for_display ()) {
 			position += tv->show_at (position, n, &edit_controls_vbox);
@@ -5216,9 +5251,14 @@ Editor::redisplay_track_views ()
 		n++;
 	}
 
+	if (master) {
+		master->set_marked_for_display (true);
+		int master_n = 0;
+		master->show_at (0, master_n, &master_controls_vbox);
+	}
 	reset_controls_layout_height (position);
 	reset_controls_layout_width ();
-	_full_canvas_height = position;
+	_full_canvas_height = position + (master ? master->effective_height () : 0);
 
 	if ((vertical_adjustment.get_value() + _visible_canvas_height) > vertical_adjustment.get_upper()) {
 		/*
@@ -5228,6 +5268,7 @@ Editor::redisplay_track_views ()
 		vertical_adjustment.set_value (_full_canvas_height - _visible_canvas_height);
 	}
 
+	position_pinned_master ();
 	_summary->set_background_dirty();
 	_vsummary->set_background_dirty();
 	_group_tabs->set_dirty ();

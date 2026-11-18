@@ -246,6 +246,12 @@ ARDOUR_UI::setup_transport ()
 	int col = 0;
 #define TCOL col, col + 1
 
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		for (auto* button : {&recorder_visibility_button, &trigger_page_visibility_button, &editor_visibility_button, &mixer_visibility_button}) {
+			tabbables_table.attach (*button, col, col + 1, 0, 1, FILL, FILL, 2, 2);
+			++col;
+		}
+	} else {
 	tabbables_table.attach (recorder_visibility_button,     TCOL, 0, 1 , FILL, FILL, hpadding, vpadding);
 	tabbables_table.attach (trigger_page_visibility_button, TCOL, 1, 2 , FILL, FILL, hpadding, vpadding);
 	++col;
@@ -253,6 +259,7 @@ ARDOUR_UI::setup_transport ()
 	tabbables_table.attach (mixer_visibility_button,        TCOL, 1, 2 , FILL, FILL, hpadding, vpadding);
 	++col;
 
+	}
 	tabbables_table.show_all ();
 }
 #undef PX_SCALE

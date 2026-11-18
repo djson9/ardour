@@ -104,6 +104,12 @@ Editor::extend_selection_to_track (TimeAxisView& view)
 	bool forwards = true;
 
 	sorted.sort (cmp);
+	/* A sticky row's canvas y changes with scrolling. Keep Master after the
+	 * scrollable tracks when extending a header selection. */
+	if (auto* master = pinned_master_view ()) {
+		sorted.remove (master);
+		sorted.push_back (master);
+	}
 
 	/* figure out if we should go forward or backwards */
 

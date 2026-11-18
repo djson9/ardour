@@ -22,6 +22,7 @@
 
 #include <ytkmm/box.h>
 #include <ytkmm/label.h>
+#include <ytkmm/entry.h>
 #include <ytkmm/table.h>
 
 #include "ardour/ardour.h"
@@ -123,6 +124,9 @@ private:
 	BasicUI*                      _basic_ui;
 	Gtk::Table                    _table;
 	Gtk::HBox                     _live_bar;
+	Gtk::Entry                    _live_position;
+	void update_live_position ();
+	void locate_live_position ();
 	ArdourWidgets::ArdourDropdown _live_count_in;
 	ArdourWidgets::ArdourButton   _live_key;
 	ArdourWidgets::ArdourButton   _live_automation;

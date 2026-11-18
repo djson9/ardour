@@ -23,6 +23,7 @@
 #include <ytkmm/notebook.h>
 #include <ytkmm/window.h>
 #include <ytkmm/stock.h>
+#include <glibmm/miscutils.h>
 #include <ytkmm/table.h>
 
 #if defined COMPILER_MSVC && defined WAF_BUILD
@@ -88,7 +89,11 @@ Tabbable::default_layout ()
 	atta_table->set_border_width (0);
 	atta_table->attach (left_attachment_button,   0, 1, 0, 1, Gtk::SHRINK, Gtk::EXPAND|FILL, 1, 2);
 	atta_table->attach (right_attachment_button,  1, 2, 0, 1, Gtk::SHRINK, Gtk::EXPAND|FILL, 1, 2);
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		atta_table->attach (bottom_attachment_button, 2, 3, 0, 1, Gtk::SHRINK, Gtk::EXPAND|FILL, 1, 2);
+	} else {
 	atta_table->attach (bottom_attachment_button, 0, 2, 1, 2, Gtk::FILL,   Gtk::EXPAND|FILL, 1, 2);
+	}
 
 	left_attachment_button.set_tweaks (ArdourButton::ExpandtoSquare);
 	right_attachment_button.set_tweaks (ArdourButton::ExpandtoSquare);
