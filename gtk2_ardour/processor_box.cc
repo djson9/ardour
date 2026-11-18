@@ -1984,6 +1984,10 @@ ProcessorBox::ProcessorBox (ARDOUR::Session* sess, std::function<PluginSelector*
 
 	set_widget_bindings (processor_display, *bindings, ARDOUR_BINDING_KEY);
 	processor_display.SelectionAdded.connect (sigc::mem_fun (*this, &ProcessorBox::selection_added));
+	processor_display.SelectionChanged.connect ([this] () {
+		auto selected = processor_display.selection ();
+		ProcessorSelected (selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ());
+	});
 
 	_width = Wide;
 	processor_menu = 0;
@@ -2629,7 +2633,8 @@ ProcessorBox::leave_notify (GdkEventCrossing* ev)
 		gtk_window_set_focus (win->gobj(), 0);
 	}
 
-	if (ev->detail != GDK_NOTIFY_NONLINEAR && ev->detail != GDK_NOTIFY_NONLINEAR_VIRTUAL) {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" &&
+	    ev->detail != GDK_NOTIFY_NONLINEAR && ev->detail != GDK_NOTIFY_NONLINEAR_VIRTUAL) {
 		processor_display.select_none ();
 	}
 
@@ -3121,6 +3126,8 @@ ProcessorBox::redisplay_processors ()
 		return;
 	}
 
+	ProcSelection previously_selected;
+	get_selected_processors (previously_selected);
 	processor_display.clear ();
 
 	_route->foreach_processor (sigc::mem_fun (*this, &ProcessorBox::add_processor_to_display));
@@ -3128,6 +3135,19 @@ ProcessorBox::redisplay_processors ()
 	_route->foreach_processor (sigc::mem_fun (*this, &ProcessorBox::maybe_add_processor_pin_mgr));
 
 	setup_entry_positions ();
+
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		ProcessorEntry* selected = nullptr;
+		for (auto* entry : processor_display.children ()) {
+			auto p = entry->processor ();
+			if (std::find (previously_selected.begin (), previously_selected.end (), p) != previously_selected.end ()) {
+				selected = entry;
+				break;
+			}
+			if (!selected && (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p))) selected = entry;
+		}
+		processor_display.select (selected);
+	}
 }
 
 /** Add a ProcessorWindowProxy for a processor to our list, if that processor does
@@ -3224,6 +3244,7 @@ ProcessorBox::add_processor_to_display (std::weak_ptr<Processor> p)
 	}
 
 	std::shared_ptr<PluginInsert> plugin_insert = std::dynamic_pointer_cast<PluginInsert> (processor);
+	std::shared_ptr<AudioRack> audio_rack = std::dynamic_pointer_cast<AudioRack> (processor);
 
 	ProcessorEntry* e = 0;
 	if (plugin_insert) {
@@ -3243,9 +3264,9 @@ ProcessorBox::add_processor_to_display (std::weak_ptr<Processor> p)
 	//faders and meters are not deletable, copy/paste-able, so they shouldn't be selectable
 
 #ifdef HAVE_BEATBOX
-	if (!send && !plugin_insert && !ext && !stub && !bb && !sursend) {
+	if (!send && !plugin_insert && !audio_rack && !ext && !stub && !bb && !sursend) {
 #else
-	if (!send && !plugin_insert && !ext && !stub && !sursend) {
+	if (!send && !plugin_insert && !audio_rack && !ext && !stub && !sursend) {
 #endif
 		e->set_selectable(false);
 	}

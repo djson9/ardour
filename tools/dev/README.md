@@ -302,9 +302,62 @@ For track navigation, the local Editor bindings use Up for
 `Editor/select-prev-route` and Down for `Editor/select-next-route`. Contextual
 MIDI-note, automation, mixer, text-entry, and plugin-list bindings remain separate.
 
+### Track-title keyboard controls in the Live layout
+
+With a track or group title focused, Enter (including keypad Enter) opens its
+native rename dialog. Enter accepts and Escape cancels; both restore header
+focus. Up/Down selects and focuses the adjacent visible track, bus or group in
+arrangement order. Collapsed descendants are skipped, expanded nested groups
+are traversed, and pinned Master is last. Navigation stops at either end.
+Text fields retain their normal arrow keys, and record-armed tracks retain the
+existing rename restriction.
+
+The `track-title` case checks renaming/cancellation, focus after renaming,
+repeated navigation, expanded/collapsed nested groups, and preserved hierarchy.
+It retains the saved nested fixture for inspection; use a fresh disposable
+session or remove the fixture before rerunning:
+
+```sh
+python3 tools/dev/verify-compact-workflow.py \
+  --session-path '/path/to/Track Title Verification' --case track-title
+```
+
+The native macOS build and this case passed on 2026-11-18 (5.11 s), including
+renaming a collapsed outer group while preserving its nested hierarchy.
+
+### Selected-device details in the Live layout
+
+The device panel shows controls for the highlighted processor only. Selecting a
+plugin shows its compact parameter view; selecting an Audio Rack shows its chains
+and macros through the same selection signal. Moving the pointer into those
+controls keeps the highlight. Processor-list rebuilds preserve the selected
+device, or select the first remaining plugin/rack when it is removed. A track
+with no devices retains the add-device hint.
+
+The track processor list and rack chain list already share `PluginSelector` and
+`PluginUIWindow`. The track list additionally owns route I/O, sends, faders and
+processor-window proxies; rack chains use the rack's edit/validation API.
+Their owner-specific list operations remain separate.
+
+`selected-device-ui-probe.cc` checks plugin switching, a rack, clearing selection,
+pointer leave, selected-device removal, and switching to an empty track and back.
+Compile it against the configured macOS build:
+
+```sh
+python3 tools/dev/prepare-selected-device-ui-probe.py /tmp/selected-device-ui-probe.dylib
+```
+
+Inject that library into a disposable session named `*Verification*` with an
+`Audio` track, using `DYLD_INSERT_LIBRARIES` and
+`ARDOUR_DEVICE_UI_PROBE=/tmp/selected-device-result.json`. After the GUI is ready,
+create `/tmp/selected-device-result.json.trigger`. The probe loads built-in ACE
+EQ/Delay fixtures, inspects the actual GTK widget tree, and writes its result
+within nine seconds. It never belongs in the normal launcher or working session.
+The native GTK probe passed on 2026-11-18 in 0.53 s.
+
 ### Track-selection latency in the Live layout
 
-The compact device panel builds at most 16 controls per plugin. **All controls…**
+The compact device panel builds at most 16 controls for the selected plugin. **All controls…**
 opens the existing, unlimited generic editor; the native plugin editor also
 remains available from the processor list. Standalone editors and the standard
 (non-Live) layout retain their full parameter lists. Compact panels skip preset
@@ -402,8 +455,9 @@ c++ -std=c++17 -O2 tools/dev/tests/track-name-search.cc -o /tmp/ardour-search-te
 For native UI checks, open a disposable session whose directory name contains
 `Verification`, enable MCP on the intended port, and leave the keyboard/mouse
 idle during the run. Each case enforces a nine-second deadline, creates its own
-fixture tracks and confirms deletion of only those fixtures on success. A failed
-case leaves fixtures for inspection; remove them before rerunning that case.
+fixture tracks and confirms deletion of only those fixtures on success, except
+`track-title`, which retains its nested fixture for inspection. A failed case
+leaves fixtures for inspection; remove them before rerunning that case.
 Never run against the working music session.
 
 ```sh
