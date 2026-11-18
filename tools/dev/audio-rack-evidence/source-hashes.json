@@ -1,0 +1,20 @@
+{
+  "verified_against": "native arm64 build and GUI verification source",
+  "sha256": {
+    "gtk2_ardour/audio_rack_ui.cc": "1b25a4842a017899f6b6f939e50b10db5b547b98ea63e3af208014704e6b7d24",
+    "gtk2_ardour/audio_rack_ui.h": "20b1eabc9805a1424d61d27d1456e62e0031a3441295c89c40c9c20b8f66f870",
+    "gtk2_ardour/generic_pluginui.cc": "42a68fc5cd6a53e6e347dc08ebb9c7ad1747f2e3b2029cd594e369b4b38572f8",
+    "gtk2_ardour/plugin_ui.cc": "31551a6bb837fec87b312e8beb6e956fb60ac1c1f1618fa8105cf9a5a7d4f1fe",
+    "gtk2_ardour/plugin_ui.h": "b56f6a559688311d9d72e78b00370b24642290ed69b2df87e42942981d0dc273",
+    "gtk2_ardour/processor_box.cc": "006bd21cd0145049b9aba8091a0d7b764a1d647e4301a9ab70ad82ce263c2c8f",
+    "gtk2_ardour/route_properties_box.cc": "177e19c4539ad6ef35e554269d0759d2b4a545086fd0a34c1e84ab870f17a359",
+    "gtk2_ardour/wscript": "4a414aa3c7ae9fcac18598c72e056f58f32e823e7bb58e687bff165c4e69faaa",
+    "libs/ardour/anticipative_process.cc": "b6e6b3575298486dacf644212c2e056fbe2e7a8ab1c61f1fcfb71b24b0b6e1eb",
+    "libs/ardour/ardour/audio_rack.h": "940363ab9e880ed73401a1c6324fe18227528d04bc01146d146082cce95824c9",
+    "libs/ardour/audio_rack.cc": "3e901868fc35d970e13fb015bbbd6eebce0d79850f825dc5bc60fd20d4df64b8",
+    "libs/ardour/route.cc": "ec95a01b82263bb4e7d9f1ea4355bc7b235b2647c171151d9a4d7d92eb97c5ec",
+    "libs/ardour/test/audio_rack_test.cc": "8541a78f3bc49b45fbbea61379c7fae9039ba708c6f76772e3d708e5afff132c",
+    "libs/ardour/wscript": "9281f543b3b94427d728b6377257624c616109d6d5c8e8dae497cb6169d2c0a6",
+    "tools/dev/audio-rack-ui-probe.c": "4d157f9274963863b927ddaed1af3366e175a141b5a9750c5ad4102c459b1ec3"
+  }
+}

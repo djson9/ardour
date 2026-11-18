@@ -1,0 +1,15 @@
+{
+  "parallel_chains": 2,
+  "macro_types": [
+    "choices",
+    "toggle",
+    "knob",
+    "knob",
+    "knob",
+    "knob",
+    "knob",
+    "knob"
+  ],
+  "learned_parameter_id": "0",
+  "saved_from_native_gui": true
+}

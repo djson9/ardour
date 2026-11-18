@@ -536,6 +536,50 @@ selection/deletion 1.34 s, clock/pinned Master 1.33 s, and native scrolling/pinc
 actual header geometry rather than treating the ruler-label area as a track.
 The native macOS arm64 build and installed bundle signature checks passed.
 
+## Audio racks
+
+Right-click a track's processor list and choose **New Audio Rack**. Double-click
+the rack, or use **Macros and chains…** in the compact device panel, to edit it.
+Add chains for parallel processing; add plugins within a chain for serial
+processing. Empty chains carry dry audio. Chain outputs sum, so adding a dry chain
+at unity gain changes the level. Each chain has gain, mute, solo and plugin ordering.
+
+Rename a macro by editing its name and pressing Enter. **Map…** chooses a plugin
+parameter and its start/end range; reverse a mapping by making start larger than
+end. A macro can drive several parameters. **Learn** maps the next touched plugin
+parameter to the selected macro. Plugins without touch notifications can use the
+mapping chooser. Right-click a macro to change its control type (knob, toggle or
+choices), edit mappings or remove all mappings. Choice controls use labels from
+the first mapped enum parameter when available, otherwise four normalized steps.
+
+A plugin's **Learned controls…** button opens its saved parameter panel. Enable
+**Learn** and touch controls in the plugin editor, or select parameters explicitly.
+Right-click a learned control to remove it. Knobs, toggles, integers and enum
+choices use the plugin's parameter descriptors. Learned panels and rack mappings
+are separate: removing a learned panel control does not remove the plugin parameter.
+
+This version supports audio effects with unchanged channel counts. Instruments,
+MIDI-processing plugins, external sidechains, nested racks and chain-selector zones
+are not supported. MIDI already present at the rack input passes through once.
+Mapped parameters retain their own automation; playback automation takes precedence.
+Dedicated macro automation lanes and rack preset libraries are not implemented.
+Rack routes use the realtime processing path rather than anticipation workers.
+Structural rack edits are disabled while recording and are not undoable.
+
+Build with `--test` and the `dummy` backend, then run:
+
+```sh
+python3 waf build --targets=unit-test-audio-racks
+python3 tools/dev/verify-audio-racks.py
+```
+
+The four native test cases cover mixing/bypass/mute/solo, MIDI preservation,
+parameter mapping and removal, discrete values, reversed ranges, copy IDs,
+latency alignment across block boundaries, malformed schema rejection and full
+session reopening. On macOS, the runner isolates preferences and semaphore names.
+`--prepare-gui` creates an isolated launchd job and native GTK interaction probe;
+its generated plist is launched explicitly and must be booted out after verification.
+
 ## Chord Grid plugin reload
 
 Chord Grid MIDI VST3 has a Reload button in its host toolbar. After installing a

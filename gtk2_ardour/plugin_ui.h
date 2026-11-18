@@ -79,6 +79,7 @@ namespace ArdourWidgets {
 	class FastMeter;
 }
 
+class LearnedPluginWindow;
 class TimeCtlGUI;
 class ArdourWindow;
 class PluginEqGui;
@@ -125,6 +126,8 @@ protected:
 	std::shared_ptr<ARDOUR::Plugin> plugin;
 
 	void add_common_widgets (Gtk::HBox*, bool with_focus = true);
+	void show_learned_controls ();
+	std::unique_ptr<LearnedPluginWindow> _learned_window;
 
 	/* UI elements that subclasses can add to their widgets */
 
