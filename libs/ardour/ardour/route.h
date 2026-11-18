@@ -247,6 +247,8 @@ public:
 	/* Processors */
 
 	std::shared_ptr<Amp> amp() const  { return _amp; }
+	bool fader_last () const { return _fader_last.load (); }
+	bool set_fader_last (bool);
 	std::shared_ptr<Amp> trim() const { return _trim; }
 	std::shared_ptr<PolarityProcessor> polarity() const { return _polarity; }
 	std::shared_ptr<PeakMeter>       peak_meter()       { return _meter; }
@@ -753,6 +755,7 @@ protected:
 	std::shared_ptr<TriggerBox>        _triggerbox;
 
 	bool _volume_applies_to_output;
+	std::atomic<bool> _fader_last {true};
 
 	std::shared_ptr<DelayLine> _delayline;
 
@@ -792,6 +795,7 @@ private:
 	int configure_processors_unlocked (ProcessorStreams*, PBD::RWLock::WriterLock*);
 	bool set_meter_point_unlocked ();
 	void apply_processor_order (const ProcessorList& new_order);
+	void ensure_fader_last (ProcessorList&) const;
 
 	std::list<std::pair<ChanCount, ChanCount> > try_configure_processors (ChanCount, ProcessorStreams *);
 	std::list<std::pair<ChanCount, ChanCount> > try_configure_processors_unlocked (ChanCount, ProcessorStreams *);

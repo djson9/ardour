@@ -242,6 +242,7 @@ public:
 	virtual void add_scale_related_menu_items (Gtk::Menu_Helpers::MenuList&) {}
 
 protected:
+	virtual void update_header_focus ();
 	static Glib::RefPtr<Gtk::SizeGroup> controls_meters_size_group;
 	static Glib::RefPtr<Gtk::SizeGroup> midi_scroomer_size_group;
 	static unsigned int name_width_px;

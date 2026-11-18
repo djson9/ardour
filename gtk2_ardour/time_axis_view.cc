@@ -208,6 +208,31 @@ TimeAxisView::TimeAxisView (ARDOUR::Session* sess, PublicEditor& ed, TimeAxisVie
 				  Gdk::SCROLL_MASK);
 	controls_ebox.set_can_focus ();
 	controls_ebox.set_data ("ardour-track-header", this);
+	controls_ebox.signal_realize ().connect ([this] () {
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || controls_ebox.get_data ("ardour-focus-connected")) return;
+		if (auto* window = dynamic_cast<Gtk::Window*> (controls_ebox.get_toplevel ())) {
+			controls_ebox.set_data ("ardour-focus-connected", this);
+			/* Logical focus changes also occur while the toplevel is inactive,
+			 * when GTK does not send focus-in/out events to the child. */
+			g_signal_connect_object (window->gobj (), "set-focus", G_CALLBACK (+[] (GtkWindow*, GtkWidget* focus, GtkWidget* header) {
+				bool focused = focus == header;
+				bool was_focused = g_object_get_data (G_OBJECT (header), "ardour-header-focused") != nullptr;
+				if (focused == was_focused) return;
+				g_object_set_data (G_OBJECT (header), "ardour-header-focused", focused ? header : nullptr);
+				auto* view = static_cast<TimeAxisView*> (g_object_get_data (G_OBJECT (header), "ardour-track-header"));
+				if (view) view->update_header_focus ();
+			}), controls_ebox.gobj (), G_CONNECT_AFTER);
+		}
+	});
+	controls_ebox.signal_expose_event ().connect ([this] (GdkEventExpose*) {
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !controls_ebox.is_focus ()) return false;
+		auto cr = controls_ebox.get_window ()->create_cairo_context ();
+		cr->set_source_rgba (.82, .95, 1, 1);
+		cr->set_line_width (2.5);
+		cr->rectangle (1.25, 1.25, controls_ebox.get_width () - 2.5, controls_ebox.get_height () - 2.5);
+		cr->stroke ();
+		return false;
+	});
 
 	/* note that this handler connects *before* the default handler */
 	controls_ebox.signal_scroll_event().connect (sigc::mem_fun (*this, &TimeAxisView::controls_ebox_scroll), true);
@@ -244,6 +269,7 @@ TimeAxisView::TimeAxisView (ARDOUR::Session* sess, PublicEditor& ed, TimeAxisVie
 TimeAxisView::~TimeAxisView()
 {
 	in_destructor = true;
+	controls_ebox.set_data ("ardour-track-header", nullptr);
 
 	for (list<GhostRegion*>::iterator i = ghosts.begin(); i != ghosts.end(); ++i) {
 		delete *i;
@@ -410,12 +436,20 @@ TimeAxisView::controls_ebox_scroll (GdkEventScroll* ev)
 bool
 TimeAxisView::track_header_key_press (GdkEventKey* event)
 {
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !track_header_has_focus () ||
-	    !Keyboard::modifier_state_equals (event->state, 0)) {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !track_header_has_focus ()) {
 		return false;
 	}
 	auto* route_view = dynamic_cast<RouteTimeAxisView*> (this);
 	if (!route_view) return false;
+	if ((event->keyval == GDK_r || event->keyval == GDK_R) &&
+	    Keyboard::modifier_state_equals (event->state, Keyboard::PrimaryModifier)) {
+		if (can_edit_name ()) {
+			route_view->route_rename ();
+			focus_track_header ();
+		}
+		return true;
+	}
+	if (!Keyboard::modifier_state_equals (event->state, 0)) return false;
 
 	switch (event->keyval) {
 	case GDK_Tab:
@@ -423,10 +457,7 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 		return true;
 	case GDK_Return:
 	case GDK_KP_Enter:
-		if (can_edit_name ()) {
-			route_view->route_rename ();
-			focus_track_header ();
-		}
+		_editor.edit_track_clip_at_selection (*this);
 		return true;
 	default:
 		return false;
@@ -865,25 +896,22 @@ TimeAxisView::set_selected (bool yn)
 	}
 
 	AxisView::set_selected (yn);
-	if (view ()) {
-		view ()->update_lane_background ();
-	}
-
-	if (_selected) {
-		time_axis_frame.set_name (controls_base_selected_name);
-		controls_ebox.set_name (controls_base_selected_name);
-		controls_vbox.set_name (controls_base_selected_name);
-		time_axis_vbox.set_name (controls_base_selected_name);
-	} else {
-		time_axis_frame.set_name (controls_base_unselected_name);
-		controls_ebox.set_name (controls_base_unselected_name);
-		controls_vbox.set_name (controls_base_unselected_name);
-		time_axis_vbox.set_name (controls_base_unselected_name);
-
-		hide_selection ();
-	}
+	if (view ()) view ()->update_lane_background ();
+	std::string const& name = _selected ? controls_base_selected_name : controls_base_unselected_name;
+	time_axis_frame.set_name (name);
+	controls_ebox.set_name (name);
+	controls_vbox.set_name (name);
+	time_axis_vbox.set_name (name);
+	update_header_focus ();
+	if (!_selected) hide_selection ();
 
 	time_axis_frame.show();
+}
+
+void
+TimeAxisView::update_header_focus ()
+{
+	controls_ebox.queue_draw ();
 }
 
 void

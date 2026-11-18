@@ -1365,6 +1365,8 @@ Route::add_processors (const ProcessorList& others, std::shared_ptr<Processor> b
 
 			assert (find (_processors.begin(), _processors.end(), other) == _processors.end ());
 
+			/* Configuration can move the pinned fader between insertions. */
+			loc = before ? find (_processors.begin (), _processors.end (), before) : _processors.end ();
 			_processors.insert (loc, other);
 			other->set_owner (this);
 
@@ -2585,9 +2587,52 @@ Route::move_instrument_down (bool postfader)
 	reorder_processors (new_order, 0);
 }
 
-int
-Route::reorder_processors (const ProcessorList& new_order, ProcessorStreams* err)
+void
+Route::ensure_fader_last (ProcessorList& order) const
 {
+	if (!fader_last ()) return;
+	auto fader = std::find (order.begin (), order.end (), _amp);
+	if (fader == order.end ()) return;
+	auto last = fader;
+	for (auto i = std::next (fader); i != order.end (); ++i) {
+		if ((*i)->display_to_user ()) last = i;
+	}
+	if (last != fader) order.splice (std::next (last), order, fader);
+}
+
+bool
+Route::set_fader_last (bool enabled)
+{
+	if (fader_last () == enabled) return true;
+	if (_session.actively_recording ()) return false;
+	{
+		PBD::Mutex::Lock lx (AudioEngine::instance ()->process_lock ());
+		_session.retire_anticipation_for_edit ();
+		apply_processor_changes_rt ();
+		PBD::RWLock::WriterLock lm (_processor_lock);
+		ProcessorState pstate (this);
+		bool previous = fader_last ();
+		_fader_last.store (enabled);
+		if (enabled && configure_processors_unlocked (nullptr, &lm)) {
+			_fader_last.store (previous);
+			pstate.restore ();
+			configure_processors_unlocked (nullptr, &lm);
+			return false;
+		}
+		lm.release ();
+		update_signal_latency (true);
+	}
+	processors_changed (RouteProcessorChange ());
+	set_processor_positions ();
+	_session.set_dirty ();
+	return true;
+}
+
+int
+Route::reorder_processors (const ProcessorList& requested_order, ProcessorStreams* err)
+{
+	ProcessorList new_order (requested_order);
+	ensure_fader_last (new_order);
 	/* If a change is already queued, wait for it
 	 * (unless engine is stopped. apply immediately and proceed
 	 */
@@ -2914,6 +2959,7 @@ Route::state (bool save_template) const
 	node->set_property (X_("name"), name());
 	node->set_property (X_("default-type"), _default_type);
 	node->set_property (X_("strict-io"), _strict_io);
+	node->set_property (X_("fader-last"), fader_last ());
 
 	if (is_master ()) {
 		node->set_property (X_("volume-applies-to-output"), _volume_applies_to_output);
@@ -3014,6 +3060,9 @@ Route::state (bool save_template) const
 int
 Route::set_state (const XMLNode& node, int version)
 {
+	bool pin_fader = true;
+	node.get_property (X_("fader-last"), pin_fader);
+	_fader_last.store (pin_fader);
 	if (version < 3000) {
 		return set_state_2X (node, version);
 	}
@@ -6035,6 +6084,9 @@ Route::setup_invisible_processors ()
 		amp = find (new_processors.begin(), new_processors.end(), _amp);
 	}
 
+
+	/* Keep user-visible devices before the fader, then place internal I/O. */
+	ensure_fader_last (new_processors);
 
 	/* Pre-fader METER */
 

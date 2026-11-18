@@ -82,6 +82,7 @@ class LIBWIDGETS_API ArdourButton : public CairoWidget , public Gtkmm2ext::Activ
 
 	void set_active_state (Gtkmm2ext::ActiveState);
 	void set_visual_state (Gtkmm2ext::VisualState);
+	void set_selection_focus (bool);
 
 	void set_custom_led_color (const uint32_t c, const bool useit = true);
 
@@ -249,6 +250,8 @@ class LIBWIDGETS_API ArdourButton : public CairoWidget , public Gtkmm2ext::Activ
 	bool _hovering;
 	bool _touching;
 	bool _focused;
+	bool _selection_focus_tracking = false;
+	bool _selection_focused = false;
 	int  _fixed_colors_set;
 	bool _fallthrough_to_parent;
 	int _layout_ellipsize_width;

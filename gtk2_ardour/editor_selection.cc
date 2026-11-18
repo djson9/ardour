@@ -1806,6 +1806,31 @@ Editor::region_selection_changed ()
 }
 
 void
+Editor::edit_track_clip_at_selection (TimeAxisView& track)
+{
+	if (!_session) return;
+	timepos_t where, end;
+	if (!get_selection_extents (where, end)) {
+		where = get_preferred_edit_position (EDIT_IGNORE_NONE, false, true);
+	}
+	TrackViewList tracks;
+	tracks.push_back (&track);
+	RegionSelection regions;
+	get_regions_at (regions, where, tracks);
+	RegionView* clip = nullptr;
+	for (auto* rv : regions) {
+		if (rv->region ()->position () <= where && where < rv->region ()->end_position () &&
+		    (!clip || rv->region ()->layer () > clip->region ()->layer ())) clip = rv;
+	}
+	if (!clip) return;
+	begin_reversible_selection_op (_("Select clip at selection marker"));
+	selection->set (clip);
+	commit_reversible_selection_op ();
+	show_att_bottom (true);
+	_properties_box->edit_clip_region (clip->region ());
+}
+
+void
 Editor::maybe_edit_region_in_bottom_pane (RegionView& rv)
 {
 	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" &&

@@ -1376,6 +1376,25 @@ RouteTimeAxisView::set_height (uint32_t h, TrackHeightMode m, bool from_idle)
 }
 
 void
+RouteTimeAxisView::update_header_focus ()
+{
+	TimeAxisView::update_header_focus ();
+	if (live_header) {
+		auto c = color ();
+		if (selected ()) {
+			const bool focused = track_header_has_focus ();
+			const double scale = focused ? .85 : .5;
+			const double offset = focused ? .15 : 0;
+			c.set_rgb_p (c.get_red_p () * scale + offset, c.get_green_p () * scale + offset, c.get_blue_p () * scale + offset);
+		}
+		if (live_name_box.get_style ()->get_bg (Gtk::STATE_NORMAL) != c) live_name_box.modify_bg (Gtk::STATE_NORMAL, c);
+		Gdk::Color text;
+		text.set ((c.get_red_p () * .299 + c.get_green_p () * .587 + c.get_blue_p () * .114) > .5 ? "#172126" : "#f2f5f6");
+		if (name_label.get_style ()->get_fg (Gtk::STATE_NORMAL) != text) name_label.modify_fg (Gtk::STATE_NORMAL, text);
+	}
+}
+
+void
 RouteTimeAxisView::route_color_changed ()
 {
 	using namespace ARDOUR_UI_UTILS;
@@ -1384,16 +1403,9 @@ RouteTimeAxisView::route_color_changed ()
 	}
 	number_label.set_fixed_colors (gdk_color_to_rgba (color()), gdk_color_to_rgba (color()));
 	if (live_header) {
-		const auto c = color ();
 		mute_button->set_fixed_colors (UIConfiguration::instance ().color ("generic button: fill"),
 		                               UIConfiguration::instance ().color ("generic button: fill active"));
-		live_name_box.modify_bg (Gtk::STATE_NORMAL, c);
-		Gdk::Color text;
-		text.set ((c.get_red_p () * .299 + c.get_green_p () * .587 + c.get_blue_p () * .114) > .5 ? "#172126" : "#f2f5f6");
-		name_label.modify_fg (Gtk::STATE_NORMAL, text);
-	}
-
-	if (live_header) {
+		update_header_focus ();
 		gm.set_fader_fg (HSV (UIConfiguration::instance ().color ("theme:contrasting")).darker (0.45).color ());
 	} else if (!is_master() && UIConfiguration::instance().get_use_route_color_widely()) {
 		gm.set_fader_fg (gdk_color_to_rgba (route_color_tint ()));
