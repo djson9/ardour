@@ -564,7 +564,6 @@ Editor::Editor ()
 	XMLNode* settings = ARDOUR_UI::instance()->editor_settings();
 
 	editor_summary_pane.set_check_divider_position (true);
-	editor_summary_pane.add (edit_packer);
 
 	ArdourButton* summary_arrow_left = manage (new ArdourButton);
 	summary_arrow_left->set_corner_mask(ArdourButton::LEFT);
@@ -631,7 +630,15 @@ Editor::Editor ()
 	_summary_vbox.pack_start (_summary_hbox, true, true);
 	_summary_vbox.pack_start (*summary_bottom_spacer, false, false);
 
-	editor_summary_pane.add (_summary_vbox);
+	/* Keep the same navigable summary and saved height, above the bar ruler
+	 * in the compact arrangement and below the editor in the classic layout. */
+	if (live_layout) {
+		editor_summary_pane.add (_summary_vbox);
+		editor_summary_pane.add (edit_packer);
+	} else {
+		editor_summary_pane.add (edit_packer);
+		editor_summary_pane.add (_summary_vbox);
+	}
 
 	HBox* tabbox = manage (new HBox (true));
 	tabbox->set_spacing (3);
@@ -650,9 +657,9 @@ Editor::Editor ()
 	if (!settings || !settings->get_property ("edit-vertical-pane-size", size) || size < 1.0) {
 		/* initial allocation so that summary has minimum size*/
 		size = -1;
-		editor_summary_pane.set_divider (0, 0.999);
+		editor_summary_pane.set_divider (0, live_layout ? 0.001 : 0.999);
 	}
-	editor_summary_pane.set_absolute_divider (0, ArdourWidgets::Pane::DividerMode::AbsoluteAfter, size);
+	editor_summary_pane.set_absolute_divider (0, live_layout ? ArdourWidgets::Pane::DividerMode::AbsoluteBefore : ArdourWidgets::Pane::DividerMode::AbsoluteAfter, size);
 
 	global_vpacker.set_spacing (0);
 	global_vpacker.set_border_width (0);

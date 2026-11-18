@@ -488,3 +488,7 @@ verify matching and empty selections both off and on, preservation of bounds and
 playback, and actual passage beyond the disabled loop end. Saved bounds were also
 checked after an application restart. Theme resources must be copied by normal
 packaging (the incremental Mach-O delta does not include `.colors` files).
+
+The compact arrangement places the existing summary/minimap above the bar ruler.
+Its saved height, draggable divider, visibility toggle, navigation, and zoom controls
+are retained; the classic layout keeps the summary below the arrangement.
