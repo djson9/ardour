@@ -9,7 +9,7 @@ struct NativeMidiNotes : Processor {
  void run(BufferSet& b,samplepos_t start,samplepos_t,double speed,pframes_t n,bool)override{
   if(speed!=1)return;
   const MidiBuffer& input=b.get_midi(0);for(auto event:input)if(event.size()==3&&event.buffer()[0]==0xb0&&event.buffer()[1]==119&&event.buffer()[2]==55)++immediate;
-  const samplepos_t positions[]={400*block+7,850*block+29,950*block+3,1250*block+5};
+  const samplepos_t positions[]={probe_block(400)*block+7,probe_block(850)*block+29,probe_block(950)*block+3,probe_block(1250)*block+5};
   const uint8_t messages[][3]={{0x90,60,100},{0x80,60,0},{0x90,67,100},{0x80,67,0}};
   for(unsigned i=0;i<4;++i)if(positions[i]>=start&&positions[i]<start+n){need(b.get_midi(0).push_back(positions[i]-start,Evoral::MIDI_EVENT,3,messages[i]),"MIDI capacity");++notes;}
  }
@@ -18,7 +18,8 @@ int main(int argc,char** argv){try{
  need(argc==2&&ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","NativeMidi","");
  const unsigned block=getenv("ARDOUR_PROBE_BLOCK")?std::stoul(getenv("ARDOUR_PROBE_BLOCK")):64;
- need(backend&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
+ need(arm_block+(horizon_samples+block-1)/block+4<probe_block(850)&&probe_block(1500)+(horizon_samples+block-1)/block+4<total_blocks,"MIDI schedule leaves full horizon for handoffs");
+ need(backend&&backend->set_driver(getenv("ARDOUR_PROBE_DRIVER")?getenv("ARDOUR_PROBE_DRIVER"):"Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
  auto* s=new NativeSession(*engine,argv[1],"native-midi",nullptr,"",true);engine->set_session(nullptr);
  double error=0,peak=0;uint64_t misses=0,handoffs=0;unsigned delivered=0;
  {
@@ -43,7 +44,7 @@ int main(int argc,char** argv){try{
    if(k>=total_blocks)break;
    if(!armed&&k>=arm_block){a->rec_enable_control()->set_value(1,PBD::Controllable::NoGroup);armed=true;}
    if(armed&&!released&&k>=demote_block){a->rec_enable_control()->set_value(0,PBD::Controllable::NoGroup);released=true;}
-   if(!immediate&&k>=1500){uint8_t event[]={0xb0,119,55};need(a->write_user_immediate_event(Evoral::MIDI_EVENT,3,event),"immediate enqueue");immediate=true;}
+   if(!immediate&&k>=probe_block(1500)){uint8_t event[]={0xb0,119,55};need(a->write_user_immediate_event(Evoral::MIDI_EVENT,3,event),"immediate enqueue");immediate=true;}
    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   engine->set_session(nullptr);auto& plan=s->anticipative_process();plan.stop();auto* node=plan.find_node(a.get());need(node&&tap->k==total_blocks&&rtap->k==total_blocks,"complete");

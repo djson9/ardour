@@ -5,7 +5,11 @@
 #undef main
 #include <chrono>
 using Clock=std::chrono::steady_clock;
-constexpr unsigned total_blocks=2048,horizon_samples=9600,arm_block=512,demote_block=1024;
+constexpr unsigned horizon_samples=9600;
+// Compact native regression keeps every event/ownership transition, with shorter
+// idle spans. Standalone probes retain the original schedule unless requested.
+static unsigned probe_block(unsigned full){return getenv("ARDOUR_PROBE_COMPACT")?full/2:full;}
+const unsigned total_blocks=probe_block(2048),arm_block=probe_block(512),demote_block=probe_block(1024);
 struct RenderChunk {samplepos_t start;pframes_t frames;samplepos_t continuous_start=max_samplepos;};
 
 struct Bridge : Processor {

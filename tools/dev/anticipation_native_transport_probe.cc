@@ -22,7 +22,7 @@ int main(int argc,char** argv){try{
  need(argc==2&&ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","NativeLifecycle","");
  constexpr unsigned block=64;
- need(backend&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
+ need(backend&&backend->set_driver(getenv("ARDOUR_PROBE_DRIVER")?getenv("ARDOUR_PROBE_DRIVER"):"Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
  auto* s=new NativeSession(*engine,argv[1],"native-lifecycle",nullptr,"",true);engine->set_session(nullptr);
  auto route=s->new_audio_track(2,2,{},1,"Native route",0,Normal,false).front();add_effects(*s,route,true);
  auto gain=route->gain_control();gain->alist()->add(timepos_t(samplepos_t(0)),.8,false,false);gain->alist()->add(timepos_t(samplepos_t(96000)),.2,false,false);gain->alist()->set_automation_state(Play);

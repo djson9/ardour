@@ -1,0 +1,62 @@
+{
+  "passed": false,
+  "elapsed_seconds": 2.6879382501356304,
+  "execution_deadline_seconds": 9,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "library_unchanged": true,
+  "validation_runner_sha256": "68616c2b054e40399c8503c632fd167226e80e60ce2a5ebb43c5a77b0285c094",
+  "hardware_deadlines_proven": false,
+  "source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "cases": [
+    {
+      "case": "stall-absorbed-64",
+      "elapsed_seconds": 2.49236191669479,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    },
+    {
+      "case": "stall-starved-64",
+      "elapsed_seconds": 2.562158374581486,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    },
+    {
+      "case": "stall-handoff-64",
+      "elapsed_seconds": 2.4486716664396226,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    },
+    {
+      "case": "stall-absorbed-128",
+      "elapsed_seconds": 2.52598562464118,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    },
+    {
+      "case": "stall-starved-128",
+      "elapsed_seconds": 2.5249409577809274,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    },
+    {
+      "case": "stall-handoff-128",
+      "elapsed_seconds": 2.557331958785653,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "6377974665bd5e581ab9516839769d172bc97cbf9736ee34a50892265731a354"
+    }
+  ]
+}

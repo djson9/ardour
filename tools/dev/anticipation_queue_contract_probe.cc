@@ -11,7 +11,7 @@ static void buffers(BufferSet& b){b.ensure_buffers(DataType::AUDIO,2,64);b.ensur
 int main(int argc,char** argv){try{
  need(argc==2,"path");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","QueueContracts","");
- need(bool(backend)&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(64)==0&&engine->start()==0,"engine");
+ need(bool(backend)&&backend->set_driver(getenv("ARDOUR_PROBE_DRIVER")?getenv("ARDOUR_PROBE_DRIVER"):"Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(64)==0&&engine->start()==0,"engine");
  auto* s=new FixtureSession(*engine,argv[1],"queue-contracts",nullptr,"",true);engine->set_session(nullptr);
  ChanCount count(DataType::AUDIO,2);count.set(DataType::MIDI,1);Queue::Configuration config{count,64,8,8192};
  unsigned checks=0;BufferSet out;buffers(out);

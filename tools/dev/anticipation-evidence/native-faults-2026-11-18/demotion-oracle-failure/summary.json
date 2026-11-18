@@ -1,0 +1,97 @@
+{
+  "passed": false,
+  "elapsed_seconds": 2.724463041871786,
+  "execution_deadline_seconds": 9,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "library_unchanged": true,
+  "validation_runner_sha256": "7c92993e28030f98d8021588f0caa42069e8ad9351999f840d8c5b9339d22fad",
+  "hardware_deadlines_proven": false,
+  "max_parallel_engines": 8,
+  "dummy_driver": "Realtime",
+  "compact_sequences": true,
+  "source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "cases": [
+    {
+      "case": "stall-long-starved-64",
+      "elapsed_seconds": 2.5242222091183066,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "long-starved",
+        "block": 64,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 36608,
+        "first_missing_frame": 24576,
+        "last_missing_frame": 36672,
+        "cache_underruns": 190,
+        "exact_playback_frames": 35840,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "max_route_render_us": 519071,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "533359e3acca6f04be6dc49a8417e22dc8a799d04e56ae580c5166ca2176fa95"
+    },
+    {
+      "case": "stall-demotion-64",
+      "elapsed_seconds": 2.601813542190939,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "533359e3acca6f04be6dc49a8417e22dc8a799d04e56ae580c5166ca2176fa95",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition",
+        "STALL scenario=demotion frames=48000 entered=20544 misses=23 missing_blocks=0 first_missing=-1 last_missing=-1 playback_error=0.00396333 monitor_error=0 handoffs=0 first_live=0 requested_arm=20480 watchdog=0",
+        "FAIL exact playback/current-cycle monitoring"
+      ]
+    },
+    {
+      "case": "stall-long-starved-128",
+      "elapsed_seconds": 2.560409666970372,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "long-starved",
+        "block": 128,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 36608,
+        "first_missing_frame": 24576,
+        "last_missing_frame": 36608,
+        "cache_underruns": 95,
+        "exact_playback_frames": 35840,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "max_route_render_us": 506977,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "533359e3acca6f04be6dc49a8417e22dc8a799d04e56ae580c5166ca2176fa95"
+    },
+    {
+      "case": "stall-demotion-128",
+      "elapsed_seconds": 2.5590119580738246,
+      "exit_code": 1,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "533359e3acca6f04be6dc49a8417e22dc8a799d04e56ae580c5166ca2176fa95",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition",
+        "STALL scenario=demotion frames=48000 entered=20608 misses=11 missing_blocks=0 first_missing=-1 last_missing=-1 playback_error=0.00399857 monitor_error=0 handoffs=0 first_live=0 requested_arm=20480 watchdog=0",
+        "FAIL exact playback/current-cycle monitoring"
+      ]
+    }
+  ]
+}

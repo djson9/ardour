@@ -1,0 +1,17 @@
+{
+  "anticipation_native_stall_probe.cc": {
+    "source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+    "linked_source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+    "build_root": "/Users/davidson/workspace/ardour-anticipation-spike",
+    "probe_sha256": "2a5f0ccf9b24e031d6e7a6b3fdb04efda7fdedae76b43bbd340bde415cba554b",
+    "isolation_sha256": "232acc941f686d4ce455d3406f55244d50fd858e7a681eb68506ba6ffd31f0e8",
+    "all_inputs_sha256": "2fc0dbd4f141f68acd3923b30193af049733492b0af8f26939c751c4b527fa7a",
+    "test_source_inputs": {
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc": "915b316fbbb658ffec6094cc32c4a3fe5e7a6e87a2801e1b92a49c051611624c",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_native_route_probe.cc": "33cb8b8b3f55f8aadbdb5b00a20147f557a3daf2fb46b1a578d5deee50dd1594",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_native_stall_probe.cc": "7712960388715332f2db9d5aa3944c0a18eecc6206dd4c78e9c8d2c621248cc2",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/run-anticipation-probe.py": "a580c0d2830139881b590ac66f2814d2b3820cb950723c1846aeaa1ff0354dc9"
+    }
+  }
+}

@@ -47,7 +47,7 @@ int main(int argc,char** argv){try{
  need(argc==2,"path");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","NativeAnticipation","");
  unsigned block=getenv("ARDOUR_PROBE_BLOCK")?std::stoul(getenv("ARDOUR_PROBE_BLOCK")):64;
- need(bool(backend)&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
+ need(bool(backend)&&backend->set_driver(getenv("ARDOUR_PROBE_DRIVER")?getenv("ARDOUR_PROBE_DRIVER"):"Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
  auto* s=new NativeSession(*engine,argv[1],"native-anticipation",nullptr,"",true);engine->set_session(nullptr);
  if(getenv("ARDOUR_PROBE_DISK_READER")){Config->set_buffering_preset(Custom);Config->set_audio_playback_buffer_seconds(.5);DiskReader::set_chunk_samples(8192);}
  double error=0,peak=0;uint64_t handoffs=0,misses=0;

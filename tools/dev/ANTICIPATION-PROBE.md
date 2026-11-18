@@ -1,37 +1,71 @@
 # Anticipative processing integration and probes
 
-## Default regression command: under ten seconds
+## Fast regression and targeted investigation
 
-After building Ardour, prepare the seven standalone binaries once (or after their
-sources/dependencies change):
+The default suite now contains **25 native cases**: the original 13 integration
+cases, ten controlled worker-stall cases at 64/128 frames, and two negative controls.
+The final complete pass took **8.99 s wall-clock** on the build Mac; two preceding
+passes took 8.95 s and 8.83 s before the additional finite-sample guard.
+Prepare binaries separately, then run with a nine-second execution deadline:
 
 ```sh
 python3 tools/dev/validate-native-anticipation.py . --prepare
-```
-
-Then run the complete thirteen-case native suite:
-
-```sh
 python3 tools/dev/validate-native-anticipation.py .
 ```
 
-The default command verifies compiled inputs, runs independent cases concurrently,
-and enforces a nine-second execution deadline, leaving time to save results before
-ten seconds. Stale binaries fail immediately with the preparation command; tests
-do not silently rebuild. Preparation caches unchanged probe builds. Compilation
-is a separate build step and is not promised to finish in ten seconds.
+Select a small reproducer while editing; case patterns can be repeated:
 
-No test assertions, audio sequence lengths or transition events were removed.
-Each isolated process uses one realtime graph thread and parallel future workers.
-A test-only, explicitly enabled macOS semaphore namespace prevents concurrent
-processes from colliding in PBD's named-sem_open/unlink constructor. Hardware
-probes do not enable that interposition. Each case has private preferences, a
-separate session, retained logs, and verified binary/header/library fingerprints.
-Dummy timing is correctness evidence, not hardware latency qualification.
+```sh
+python3 tools/dev/validate-native-anticipation.py . --list
+python3 tools/dev/validate-native-anticipation.py . --case 'stall-demotion-*'
+python3 tools/dev/validate-native-anticipation.py . --case 'oracle-reject-*'
+python3 tools/dev/validate-native-anticipation.py . --case 'midi-*' --original-sequences
+```
 
-Capacity probes also default to 512 blocks and a bounded execution timeout.
-Captures over two seconds require the explicit `--soak` flag; long hardware runs
-are never part of the default regression command.
+Preparation caches unchanged builds. Stale binaries fail promptly instead of
+silently compiling. The runner verifies compiled inputs, caps concurrent engines
+at eight, starts longer cases first, retains logs and per-case duration, and prints
+diagnostic tails when results are collected. Build preparation is separate from the time budget.
+Preferences and macOS semaphore names are isolated per process.
+
+The default compact profile runs the route/MIDI/recording captures for 1,024 blocks
+instead of 2,048 and halves their arm/disarm and MIDI event block positions. All
+assertions and semantic events remain, including held notes across handoffs,
+immediate MIDI delivery, repeated nonaligned loops, real disk playback and recorded
+sample comparisons. MIDI assertions ensure a full 200 ms horizon fits between the
+relevant events. `--original-sequences` retains the original lengths for targeted
+checks with the same deadline. Monitoring and lifecycle cases are unchanged in
+length. The existing Realtime dummy driver is retained: its Double Speed option
+was investigated and rejected after it failed to improve combined runtime.
+
+The controlled tests each process one second of musical time through registered
+tracks, the original Session/Graph, and a real four-insert LV2 delay chain plus a
+simultaneous direct reference. A separate MonitorInput track is checked sample by
+sample against current-cycle input. The worker waits for an audible sample position,
+not a random sleep; a two-second watchdog diagnoses callback deadlock. All processing
+markers and trace buffers are test-only. Trace files include queued frames and
+milliseconds, queue generation, underruns, state, callback gaps and render durations.
+
+| Scenario (both quanta) | Required behavior |
+| --- | --- |
+| `stall-absorbed` | Stall ends before cached audio runs out; zero missing samples. |
+| `stall-starved` | First hole at frame 24,576; accurately counted silence and exact recovery. |
+| `stall-long-starved` | Lag exceeds a whole 200 ms cache; stale blocks are discarded and recovery remains exact. |
+| `stall-handoff` | Record-arm while DSP is held; no concurrent ownership and live processing begins after the in-flight block. |
+| `stall-demotion` | Delayed first background job after leaving live mode produces diagnosed holes; monitoring continues and playback recovers. |
+
+Demotion has **no initial playback reserve**. Its fault case intentionally requires
+underruns and verifies accurate diagnosis/recovery; it does not certify dropout-free
+demotion. In the controlled 32 ms starvation pair, both quanta lost exactly 32 ms
+(24 blocks at 64 frames, 12 at 128). Independent monitoring remained sample-exact.
+Negative controls insert a one-block monitor delay or stale playback after recovery;
+the oracle must detect each at the injected frame, in the correct signal lane.
+
+See `anticipation-evidence/native-faults-2026-11-18/README.md` for final evidence,
+failed directions, and limitations. Synthetic/dummy correctness evidence does not
+establish physical monitoring latency or clear the failed sustained hardware gate.
+Capacity probes still default to 512 blocks; longer captures require explicit
+`--soak` and never run in this regression suite.
 
 `jay/anticipation-integration` moves the validated scheduling mechanism into
 libardour. `AnticipationQueue` supplies bounded audio/MIDI storage, exclusive DSP
@@ -94,8 +128,11 @@ stress testing; this is an experimental integration, not release certification.
   upstream playback continues ahead. No extra software buffer at 64/128 frames.
 - `anticipation_native_record_probe.cc`: original DiskWriter capture compared with
   an independent raw-input oracle while another real DiskReader track anticipates.
-- `validate-native-anticipation.py`: thirteen native cases, including both buffer
-  sizes and combined disk/loop/PDC/send/sidechain/gain-automation comparisons.
+- `anticipation_native_stall_probe.cc`: five worker-fault scenarios at each buffer
+  size, independent current-input monitoring, and two deliberately broken fixtures
+  that the audio oracle must reject.
+- `validate-native-anticipation.py`: 25 native cases with targeted selection, bounded
+  concurrency, a nine-second execution deadline, and retained failure diagnostics.
 - `anticipation_native_capacity_probe.cc`: paired normal registered-route capacity
   runs, without the earlier private-chain test bridge; real CoreAudio is selectable.
 
