@@ -637,6 +637,12 @@ and an empty whitelist displays folders only. This filters listings; adding an
 extension does not install a decoder. Folders stay navigable, expansion stays
 lazy, and preview/drag-to-import use the existing clip browser paths.
 
+While the file list has focus, Up/Down navigate rows, Left/Right expand or
+collapse folders, Shift+arrows extend the selection, and Enter opens a folder or
+previews a file. Home/End and Page Up/Down also navigate the list. These keys
+do not trigger arrangement or computer-keyboard-piano actions in the file list.
+Opening the browser or completing a folder/filter operation focuses the list.
+
 The last opened root directory is restored at startup. Expanding a subfolder
 does not change that root or Refresh's target. Missing folders report an error
 instead of asserting. Hidden files and nonregular files are not listed.
@@ -650,6 +656,8 @@ python3 tools/dev/prepare-browser-ui-probe.py artifacts/browser-ui-probe.dylib
 # to DYLD_INSERT_LIBRARIES alongside that app's private-home interposer.
 # Once the GUI is ready:
 python3 tools/dev/test-browser-ui.py /absolute/private/browser-test
+# Native window keyboard dispatch, including tree navigation and selection:
+python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --keys --pid PRIVATE_GUI_PID
 # Restart that same private app, then verify saved directory/filter restoration:
 python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --restore
 ```
