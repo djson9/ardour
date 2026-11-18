@@ -136,6 +136,12 @@ SelectionPropertiesBox::set_session (Session* s)
 	selection_changed();
 }
 
+bool
+SelectionPropertiesBox::focus_route_processors ()
+{
+	return _route_prop_box && _route_prop_box->get_mapped () && _route_prop_box->focus_processors ();
+}
+
 void
 SelectionPropertiesBox::track_mouse_mode ()
 {

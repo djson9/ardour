@@ -418,6 +418,9 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 	if (!route_view) return false;
 
 	switch (event->keyval) {
+	case GDK_Tab:
+		_editor.focus_route_processors ();
+		return true;
 	case GDK_Return:
 	case GDK_KP_Enter:
 		if (can_edit_name ()) {

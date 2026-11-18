@@ -49,6 +49,7 @@ public:
 
 	void set_session (ARDOUR::Session*);
 	void set_route (std::shared_ptr<ARDOUR::Route>, bool force = false);
+	bool focus_processors ();
 
 private:
 	void property_changed (const PBD::PropertyChange& what_changed);

@@ -312,6 +312,13 @@ are traversed, and pinned Master is last. Navigation stops at either end.
 Text fields retain their normal arrow keys, and record-armed tracks retain the
 existing rename restriction.
 
+Tab moves from the focused track/group header into its bottom device list,
+opening the bottom panel if needed. In that list, Up/Left and Down/Right select
+the previous/next plugin or rack, skipping faders/meters and stopping at the
+ends. The highlight and displayed controls follow the selection. Tab or Shift+Tab
+returns to the same track header. Text and parameter fields retain normal Tab
+and arrow handling; an empty device list still permits returning to the track.
+
 The `track-title` case checks renaming/cancellation, focus after renaming,
 repeated navigation, expanded/collapsed nested groups, and preserved hierarchy.
 It retains the saved nested fixture for inspection; use a fresh disposable
@@ -339,8 +346,11 @@ The track processor list and rack chain list already share `PluginSelector` and
 processor-window proxies; rack chains use the rack's edit/validation API.
 Their owner-specific list operations remain separate.
 
-`selected-device-ui-probe.cc` checks plugin switching, a rack, clearing selection,
-pointer leave, selected-device removal, and switching to an empty track and back.
+`selected-device-ui-probe.cc` checks header/device Tab focus, all four arrow keys,
+keypad navigation, boundaries, skipping the fader, parameter text-entry keys,
+reopening the hidden panel, empty lists and group headers. It also checks plugin
+switching, a rack, clearing selection, pointer leave, selected-device removal,
+and switching to an empty track and back.
 Compile it against the configured macOS build:
 
 ```sh
@@ -353,7 +363,8 @@ Inject that library into a disposable session named `*Verification*` with an
 create `/tmp/selected-device-result.json.trigger`. The probe loads built-in ACE
 EQ/Delay fixtures, inspects the actual GTK widget tree, and writes its result
 within nine seconds. It never belongs in the normal launcher or working session.
-The native GTK probe passed on 2026-11-18 in 0.53 s.
+The native GTK probe, including Tab/arrow navigation, passed on 2026-11-18 in
+1.32 s. The track-title/nested-group regression also passed (5.57 s).
 
 ### Track-selection latency in the Live layout
 

@@ -2290,6 +2290,14 @@ Editor::set_edit_point_preference (EditPoint ep, bool force)
 	instant_save ();
 }
 
+bool
+Editor::focus_route_processors ()
+{
+	if (!_session || !_properties_box) return false;
+	ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-props"))->set_active (true);
+	return _properties_box->focus_route_processors ();
+}
+
 void
 Editor::focus_on_clock()
 {

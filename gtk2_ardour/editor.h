@@ -734,6 +734,7 @@ private:
 	void catch_vanishing_regionview (RegionView*);
 
 	void set_selected_track (TimeAxisView&, ARDOUR::SelectionOperation op = ARDOUR::SelectionSet, bool no_remove=false);
+	bool focus_route_processors ();
 	void select_all_visible_lanes ();
 	void select_all_tracks ();
 	bool select_all_internal_edit (ARDOUR::SelectionOperation);
