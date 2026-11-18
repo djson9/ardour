@@ -74,6 +74,7 @@ static int touch_parameter(GtkWidget* w) {
  return 1;
 }
 static GtkWidget* named(GtkWidget* w,const char* name) {
+ if(!w)return NULL;
  struct Search s={name,NULL};find_named(w,&s);return s.result;
 }
 static int select_row(GtkWidget* view,int index) {

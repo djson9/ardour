@@ -35,6 +35,7 @@ if args.drag:
 fixture = out / 'Rack Verification'
 session_file = fixture / 'Rack Verification.ardour'
 route_id = next(r.get('id') for r in ET.parse(session_file).findall('./Routes/Route') if r.find("Processor[@type='audio-rack']") is not None)
+initial_plugin_id = ET.parse(session_file).find(f"./Routes/Route[@id='{route_id}']/Processor[@type='audio-rack']/Chain/Processor").get('id')
 log = out / 'gui.log'
 offset = log.stat().st_size if log.exists() else 0
 
@@ -90,7 +91,12 @@ try:
             rack = ET.parse(session_file).find(f"./Routes/Route[@id='{route_id}']/Processor[@type='audio-rack']")
             names = [[p.get('name') for p in c.findall('Processor')] for c in rack.findall('Chain')]
             assert names == [['Rack test'], ['ACE EQ']], names
-            result = {'native_mouse_drag': args.drag, 'bottom_panel': not args.floating, 'floating_editor': args.floating, 'selected_chain_lists': True, 'insertion_reorder_removal': True,
+            if args.drag:
+                assert rack.find('Chain/Processor').get('id') == initial_plugin_id
+                assert not rack.findall('Macro/Mapping')
+                assert len(ET.parse(session_file).findall(f".//Processor[@id='{initial_plugin_id}']")) == 1
+                assert rack.find('Chain/Processor').find('.//LearnedParameters/Parameter') is not None
+            result = {'native_mouse_drag': args.drag, 'drag_identity_and_mapping_checks': args.drag, 'bottom_panel': not args.floating, 'floating_editor': args.floating, 'selected_chain_lists': True, 'insertion_reorder_removal': True,
                       'track_switch_lifecycle': navigation == 2, 'saved_chain_plugins': names}
             (out / ('drag-result.json' if args.drag else ('floating-panel-result.json' if args.floating else 'bottom-panel-result.json'))).write_text(json.dumps(result, indent=2) + '\n')
             print(json.dumps(result, indent=2))

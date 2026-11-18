@@ -729,7 +729,9 @@ Drag an existing audio effect from the track's processor list onto a chain row
 or into the selected chain's plugin list. Drop between plugin rows to reorder,
 on another chain to append there, or back on the track processor list to move
 out of the rack. Empty chains accept drops. The same operation works between
-racks and tracks. Each drag moves the plugin under the pointer.
+racks and tracks. Each drag moves the plugin under the pointer. Starting a drag
+from the track list temporarily shows the most recently selected rack as a drop
+destination, while a normal click still shows the selected plugin’s controls.
 
 Moves retain the plugin instance, parameter controls, learned controls, and
 bypass state. Macro mappings survive moves within a rack; leaving that rack
