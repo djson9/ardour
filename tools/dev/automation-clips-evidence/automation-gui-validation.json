@@ -1,0 +1,132 @@
+{
+  "passed": true,
+  "seconds": 1.80779774999246,
+  "a_hides_and_reveals": [
+    true,
+    false
+  ],
+  "point_undo_redo": true,
+  "resize_undo": true,
+  "initial": {
+    "sessionName": "Automation Clips - Older 8 Bars",
+    "sessionPath": "/Users/davidson/workspace/artifacts/chord-grid-ardour-recording/Automation Clips - Older 8 Bars",
+    "sampleRate": 48000,
+    "audioEngine": {
+      "backend": "CoreAudio",
+      "bufferFrames": 128,
+      "dspLoad": 4.50858,
+      "xruns": 2
+    },
+    "tempoBpm": 120,
+    "transport": {
+      "rolling": false,
+      "speed": 0,
+      "sample": 0,
+      "state": "stopped"
+    }
+  },
+  "final": {
+    "sessionName": "Automation Clips - Older 8 Bars",
+    "sessionPath": "/Users/davidson/workspace/artifacts/chord-grid-ardour-recording/Automation Clips - Older 8 Bars",
+    "sampleRate": 48000,
+    "audioEngine": {
+      "backend": "CoreAudio",
+      "bufferFrames": 128,
+      "dspLoad": 9.19915,
+      "xruns": 2
+    },
+    "tempoBpm": 120,
+    "transport": {
+      "rolling": false,
+      "speed": 0,
+      "sample": 0,
+      "state": "stopped"
+    }
+  },
+  "playback": [
+    {
+      "transport": {
+        "rolling": true,
+        "speed": 1,
+        "sample": 14592,
+        "state": "rolling"
+      },
+      "fader": {
+        "position": 0.420427,
+        "db": -14.3741
+      },
+      "pan": {
+        "position": 0.361397,
+        "convention": "0.0=right, 0.5=center, 1.0=left"
+      },
+      "native_pan": 0.638603,
+      "peak_db": [
+        -19.1806,
+        -18.3627
+      ]
+    },
+    {
+      "transport": {
+        "rolling": true,
+        "speed": 1,
+        "sample": 29440,
+        "state": "rolling"
+      },
+      "fader": {
+        "position": 0.454217,
+        "db": -12.643
+      },
+      "pan": {
+        "position": 0.529999,
+        "convention": "0.0=right, 0.5=center, 1.0=left"
+      },
+      "native_pan": 0.470001,
+      "peak_db": [
+        -18.5214,
+        -15.9806
+      ]
+    },
+    {
+      "transport": {
+        "rolling": true,
+        "speed": 1,
+        "sample": 44416,
+        "state": "rolling"
+      },
+      "fader": {
+        "position": 0.48417,
+        "db": -11.2002
+      },
+      "pan": {
+        "position": 0.698602,
+        "convention": "0.0=right, 0.5=center, 1.0=left"
+      },
+      "native_pan": 0.30139800000000005,
+      "peak_db": [
+        -15.8698,
+        -15.3954
+      ]
+    },
+    {
+      "transport": {
+        "rolling": true,
+        "speed": 1,
+        "sample": 59264,
+        "state": "rolling"
+      },
+      "fader": {
+        "position": 0.4944,
+        "db": -10.7253
+      },
+      "pan": {
+        "position": 0.7633,
+        "convention": "0.0=right, 0.5=center, 1.0=left"
+      },
+      "native_pan": 0.23670000000000002,
+      "peak_db": [
+        -13.6626,
+        -13.2311
+      ]
+    }
+  ]
+}

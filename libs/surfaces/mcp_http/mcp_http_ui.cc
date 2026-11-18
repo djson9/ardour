@@ -3,6 +3,7 @@
 #include "canvas/canvas.h"
 #include "canvas/text.h"
 #include <chrono>
+#include <glibmm/main.h>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -222,7 +223,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 			} else if (!action || !action->get_sensitive ()) {
 				out << "{\"error\":\"Action missing or insensitive\"}";
 			} else {
-				action->activate ();
+				/* A modal dialog runs a nested GTK loop. Leave the control-surface
+				 * event source before activation so later UI requests can enter it. */
+				Glib::signal_idle().connect_once ([action] { action->activate(); });
 				out << "{\"activated\":" << quote (action_name) << "}";
 			}
 		} else {

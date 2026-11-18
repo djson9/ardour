@@ -89,6 +89,7 @@ namespace Evoral {
 }
 
 namespace ARDOUR {
+	class AutomationClips;
 	class AudioPlaylist;
 	class AudioRegion;
 	class AudioTrack;
@@ -368,6 +369,12 @@ public:
 
 	void goto_visual_state (uint32_t);
 	void save_visual_state (uint32_t);
+
+	void edit_selected_automation_targets ();
+	void toggle_automation_clips ();
+	void add_automation_track ();
+	void add_automation_clip (std::shared_ptr<ARDOUR::Route>);
+	void edit_automation_clip_targets (std::shared_ptr<ARDOUR::Route>);
 
 	TrackViewList const & get_track_views () const {
 		return track_views;
@@ -1053,6 +1060,8 @@ private:
 	void visual_changer (const VisualChange&);
 
 	/* track views */
+	std::unique_ptr<ARDOUR::AutomationClips> _automation_clips;
+	bool _automation_clips_visible = false;
 	TrackViewList track_views;
 
 	std::pair<TimeAxisView*, double> trackview_by_y_position (double, bool trackview_relative_offset = true) const;

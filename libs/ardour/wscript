@@ -50,6 +50,7 @@ libardour_sources = [
         'automation.cc',
         'automation_control.cc',
         'automation_list.cc',
+        'automation_clip.cc',
         'automation_watch.cc',
         # 'beatbox.cc',
         'broadcast_info.cc',
@@ -643,6 +644,8 @@ def build(bld):
             'LOCALEDIR="' + autowaf.normpath(bld.env['LOCALEDIR']) + '"',
             ]
         testcommon.name         = 'testcommon'
+
+        create_ardour_test_program(bld, obj.includes, 'unit-test-automation-clips', 'test_automation_clips', ['test/automation_clip_test.cc'])
 
         if bld.env['SINGLE_TESTS']:
             create_ardour_test_program(bld, obj.includes, 'unit-test-audio_engine', 'test_audio_engine', ['test/audio_engine_test.cc'])

@@ -1,3 +1,4 @@
+#include "ardour/automation_clip_source.h"
 /*
  * Copyright (C) 1999-2019 Paul Davis <paul@linuxaudiosystems.com>
  * Copyright (C) 2005-2006 Taybin Rutkin <taybin@taybin.com>
@@ -1994,6 +1995,11 @@ Session::state (SessionSaveDisposition ssd, snapshot_t snapshot_type) const
 		for (auto const & [id,src] : sources) {
 
 			if (src->transient()) {
+				continue;
+			}
+
+			if (std::dynamic_pointer_cast<AutomationClipSource> (src)) {
+				child->add_child_nocopy (src->get_state());
 				continue;
 			}
 

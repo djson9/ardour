@@ -1,3 +1,4 @@
+#include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2005-2016 Paul Davis <paul@linuxaudiosystems.com>
  * Copyright (C) 2005 Karsten Wiese <fzuuzf@googlemail.com>
@@ -42,7 +43,7 @@ using namespace std;
 using namespace ARDOUR;
 
 AudioRegionGainLine::AudioRegionGainLine (const string & name, AudioRegionView& r, ArdourCanvas::Container& parent, std::shared_ptr<AutomationList> l)
-	: RegionFxLine (name, r, parent, l, l->parameter ())
+	: RegionFxLine (name, r, parent, l, AutomationClips::is_clip(r.audio_region()) ? AutomationClips::descriptor() : ParameterDescriptor(l->parameter()))
 	, arv (r)
 {
 }

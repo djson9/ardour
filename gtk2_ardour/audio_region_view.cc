@@ -1,3 +1,4 @@
+#include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2006-2014 David Robillard <d@drobilla.net>
  * Copyright (C) 2007-2012 Carl Hetherington <carl@carlh.net>
@@ -1276,7 +1277,7 @@ AudioRegionView::update_envelope_visibility ()
 		return;
 	}
 
-	if (trackview.editor().current_mouse_mode() == Editing::MouseDraw || trackview.editor().current_mouse_mode() == Editing::MouseContent ) {
+	if (AutomationClips::is_clip(audio_region()) || trackview.editor().current_mouse_mode() == Editing::MouseDraw || trackview.editor().current_mouse_mode() == Editing::MouseContent ) {
 		_fx_line->add_visibility (EditorAutomationLine::Line);
 		if (hovered) {
 			_fx_line->add_visibility (EditorAutomationLine::ControlPoints);
@@ -1354,7 +1355,8 @@ AudioRegionView::create_waves ()
 
 		// cerr << "\tchannel " << n << endl;
 
-		if (wait_for_data) {
+		/* The silent carrier still supplies the normal region mouse hit area. */
+		if (wait_for_data && !AutomationClips::is_clip(audio_region())) {
 			if (audio_region()->audio_source(n)->peaks_ready (std::bind (&AudioRegionView::peaks_ready_handler, this, n), &_data_ready_connections[n], gui_context())) {
 				// cerr << "\tData is ready for channel " << n << "\n";
 				create_one_wave (n, true);
@@ -1401,7 +1403,7 @@ AudioRegionView::create_one_wave (uint32_t which, bool direct)
 	wave->set_y_position (yoff);
 	wave->set_height (ht);
 	wave->set_samples_per_pixel (samples_per_pixel);
-	wave->set_show_zero_line (true);
+	wave->set_show_zero_line (!AutomationClips::is_clip(audio_region()));
 	wave->set_clip_level (UIConfiguration::instance().get_waveform_clip_level ());
 	wave->set_start_shift (1.0);
 

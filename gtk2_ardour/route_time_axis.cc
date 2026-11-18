@@ -1,3 +1,5 @@
+#include "editor.h"
+#include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2006-2014 David Robillard <d@drobilla.net>
  * Copyright (C) 2007-2012 Carl Hetherington <carl@carlh.net>
@@ -668,6 +670,12 @@ RouteTimeAxisView::build_display_menu ()
 	bool active = _route->active ();
 
 	MenuList& items = display_menu->items();
+
+	if (AutomationClips::is_track(_route)) {
+		items.push_back (MenuElem (_("Automation targets..."), [this] { if (auto e = dynamic_cast<Editor*> (&PublicEditor::instance())) { e->edit_automation_clip_targets (_route); } }));
+		items.push_back (MenuElem (_("New automation clip at edit point"), [this] { if (auto e = dynamic_cast<Editor*> (&PublicEditor::instance())) { e->add_automation_clip (_route); } }));
+		items.push_back (SeparatorElem());
+	}
 
 	/* now fill it with our stuff */
 	if (active) {

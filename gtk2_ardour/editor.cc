@@ -1,3 +1,4 @@
+#include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2005-2007 Doug McLain <doug@nostar.net>
  * Copyright (C) 2005-2009 Taybin Rutkin <taybin@taybin.com>
@@ -818,6 +819,7 @@ Editor::Editor ()
 
 Editor::~Editor()
 {
+	_automation_clips.reset();
 	delete own_bindings;
 	delete tempo_marker_menu;
 	delete meter_marker_menu;
@@ -1290,12 +1292,19 @@ Editor::update_title ()
 void
 Editor::set_session (Session *t)
 {
+	_automation_clips.reset();
 	EditingContext::set_session (t);
 
 	section_marker_bar->clear (true);
 
 	if (!_session) {
 		return;
+	}
+
+	_automation_clips.reset (new AutomationClips (*_session));
+	_automation_clips_visible = false;
+	for (auto const& r : *_session->get_routes()) {
+		if (AutomationClips::is_track(r) && !r->presentation_info().hidden()) { _automation_clips_visible = true; }
 	}
 
 	/* initialize _leftmost_sample to the extents of the session
