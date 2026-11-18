@@ -68,7 +68,7 @@ static gboolean tick(gpointer) {
  auto* widget=find(browser,"browser-audio-waveform");if(!widget)return finish("Missing waveform");
  auto* wave=static_cast<BrowserAudioPreview*>(Glib::wrap(widget));
  auto data=wave->analysis();
- auto actual_gain=[&] {auto p=session->the_auditioner()->playlist();if(p)for(auto const& r:*p->region_list())if(auto a=std::dynamic_pointer_cast<ARDOUR::AudioRegion>(r))return a->scale_amplitude();return -1.f;};
+ auto actual_gain=[&] {auto p=session->the_auditioner()->playlist();if(p){auto regions=p->region_list();for(auto const& r:*regions)if(auto a=std::dynamic_pointer_cast<ARDOUR::AudioRegion>(r))return a->scale_amplitude();}return -1.f;};
  switch(stage) {
  case 3: waiting="Select quiet audio";if(select("quiet.wav"))stage=4;break;
  case 4:
