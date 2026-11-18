@@ -58,3 +58,24 @@ The separate GUI probe in `chord_grid_reload_ui_probe.cc` is injected only into 
 private test process. It finds the real toolbar button, emits its click signal,
 waits for the new instance and reopened editor, and checks the state again. The
 user's active Ardour process is not part of either test.
+
+## Space for host transport (macOS)
+
+Unhandled plain Space in the Chord Grid MIDI VST3 editor invokes Ardour's
+**Transport / Start/Stop** action. The native plugin view handles the key first,
+so spaces in its text fields keep working. Key repeats and key-up do not toggle
+transport. Modified Space and other plugin types retain their existing handling.
+This also works while the plugin window captures keyboard input.
+
+The native parent view provides this fallback; no plugin HTTP calls, synthesized
+keystrokes, or changes to musical state are involved. Installing it requires one
+Ardour update/relaunch. Chord Grid itself does not need a new plugin build.
+
+`tools/dev/chord_grid_space_ui_probe.mm` runs only in a private GUI test process
+with a `Space UI` fixture containing the `Reload fixture` route. Set
+`ARDOUR_SPACE_UI_PLUGIN` to a real Chord Grid VST3 and `ARDOUR_SPACE_UI_RESULT` to
+the JSON result path. The probe loads the plugin and sends native events through
+its actual JUCE view, verifies play/stop, checks repeat/key-up, then edits the
+session-name field to verify a space changes text without starting transport.
+Use the same isolated home, dummy audio backend and injection/packaging process
+as the reload GUI probe above. Never inject a test module into the user's session.
