@@ -710,7 +710,7 @@ TransportFSM::roll_after_locate () const
 	}
 
 	api->set_transport_speed (most_recently_requested_speed);
-	api->start_transport (for_loop);
+	api->start_transport (for_loop, true);
 }
 
 void
