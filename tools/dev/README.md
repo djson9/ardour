@@ -492,3 +492,46 @@ packaging (the incremental Mach-O delta does not include `.colors` files).
 The compact arrangement places the existing summary/minimap above the bar ruler.
 Its saved height, draggable divider, visibility toggle, navigation, and zoom controls
 are retained; the classic layout keeps the summary below the arrangement.
+
+## Compact position, pinned Master, and track information
+
+With `ARDOUR_LIVE_LAYOUT=1`, the transport uses a single-row layout and displays
+position as `bar . beat . sixteenth` without leading zeroes. Focus the clock to
+enter a position; Enter locates and Escape restores the display. Invalid beat or
+subdivision values are rejected without falling through to transport shortcuts.
+BBT ticks retain their quarter-note units when converting non-quarter meters.
+
+Master uses its existing route/view in a fixed bottom row. Its native header is
+outside the scrolling header layout, and its canvas position follows the viewport.
+It remains selectable, including from the canvas, while scrolling or resizing the
+bottom device pane. Shift-click ordering treats Master as the last row rather than
+inserting it between scrolling tracks according to its temporary canvas position.
+
+Track headers have a colored name column, native input/output routing buttons,
+In/Auto/Off monitoring, track number, mute/solo/record, numeric gain and a fader,
+and a level meter. Off means playback-only monitoring (`MonitorDisk`); Auto uses
+Ardour's automatic record/transport policy. Short rows hide routing details while
+preserving column alignment. Master keeps its numeric gain in its short row.
+These are existing routing/gain controls; this does not implement folder groups.
+
+Additional nine-second native GTK cases:
+
+```sh
+python3 tools/dev/verify-compact-workflow.py --session-path '/path/to/Compact UI Verification' --case master-clock
+python3 tools/dev/verify-compact-workflow.py --session-path '/path/to/Compact UI Verification' --case track-info
+```
+
+The clock fixture uses 120 BPM, 4/4. The first case checks text input, invalid input,
+focus release, pinned header/canvas alignment while scrolling, and Master hit
+selection through bottom-pane allocation changes. The second creates a disposable
+track, exercises monitoring and gain against persisted/native controls, opens both
+routing editors, and confirms deletion of only that test track. The pointer helper
+accepts `TrackControl:track name|input`, `output`, `monitor-in`, `monitor-auto`,
+`monitor-off`, and `gain`, and reports target geometry. It delivers button crossing
+events and uses GtkEntry's inner text window, as real native pointer events do.
+
+Measured on 2026-11-18 after these changes: track information 1.15 s, header
+selection/deletion 1.34 s, clock/pinned Master 1.33 s, and native scrolling/pinch
+5.64 s. The loop regression also passed in 3.44 s. Native scroll tests obtain
+actual header geometry rather than treating the ruler-label area as a track.
+The native macOS arm64 build and installed bundle signature checks passed.

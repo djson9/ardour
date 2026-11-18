@@ -46,6 +46,7 @@
 #include "enums.h"
 #include "stripable_time_axis.h"
 #include "gain_meter.h"
+#include "io_button.h"
 
 namespace ARDOUR {
 	class Session;
@@ -277,6 +278,18 @@ protected:
 	void post_construct ();
 
 	GainMeterBase gm;
+	Gtk::EventBox live_name_box;
+	Gtk::VBox live_io_box;
+	Gtk::HBox live_monitor_box;
+	IOButton live_input {true};
+	IOButton live_output {false};
+	ArdourWidgets::ArdourButton live_monitor_in {"In"};
+	ArdourWidgets::ArdourButton live_monitor_auto {"Auto"};
+	ArdourWidgets::ArdourButton live_monitor_off {"Off"};
+	bool live_header = false;
+	void setup_live_header ();
+	void update_live_monitor ();
+
 
 	bool _ignore_set_layer_display;
 	void layer_display_menu_change (Gtk::MenuItem* item);

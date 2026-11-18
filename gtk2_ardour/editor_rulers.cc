@@ -706,6 +706,7 @@ Editor::update_ruler_visibility ()
 	/* move hv_scroll_group (trackviews) to the end of the timebars */
 
 	hv_scroll_group->set_y_position (ruler_separator_y);
+	position_pinned_master ();
 
 	compute_fixed_ruler_scale ();
 	update_fixed_rulers();

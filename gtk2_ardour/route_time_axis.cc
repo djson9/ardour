@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "ardour/monitor_control.h"
 #include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2006-2014 David Robillard <d@drobilla.net>
@@ -139,6 +140,86 @@ RouteTimeAxisView::RouteTimeAxisView (PublicEditor& ed, Session* sess, ArdourCan
     );
 
 	parameter_changed ("editor-stereo-only-meters");
+}
+
+void
+RouteTimeAxisView::setup_live_header ()
+{
+	live_header = true;
+	live_input.set_data ("compact-track-control", const_cast<char*> ("input"));
+	live_output.set_data ("compact-track-control", const_cast<char*> ("output"));
+	live_monitor_in.set_data ("compact-track-control", const_cast<char*> ("monitor-in"));
+	live_monitor_auto.set_data ("compact-track-control", const_cast<char*> ("monitor-auto"));
+	live_monitor_off.set_data ("compact-track-control", const_cast<char*> ("monitor-off"));
+	gm.gain_display.set_data ("compact-track-control", const_cast<char*> ("gain"));
+	/* Repack native controls: their routing dialogs, automation, grouping,
+	 * record safety and metering continue using Ardour's existing paths. */
+	controls_table.remove (name_label);
+	live_name_box.add (name_label);
+	name_label.set_alignment (0., 0.);
+	name_label.set_padding (5, 5);
+	name_label.set_size_request (118 * UIConfiguration::instance().get_ui_scale (), -1);
+	top_hbox.pack_start (live_name_box, false, false, 0);
+	top_hbox.reorder_child (live_name_box, 0);
+	live_name_box.show ();
+
+	live_io_box.set_spacing (2);
+	live_io_box.set_border_width (2);
+	live_io_box.set_size_request (116 * UIConfiguration::instance().get_ui_scale (), -1);
+	controls_vbox.set_size_request (92 * UIConfiguration::instance().get_ui_scale (), -1);
+	for (auto* button : {&live_input, &live_output}) {
+		button->set_sizing_text ("External Input");
+		button->set_size_request (112 * UIConfiguration::instance().get_ui_scale (), -1);
+		button->set_route (_route, this);
+	}
+	live_io_box.pack_start (live_input, false, false);
+	if (is_track ()) {
+		live_monitor_box.set_spacing (2);
+		auto add = [this] (ArdourButton& button, MonitorChoice mode) {
+			button.set_name ("monitor button");
+			button.set_tweaks (ArdourButton::TrackHeader);
+			button.signal_clicked.connect ([this, mode] { _session->set_control (track()->monitoring_control (), mode, Controllable::UseGroup); });
+			live_monitor_box.pack_start (button, true, true);
+		};
+		add (live_monitor_in, MonitorInput);
+		add (live_monitor_auto, MonitorAuto);
+		add (live_monitor_off, MonitorDisk);
+		set_tooltip (live_monitor_in, _("Always monitor the input"));
+		set_tooltip (live_monitor_auto, _("Automatic monitoring follows record-arm and transport"));
+		set_tooltip (live_monitor_off, _("Monitor playback only (input monitoring off)"));
+		live_io_box.pack_start (live_monitor_box, false, false);
+		track()->monitoring_control()->Changed.connect (*this, invalidator (*this), std::bind (&RouteTimeAxisView::update_live_monitor, this), gui_context());
+		update_live_monitor ();
+	}
+	live_io_box.pack_start (live_output, false, false);
+	top_hbox.pack_start (live_io_box, false, false);
+	top_hbox.reorder_child (live_io_box, 1);
+
+	for (auto* child : controls_table.get_children ()) controls_table.remove (*child);
+	controls_table.attach (number_label, 0, 1, 0, 1, FILL, SHRINK);
+	controls_table.attach (*mute_button, 1, 2, 0, 1, SHRINK, SHRINK);
+	if (!_route->is_master ()) controls_table.attach (*solo_button, 2, 3, 0, 1, SHRINK, SHRINK);
+	if (is_track ()) controls_table.attach (*rec_enable_button, 3, 4, 0, 1, SHRINK, SHRINK);
+	gm.gain_display.set_width_chars (7);
+	gm.gain_display.set_alignment (0.5);
+	if (_route->is_master ()) controls_table.attach (gm.gain_display, 2, 4, 0, 1, FILL|EXPAND, SHRINK);
+	else controls_table.attach (gm.gain_display, 0, 4, 1, 2, FILL|EXPAND, SHRINK);
+	controls_table.attach (gm.get_gain_slider (), 0, 4, 2, 3, FILL|EXPAND, SHRINK);
+	gm.gain_display.show ();
+	live_io_box.show_all ();
+	set_height (current_height ());
+	update_track_number_visibility ();
+	route_color_changed ();
+}
+
+void
+RouteTimeAxisView::update_live_monitor ()
+{
+	if (!is_track ()) return;
+	const auto choice = track()->monitoring_control()->monitoring_choice ();
+	live_monitor_in.set_active_state (choice & MonitorInput ? ExplicitActive : Gtkmm2ext::Off);
+	live_monitor_auto.set_active_state (choice == MonitorAuto ? ExplicitActive : Gtkmm2ext::Off);
+	live_monitor_off.set_active_state (choice == MonitorDisk ? ExplicitActive : Gtkmm2ext::Off);
 }
 
 void
@@ -302,6 +383,8 @@ RouteTimeAxisView::set_route (std::shared_ptr<Route> rt)
 		}
 	}
 
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") setup_live_header ();
+
 	_y_position = -1;
 
 	_route->processors_changed.connect (*this, invalidator (*this), std::bind (&RouteTimeAxisView::processors_changed, this, _1), gui_context());
@@ -452,7 +535,7 @@ void
 RouteTimeAxisView::update_track_number_visibility ()
 {
 	DisplaySuspender ds;
-	bool show_label = _session->config.get_track_name_number();
+	bool show_label = live_header || _session->config.get_track_name_number();
 
 	if (_route && _route->is_master()) {
 		show_label = false;
@@ -1120,6 +1203,14 @@ RouteTimeAxisView::set_height (uint32_t h, TrackHeightMode m, bool from_idle)
 
 	}
 
+	if (live_header) {
+		const bool details = height >= preset_height (HeightNormal);
+		live_input.set_visible (details);
+		live_output.set_visible (details);
+		live_monitor_box.set_visible (details && is_track ());
+		gm.gain_display.set_visible (details || (_route && _route->is_master ()));
+	}
+
 	if (height_changed && !no_redraw) {
 		/* only emit the signal if the height really changed */
 		request_redraw ();
@@ -1134,6 +1225,13 @@ RouteTimeAxisView::route_color_changed ()
 		_view->apply_color (color(), StreamView::RegionColor);
 	}
 	number_label.set_fixed_colors (gdk_color_to_rgba (color()), gdk_color_to_rgba (color()));
+	if (live_header) {
+		const auto c = color ();
+		live_name_box.modify_bg (Gtk::STATE_NORMAL, c);
+		Gdk::Color text;
+		text.set ((c.get_red_p () * .299 + c.get_green_p () * .587 + c.get_blue_p () * .114) > .5 ? "#172126" : "#f2f5f6");
+		name_label.modify_fg (Gtk::STATE_NORMAL, text);
+	}
 
 	if (!is_master() && UIConfiguration::instance().get_use_route_color_widely()) {
 		gm.set_fader_fg (gdk_color_to_rgba (route_color_tint ()));

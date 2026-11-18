@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
 if a.case == 'native-scroll':
@@ -30,8 +30,13 @@ def key(k, window=None): return call('ui_press_key', key=k, window=window or mai
 def pointer(canvas, event, x, y, **kw):
     result = call('ui_canvas_pointer', window=main()['title'], canvas=canvas, event=event, x=x, y=y, **kw)
     assert result.get('delivered'), result
+    return result
 
 def header(name, **kw):
+    def ready():
+        try: return pointer('TrackHeader:' + name, 'move', 30, 14).get('delivered')
+        except AssertionError: return False
+    wait(ready)  # Route creation/rename reaches GTK asynchronously.
     for e in ['press', 'release']: pointer('TrackHeader:' + name, e, 30, 14, **kw)
 
 def wait(predicate):
@@ -85,7 +90,92 @@ subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (fi
 header(next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track')))
 checks = []
 
-if a.case == 'headers':
+if a.case == 'master-clock':
+    call('transport_stop')
+    wait(lambda: not call('session_get_info')['transport']['rolling'])
+    def clock():
+        if main().get('focusName') == 'LivePosition':
+            key('Escape'); wait(lambda: not main()['textEntry'])
+        call('ui_activate_action', action='Transport/focus-on-clock')
+        return wait(lambda: (w if (w := main()).get('focusName') == 'LivePosition' else None))
+    def enter(text):
+        clock(); key('Primary-a')
+        for ch in text: key('period' if ch == '.' else ch)
+        wait(lambda: main().get('focusText') == text)
+        key('Return')
+    enter('22.1.1')
+    rate = call('session_get_info')['sampleRate']
+    bpm = call('session_get_info')['tempoBpm']
+    # Verification fixture starts at 120 BPM, 4/4.
+    expected = round(84 * 60 / bpm * rate)
+    wait(lambda: call('session_get_info')['transport']['sample'] == expected)
+    assert clock()['focusText'] == '22 . 1 . 1'
+    key('Escape'); wait(lambda: not main()['textEntry'])
+    enter('3.2.3'); expected = round(9.5 * 60 / bpm * rate)
+    wait(lambda: call('session_get_info')['transport']['sample'] == expected)
+    assert clock()['focusText'] == '3 . 2 . 3'
+    enter('3.9.1'); assert call('session_get_info')['transport']['sample'] == expected
+    key('Escape'); wait(lambda: not main()['textEntry'])
+    checks += ['compact bar.beat.sixteenth input/display', 'invalid beat rejected', 'Escape releases keyboard focus']
+    master = next(r for r in routes() if r['name'] == 'Master')
+    header('Master'); expect_selection([master['id']])
+    def geometry(): return pointer('TrackHeader:Master', 'move', 30, 14)
+    top = geometry()
+    pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=350)
+    wait(lambda: float(instant().get('y-origin', '0')) > 0)
+    bottom = geometry()
+    assert top['yRoot'] == bottom['yRoot'] and top['height'] == bottom['height'], (top, bottom)
+    c = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+    assert abs(top['yRoot'] + top['height'] - c['yRoot'] - c['height']) <= 2, (top, c)
+    # Hit the canvas side of the pinned row; it must select Master, not a
+    # scrolling track underneath it. A click leaves the session's music intact.
+    call('ui_activate_action', action='Common/deselect-all')
+    expect_selection([])
+    time.sleep(.1)  # Bottom device pane changes allocation with track selection.
+    def master_y():
+        h = geometry(); canvas = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+        return h['yRoot'] - canvas['yRoot'] + h['height'] / 2
+    y = master_y()
+    for e in ['move', 'press']: pointer('EditorMainCanvas', e, 200, y)
+    expect_selection([master['id']])
+    time.sleep(.1)
+    pointer('EditorMainCanvas', 'release', 200, master_y())
+    pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=-1000)
+    wait(lambda: float(instant().get('y-origin', '0')) == 0)
+    final = geometry(); canvas = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+    assert abs(final['yRoot'] + final['height'] - canvas['yRoot'] - canvas['height']) <= 2
+    checks += ['native Master header fixed while scrolling', 'Master canvas/header aligned', 'canvas hit selects Master over scrolling tracks']
+
+elif a.case == 'track-info':
+    name = 'UI Header Detail Test'
+    assert not any(r['name'] == name for r in routes())
+    route_id = create('Primary-t', name, 'audio_track')
+    header(name)
+    def control(role, button=1):
+        for event in ['press', 'release']:
+            pointer('TrackControl:' + name + '|' + role, event, 10, 10, button=button)
+    def monitor_value():
+        instant()
+        root = ET.parse(a.session_path / (a.session_path.name + '.ardour'))
+        return root.find(".//Route[@id='" + route_id + "']/Controllable[@name='monitor']").get('value')
+    for role, value in [('monitor-in', '1'), ('monitor-off', '2'), ('monitor-auto', '0')]:
+        control(role); wait(lambda: monitor_value() == value)
+    control('gain')
+    wait(lambda: main()['textEntry'])
+    key('Primary-a'); key('minus'); key('6'); key('Return')
+    wait(lambda: abs(call('track_get_info', id=route_id)['fader']['db'] + 6) < .02)
+    assert not call('session_get_info')['transport']['rolling']
+    checks += ['In/Auto/Off writes native monitor control', 'numeric gain edits native fader without transport shortcut']
+    for role in ['input', 'output']:
+        control(role, button=3)
+        title = name + ' ' + role
+        wait(lambda: any(w['title'] == title for w in windows()))
+        call('ui_close_dialog', window=title)
+        wait(lambda: not any(w['title'] == title for w in windows()))
+    checks += ['input and output open native routing editors']
+    remove_fixture([name], [route_id])
+
+elif a.case == 'headers':
     names = ['UI Test Selection ' + str(i) for i in range(1, 4)]
     assert not any(r['name'] in names for r in routes()), 'Remove prior test fixtures first'
     ids = [create('Primary-Tertiary-t', n, 'midi_track') for n in names]
@@ -335,8 +425,11 @@ elif a.case in ('scroll', 'native-scroll'):
     if a.case == 'native-scroll':
         # CGEvent -> Cocoa -> Quartz GDK -> editor (no MCP event bypass).
         def native(dx, dy, mode='gesture', over_header=False):
-            x = c['xRoot'] + (c['width'] + 35 if over_header else 100)
-            y = c['yRoot'] + (15 if over_header else 100)
+            x, y = c['xRoot'] + 100, c['yRoot'] + 100
+            if over_header:
+                name = next(r['name'] for r in routes() if not r['hidden'] and r['type'].endswith('_track'))
+                h = pointer('TrackHeader:' + name, 'move', 30, 14)
+                x, y = h['xRoot'] + 30, h['yRoot'] + h['height'] / 2
             subprocess.run([str(a.native_scroll_helper), pid, str(x), str(y), str(dx), str(dy), mode], check=True, timeout=1)
         baseline = float(instant().get('y-origin'))
         expected = baseline

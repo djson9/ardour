@@ -1038,6 +1038,9 @@ private:
 
 	Gtk::VBox           track_canvas_vbox;
 	Gtk::VBox           edit_controls_vbox;
+	Gtk::VBox           master_controls_vbox;
+	TimeAxisView* pinned_master_view () const;
+	void position_pinned_master ();
 	Gtk::HBox           edit_controls_hbox;
 
 	TriggerClipPicker    _trigger_clip_picker;

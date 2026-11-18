@@ -559,6 +559,10 @@ Editor::button_selection (ArdourCanvas::Item* item, GdkEvent* event, ItemType it
 bool
 Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemType item_type)
 {
+	if (item_type == StreamItem && clicked_axisview && clicked_axisview == pinned_master_view ()) {
+		set_selected_track_as_side_effect (SelectionSet);
+		return true;
+	}
 	/* single mouse clicks on any of these item types operate
 	 * independent of mouse mode, mostly because they are
 	 * not on the main track canvas or because we want
@@ -1551,6 +1555,15 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 	/* no action if we're recording */
 
 	if (_session && _session->actively_recording()) {
+		return true;
+	}
+
+	if (event->button.button == 1 && item_type == StreamItem && clicked_axisview &&
+	    clicked_axisview == pinned_master_view () && !_drags->active ()) {
+		if (!_session->config.get_external_sync ()) {
+			if (snap_mode () != SnapOff) where = snap_to_grid (where, Temporal::RoundNearest, SnapToGrid_Scaled);
+			_session->request_locate (where.samples ());
+		}
 		return true;
 	}
 

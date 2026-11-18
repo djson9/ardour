@@ -242,6 +242,7 @@ Editor::initialize_canvas ()
 	_canvas_drop_zone = new ArdourCanvas::Rectangle (hv_scroll_group, ArdourCanvas::Rect (0.0, 0.0, ArdourCanvas::COORD_MAX, 0.0));
 	/* this thing is transparent */
 	_canvas_drop_zone->set_fill (false);
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") _canvas_drop_zone->lower_to_bottom ();
 	_canvas_drop_zone->set_outline (false);
 	_canvas_drop_zone->Event.connect (sigc::mem_fun (*this, &Editor::canvas_drop_zone_event));
 
@@ -420,7 +421,7 @@ Editor::reset_controls_layout_width ()
 	gint w;
 
 	req = edit_controls_vbox.size_request ();
-	w = req.width;
+	w = std::max (req.width, master_controls_vbox.size_request ().width);
 
 	/* the controls layout has no horizontal scrolling, its visible
 	   width is always equal to the total width of its contents.
@@ -1078,6 +1079,7 @@ Editor::tie_vertical_scrolling ()
 		_summary->set_overlays_dirty ();
 		_vsummary->set_overlays_dirty();
 	}
+	position_pinned_master ();
 	_group_tabs->set_offset (vertical_adjustment.get_value ());
 	controls_layout.queue_draw ();
 }

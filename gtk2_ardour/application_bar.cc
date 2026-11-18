@@ -18,6 +18,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <sstream>
+#include <locale>
+
 #ifdef WAF_BUILD
 #include "gtk2ardour-config.h"
 #include "gtk2ardour-version.h"
@@ -891,7 +894,13 @@ ApplicationBar::latency_switch_changed ()
 void
 ApplicationBar::focus_on_clock ()
 {
-	_primary_clock.focus ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		update_live_position ();
+		_live_position.grab_focus ();
+		_live_position.select_region (0, -1);
+	} else {
+		_primary_clock.focus ();
+	}
 }
 
 void
@@ -1097,6 +1106,7 @@ void
 ApplicationBar::every_point_zero_something_seconds ()
 {
 	if (_session && _live_bar.get_mapped ()) {
+		if (!_live_position.has_focus ()) update_live_position ();
 		const std::string key = _session->key () ? _session->key ()->name () : _("Key...");
 		if (_live_key.get_text () != key) { _live_key.set_text (key); }
 	}
@@ -1185,8 +1195,8 @@ ApplicationBar::setup_live_bar ()
 {
 	_table.set_no_show_all ();
 	_table.hide ();
-	_live_bar.set_spacing (6);
-	_live_bar.set_border_width (4);
+	_live_bar.set_spacing (4);
+	_live_bar.set_border_width (2);
 	/* Reuse the real transport/tempo widgets so state and shortcuts agree. */
 	auto move = [this] (Gtk::Widget& widget) {
 		if (auto* parent = widget.get_parent ()) { parent->remove (widget); }
@@ -1208,7 +1218,21 @@ ApplicationBar::setup_live_bar ()
 	_live_key.signal_clicked.connect (sigc::mem_fun (*this, &ApplicationBar::edit_session_key));
 	set_tooltip (_live_key, _("Session key and scale"));
 	move (_live_key);
-	move (_primary_clock);
+	_live_position.set_name ("LivePosition");
+	_live_position.set_width_chars (11);
+	_live_position.set_alignment (0.5);
+	_live_position.set_text ("1 . 1 . 1");
+	_live_position.signal_activate ().connect (sigc::mem_fun (*this, &ApplicationBar::locate_live_position));
+	_live_position.signal_focus_out_event ().connect ([this] (GdkEventFocus*) { update_live_position (); return false; });
+	_live_position.signal_key_press_event ().connect ([this] (GdkEventKey* e) {
+		if (e->keyval == GDK_Return || e->keyval == GDK_KP_Enter) { locate_live_position (); return true; }
+		if (e->keyval != GDK_Escape) return false;
+		update_live_position ();
+		ARDOUR_UI::instance ()->reset_focus (&_live_position);
+		return true;
+	}, false);
+	set_tooltip (_live_position, _("Position: bar . beat . sixteenth. Type a position and press Enter."));
+	move (_live_position);
 	move (_transport_ctrl.roll_button ());
 	move (_transport_ctrl.stop_button ());
 	move (_transport_ctrl.rec_button ());
@@ -1244,4 +1268,37 @@ ApplicationBar::edit_session_key ()
 		_session->set_key (dialog.get ());
 		_session->set_dirty ();
 	}
+}
+
+void
+ApplicationBar::update_live_position ()
+{
+	if (!_session) return;
+	const timepos_t pos (_session->audible_sample ());
+	const auto map = Temporal::TempoMap::use ();
+	const auto bbt = map->bbt_at (pos);
+	/* BBT ticks are quarter-note ticks, including in non-quarter meters. */
+	const int sixteenth = 1 + (int64_t (bbt.ticks) * 4) / Temporal::ticks_per_beat;
+	_live_position.set_text (string_compose ("%1 . %2 . %3", bbt.bars, bbt.beats, sixteenth));
+}
+
+void
+ApplicationBar::locate_live_position ()
+{
+	if (!_session || _session->actively_recording ()) return;
+	std::istringstream input (_live_position.get_text ().raw ());
+	input.imbue (std::locale::classic ());
+	int bar, beat, sixteenth; char dot1, dot2;
+	if (!(input >> bar >> dot1 >> beat >> dot2 >> sixteenth) || dot1 != '.' || dot2 != '.' ||
+	    bar < 1 || bar > 999999 || beat < 1 || sixteenth < 1) return;
+	input >> std::ws;
+	if (!input.eof ()) return;
+	const auto map = Temporal::TempoMap::use ();
+	Temporal::BBT_Argument bbt (bar, 1, 0);
+	const auto& meter = map->meter_at (timepos_t (map->sample_at (bbt)));
+	if (beat > meter.divisions_per_bar () || sixteenth > std::max (1, 16 / meter.note_value ())) return;
+	bbt.beats = beat;
+	bbt.ticks = (sixteenth - 1) * Temporal::ticks_per_beat / 4;
+	_session->request_locate (map->sample_at (bbt));
+	ARDOUR_UI::instance ()->reset_focus (&_live_position);
 }
