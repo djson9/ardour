@@ -3,9 +3,6 @@
 #include <fstream>
 #include <type_traits>
 #include <execinfo.h>
-#ifdef __APPLE__
-#import <Cocoa/Cocoa.h>
-#endif
 #include <ytkmm/container.h>
 #include <ytkmm/label.h>
 #include <ytkmm/window.h>
@@ -14,9 +11,6 @@
 #include <ytkmm/menu.h>
 #include <ytkmm/messagedialog.h>
 #include "gtkmm2ext/keyboard.h"
-#ifdef __APPLE__
-extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
-#endif
 #include "ardour/amp.h"
 #include "ardour/automation_clip.h"
 #include "ardour/audio_track.h"
@@ -47,6 +41,11 @@ extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #include "../../gtk2_ardour/route_properties_box.h"
 #include "../../gtk2_ardour/public_editor.h"
 #include "../../gtk2_ardour/time_axis_view.h"
+
+#ifdef __APPLE__
+#import <Cocoa/Cocoa.h>
+extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
+#endif
 
 using namespace ARDOUR;
 using List = Gtkmm2ext::DnDVBox<ProcessorEntry>;
