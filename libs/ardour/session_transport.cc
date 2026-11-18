@@ -603,7 +603,9 @@ Session::start_transport (bool after_loop)
 			_count_in_samples = tempometric.samples_per_bar (_current_sample_rate);
 
 			double dt = _count_in_samples / num;
-			if (bar_fract == 0) {
+			if (config.get_count_in_bars () > 0) {
+				_count_in_samples *= std::min (config.get_count_in_bars (), 4u);
+			} else if (bar_fract == 0) {
 				/* at bar boundary, count-in 2 bars before start. */
 				_count_in_samples *= 2;
 			} else {
@@ -617,6 +619,13 @@ Session::start_transport (bool after_loop)
 
 			int clickbeat = 0;
 			samplepos_t cf = _transport_sample - _count_in_samples;
+			if (config.get_count_in_bars () > 0) {
+				clickbeat = bbt.beats - 1;
+				if (bbt.ticks > 0) {
+					cf += dt * (1.0 - bbt.ticks / (double) Temporal::ticks_per_beat);
+					clickbeat = fmod (clickbeat + 1, num);
+				}
+			}
 			samplecnt_t offset = _click_io->connected_latency (true);
 			clear_clicks ();
 			_clicks_cleared = cf;

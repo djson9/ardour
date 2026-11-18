@@ -100,6 +100,57 @@ ArdourKeyboard::find_bindings_files (map<string,string>& files)
 	}
 }
 
+/* The compact arrangement has no keyboard-switchable editing toolbar.
+ * Remove only those bindings; menus, transport, selection and text still work.
+ * Apply after startup and live reload without rewriting the user's key file. */
+static void
+remove_hidden_toolbar_shortcuts ()
+{
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") { return; }
+	using Gtkmm2ext::Bindings;
+	for (auto* bindings : Bindings::bindings) {
+		if (bindings->name () != "Editor" && bindings->name () != "Global" && bindings->name () != "Editing") { continue; }
+		XMLNode saved ("Bindings");
+		bindings->save (saved);
+		for (auto* operation : saved.children ()) {
+			for (auto* binding : operation->children ()) {
+				auto* action = binding->property ("action");
+				if (!action || !binding->property ("key")) { continue; }
+				const std::string name = action->value ();
+				const std::string match = (name.find ("EditorEditing/") == 0 || name.find ("EditorSnap/") == 0) ? name.substr (6) : name;
+				for (const char* prefix : {
+				    "Editing/set-mouse-mode-", "Editor/set-mouse-mode-", "Editing/snap-", "Snap/grid-type-",
+				    "Editing/cycle-snap-mode", "Editing/next-grid-choice", "Editing/prev-grid-choice",
+				    "Editor/set-edit-mode-", "Editor/cycle-edit-mode", "Editor/set-edit-point-", "Editor/cycle-edit-point",
+				    "Editor/nudge-", "Common/nudge-", "Editor/playhead-to-next-grid", "Editor/playhead-to-prev-grid"}) {
+					if (match.compare (0, std::char_traits<char>::length (prefix), prefix) == 0) {
+						bindings->remove (operation->name () == "Release" ? Bindings::Release : Bindings::Press, name, false);
+						break;
+					}
+				}
+			}
+		}
+	}
+	if (auto* editor = Bindings::get_bindings ("Editor")) {
+		Gtkmm2ext::KeyboardKey slash (0, GDK_slash);
+		std::string previous;
+		if (editor->is_bound (slash, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);
+		editor->replace (slash, Bindings::Press, "Editor/find-and-display-stripable", false);
+	}
+
+	for (const char* group : {"Editor", "Global"}) {
+		if (auto* bindings = Bindings::get_bindings (group)) {
+			for (auto const& shortcut : {std::make_pair ("Primary-t", "Main/AddAudioTrack"), std::make_pair ("Primary-Tertiary-t", "Main/AddMidiTrack")}) {
+				Gtkmm2ext::KeyboardKey key; Gtkmm2ext::KeyboardKey::make_key (shortcut.first, key);
+				std::string previous;
+				if (bindings->is_bound (key, Bindings::Press, &previous)) bindings->remove (Bindings::Press, previous, false);
+				bindings->replace (key, Bindings::Press, shortcut.second, false);
+			}
+		}
+	}
+
+}
+
 void
 ArdourKeyboard::setup_keybindings ()
 {
@@ -221,6 +272,7 @@ ArdourKeyboard::setup_keybindings ()
 	}
 
 	load_keybindings (keybindings_path);
+	remove_hidden_toolbar_shortcuts ();
 
 	/* Poll the pathname, not the inode: text editors often save by rename.
 	 * Apply on the GUI thread, keeping every open window's Bindings pointer. */
@@ -238,6 +290,7 @@ ArdourKeyboard::setup_keybindings ()
 			}
 			std::string reason;
 			if (ArdourKeybindingConfig::reload (contents, reason)) {
+				remove_hidden_toolbar_shortcuts ();
 				KeyEditor::UpdateBindings ();
 				info << "Reloaded keyboard shortcuts from " << path << endmsg;
 			} else {

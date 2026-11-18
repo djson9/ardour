@@ -203,7 +203,9 @@ typedef enum
   GDK_SCROLL_UP,
   GDK_SCROLL_DOWN,
   GDK_SCROLL_LEFT,
-  GDK_SCROLL_RIGHT
+  GDK_SCROLL_RIGHT,
+  /* Native magnification; delta_y contains the fractional scale change. */
+  GDK_SCROLL_PINCH
 } GdkScrollDirection;
 
 /* Types of enter/leave notifications.

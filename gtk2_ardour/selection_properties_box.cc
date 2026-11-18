@@ -32,6 +32,8 @@
 #include "ardour/session.h"
 
 #include "audio_region_editor.h"
+#include "automation_clip_editor.h"
+#include "ardour/automation_clip.h"
 #include "audio_region_view.h"
 #include "control_point.h"
 #include "editor.h"
@@ -90,6 +92,8 @@ SelectionPropertiesBox::~SelectionPropertiesBox ()
 	delete _region_fx_box;
 	delete _slot_prop_box;
 	delete _pianoroll;
+	delete _automation_editor;
+	_automation_editor = nullptr;
 }
 
 void
@@ -165,6 +169,8 @@ SelectionPropertiesBox::delete_region_editor ()
 	delete _region_editor;
 	delete _region_fx_box;
 	delete _pianoroll;
+	delete _automation_editor;
+	_automation_editor = nullptr;
 	_region_editor = nullptr;
 	_pianoroll = nullptr;
 	_region_fx_box = nullptr;
@@ -174,9 +180,9 @@ SelectionPropertiesBox::delete_region_editor ()
 }
 
 void
-SelectionPropertiesBox::edit_midi_region (std::shared_ptr<ARDOUR::Region> region)
+SelectionPropertiesBox::edit_clip_region (std::shared_ptr<ARDOUR::Region> region)
 {
-	_explicit_midi_region = region;
+	_explicit_clip_region = region;
 	selection_changed ();
 }
 
@@ -244,17 +250,26 @@ SelectionPropertiesBox::selection_changed ()
 		}
 	}
 
-	if (rs.empty () || !dynamic_cast<MidiRegionView*> (rs.back ())) {
-		_explicit_midi_region.reset ();
-	}
-
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !rs.empty () &&
-	    dynamic_cast<MidiRegionView*> (rs.back ()) &&
-	    _explicit_midi_region.lock () != rs.back ()->region ()) {
-		/* Selection alone must not open a new piano roll. */
+	const bool clip_editor_region = !rs.empty () && (dynamic_cast<MidiRegionView*> (rs.back ()) ||
+	    AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (rs.back ()->region ())));
+	if (!clip_editor_region) _explicit_clip_region.reset ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && clip_editor_region && _explicit_clip_region.lock () != rs.back ()->region ()) {
 		delete_region_editor ();
-		_explicit_midi_region.reset ();
+		_explicit_clip_region.reset ();
 		rs.clear ();
+	}
+	if (!rs.empty () && AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (rs.back ()->region ()))) {
+		auto region = std::dynamic_pointer_cast<AudioRegion> (rs.back ()->region ());
+		if (!_automation_editor || _automation_editor->region () != region) {
+			delete_region_editor ();
+			_automation_editor = new AutomationClipEditor (_session, region);
+			_region_editor_box.pack_start (*_automation_editor, true, true);
+			_region_editor_box.set_size_request (-1, 230);
+			rs.back ()->RegionViewGoingAway.connect_same_thread (_region_connection, [this] (RegionView*) { delete_region_editor (); });
+		}
+		_time_info_box->hide (); _route_prop_box->hide (); _slot_prop_box->hide ();
+		_region_editor_box.show ();
+		return;
 	}
 
 	if (!rs.empty() && 0 != (_disposition & ShowRegions)) {

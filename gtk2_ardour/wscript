@@ -63,6 +63,7 @@ gtk2_ardour_sources = [
         'audio_time_axis.cc',
         'automation_controller.cc',
         'automation_line.cc',
+        'automation_clip_editor.cc',
         'automation_region_view.cc',
         'automation_streamview.cc',
         'automation_text_entry.cc',

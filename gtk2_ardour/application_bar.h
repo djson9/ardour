@@ -71,6 +71,9 @@ private:
 	void parameter_changed (std::string);
 	void ui_actions_ready ();
 	void setup_tooltips ();
+	void setup_live_bar ();
+	void set_count_in_bars (uint32_t);
+	void edit_session_key ();
 
 	void repack_transport_hbox ();
 
@@ -119,6 +122,11 @@ private:
 	bool                          _have_layout;
 	BasicUI*                      _basic_ui;
 	Gtk::Table                    _table;
+	Gtk::HBox                     _live_bar;
+	ArdourWidgets::ArdourDropdown _live_count_in;
+	ArdourWidgets::ArdourButton   _live_key;
+	ArdourWidgets::ArdourButton   _live_automation;
+	ArdourWidgets::ArdourButton   _live_piano;
 	TransportControlUI            _transport_ctrl;
 	ShuttleControl                _shuttle_box;
 	ArdourWidgets::ArdourButton   _sync_button;

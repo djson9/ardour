@@ -1,3 +1,4 @@
+#include "track_name_search.h"
 /*
  * Copyright (C) 2005-2006 Taybin Rutkin <taybin@taybin.com>
  * Copyright (C) 2005-2009 Sampo Savolainen <v2@iki.fi>
@@ -4342,6 +4343,16 @@ Editor::can_cut_copy () const
 void
 Editor::cut_copy (CutCopyOp op)
 {
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && op == Delete) {
+		for (auto* view : track_views) {
+			if (view->track_header_has_focus ()) {
+				/* The existing removal path always asks for confirmation. */
+				remove_tracks ();
+				return;
+			}
+		}
+	}
+
 	/* only cancel selection if cut/copy is successful.*/
 
 	string opname;
@@ -9590,6 +9601,8 @@ Editor::edit_region_in_dedicated_window ()
 void
 Editor::find_and_display_track ()
 {
+	if (!_session) return;
+	const bool live = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
 	ArdourDialog d (_("Find Track/Bus"), true, false);
 	Gtk::Entry text;
 	Gtk::HBox hpacker;
@@ -9624,9 +9637,40 @@ Editor::find_and_display_track ()
 	comp->set_minimum_key_length (1);
 	comp->set_match_anywhere ();
 	comp->set_case_fold (true);
-	comp->set_inline_completion (true);
-	comp->set_inline_selection (true);
+	comp->set_inline_completion (!live);
+	comp->set_inline_selection (!live);
 	text.set_completion (comp);
+
+	Gtk::Label closest;
+	std::string best;
+	if (live) {
+		comp->set_match_func ([] (Glib::ustring const&, Gtk::TreeModel::const_iterator const&) { return true; });
+		comp->set_popup_single_match (true);
+		/* Opt in to first-result selection in our bundled GTK completion. */
+		g_object_set_data (G_OBJECT (comp->gobj ()), "ardour-select-first-completion", GINT_TO_POINTER (1));
+		closest.set_alignment (0, .5);
+		d.get_vbox ()->pack_start (closest, false, false);
+		closest.set_text (_("Type to search · Up/Down chooses a match · Enter jumps"));
+		closest.show ();
+		text.signal_changed ().connect ([&] {
+			const std::string query = text.get_text ().casefold ().raw ();
+			std::vector<std::pair<double, Glib::ustring>> ranked;
+			if (!query.empty ()) for (auto const& name : matching_names) ranked.emplace_back (track_name_score (name.casefold ().raw (), query), name);
+			std::stable_sort (ranked.begin (), ranked.end (), [] (auto const& a, auto const& b) { return a.first < b.first; });
+			best = ranked.empty () ? std::string () : ranked.front ().second.raw ();
+			comp->clear_strings ();
+			for (size_t i = 0; i < std::min<size_t> (8, ranked.size ()); ++i) comp->add_string (ranked[i].second);
+			closest.set_text (best.empty () ? _("Type a track name") : string_compose (_("Jump to: %1"), best));
+			comp->complete ();
+		});
+		comp->signal_match_selected ().connect ([&] (Gtk::TreeModel::iterator const& row) {
+			Glib::ustring chosen; row->get_value (0, chosen); best = chosen.raw ();
+			d.response (RESPONSE_OK);
+			return true;
+		}, false);
+	}
+
+	text.grab_focus ();
 
 	switch (d.run()) {
 	case RESPONSE_OK:
@@ -9635,7 +9679,7 @@ Editor::find_and_display_track ()
 		return;
 	}
 
-	std::shared_ptr<Stripable> s = _session->stripable_by_name (text.get_text());
+	std::shared_ptr<Stripable> s = _session->stripable_by_name (live ? best : text.get_text ().raw ());
 
 	if (!s) {
 		return;
@@ -9644,7 +9688,12 @@ Editor::find_and_display_track ()
 	StripableTimeAxisView* stv = get_stripable_time_axis_by_id (s->id());
 
 	if (stv) {
+		if (live) {
+			s->presentation_info ().set_hidden (false);
+			set_selected_track (*stv, SelectionSet, false);
+		}
 		ensure_time_axis_view_is_visible (*stv, true);
+		if (live) stv->focus_track_header ();
 	}
 }
 

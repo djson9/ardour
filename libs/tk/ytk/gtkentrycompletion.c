@@ -1171,6 +1171,27 @@ gtk_entry_completion_get_minimum_key_length (GtkEntryCompletion *completion)
  *
  * Since: 2.4
  */
+/* Track search keeps typing in the entry while presenting an immediately
+ * actionable first result. Other completion users retain GTK's behavior. */
+static void
+gtk_entry_completion_select_first (GtkEntryCompletion *completion)
+{
+  GtkTreePath *path;
+
+  if (!g_object_get_data (G_OBJECT (completion), "ardour-select-first-completion"))
+    return;
+
+  completion->priv->current_selected = -1;
+  if (!completion->priv->filter_model ||
+      gtk_tree_model_iter_n_children (GTK_TREE_MODEL (completion->priv->filter_model), NULL) == 0)
+    return;
+
+  path = gtk_tree_path_new_from_indices (0, -1);
+  gtk_tree_view_set_cursor (GTK_TREE_VIEW (completion->priv->tree_view), path, NULL, FALSE);
+  gtk_tree_path_free (path);
+  completion->priv->current_selected = 0;
+}
+
 void
 gtk_entry_completion_complete (GtkEntryCompletion *completion)
 {
@@ -1189,6 +1210,7 @@ gtk_entry_completion_complete (GtkEntryCompletion *completion)
   g_free (tmp);
 
   gtk_tree_model_filter_refilter (completion->priv->filter_model);
+  gtk_entry_completion_select_first (completion);
 
   if (gtk_widget_get_visible (completion->priv->popup_window))
     _gtk_entry_completion_resize_popup (completion);
@@ -1520,6 +1542,8 @@ _gtk_entry_completion_popup (GtkEntryCompletion *completion)
 
   gtk_tree_selection_unselect_all (gtk_tree_view_get_selection (GTK_TREE_VIEW (completion->priv->tree_view)));
   gtk_tree_selection_unselect_all (gtk_tree_view_get_selection (GTK_TREE_VIEW (completion->priv->action_view)));
+
+  gtk_entry_completion_select_first (completion);
 
   gtk_window_set_screen (GTK_WINDOW (completion->priv->popup_window),
                          gtk_widget_get_screen (completion->priv->entry));

@@ -409,6 +409,10 @@ TimeAxisView::controls_ebox_scroll (GdkEventScroll* ev)
 bool
 TimeAxisView::controls_ebox_button_press (GdkEventButton* event)
 {
+	if (event->button == 1 && event->type == GDK_BUTTON_PRESS && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		controls_ebox.grab_focus ();
+	}
+
 	bool inside_name_label = false;
 
 	if (name_label.is_ancestor (controls_ebox)) {

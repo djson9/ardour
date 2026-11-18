@@ -85,6 +85,7 @@
 #include "session_option_editor.h"
 #include "splash.h"
 #include "time_info_box.h"
+#include "scale_dialog.h"
 #include "timers.h"
 #include "trigger_page.h"
 #include "triggerbox_ui.h"
@@ -323,6 +324,9 @@ ApplicationBar::on_parent_changed (Gtk::Widget*)
 
 	_table.show_all (); // TODO: update visibility somewhere else
 	pack_start (_table, true, true);
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		setup_live_bar ();
+	}
 
 	/*sizing */
 	Glib::RefPtr<SizeGroup> button_height_size_group = ARDOUR_UI::instance()->button_height_size_group;
@@ -441,6 +445,11 @@ ApplicationBar::setup_tooltips ()
 void
 ApplicationBar::ui_actions_ready ()
 {
+	_live_automation.set_related_action (ActionManager::get_action ("Editor", "toggle-automation-clips"));
+	_live_piano.set_related_action (ActionManager::get_action ("Window", "toggle-virtual-keyboard"));
+	_live_automation.set_text (_("Automation"));
+	_live_piano.set_text (_("Piano"));
+
 	LuaInstance::instance()->ActionChanged.connect (sigc::mem_fun (*this, &ApplicationBar::action_script_changed));
 
 	Glib::RefPtr<Action> act;
@@ -936,6 +945,11 @@ ApplicationBar::session_latency_updated (bool for_playback)
 void
 ApplicationBar::parameter_changed (std::string p)
 {
+	if (_session && (p == "count-in" || p == "count-in-bars")) {
+		const uint32_t bars = _session->config.get_count_in_bars ();
+		_live_count_in.set_text (!_session->config.get_count_in () ? _("Count-in Off") :
+		    (bars == 0 ? _("Count-in Auto") : string_compose (P_("Count-in %1 bar", "Count-in %1 bars", bars), bars)));
+	}
 	if (p == "external-sync") {
 		if (!_session || !_session->config.get_external_sync()) {
 			_sync_button.set_text (S_("SyncSource|Int."));
@@ -1082,6 +1096,10 @@ ApplicationBar::sync_blink (bool onoff)
 void
 ApplicationBar::every_point_zero_something_seconds ()
 {
+	if (_session && _live_bar.get_mapped ()) {
+		const std::string key = _session->key () ? _session->key ()->name () : _("Key...");
+		if (_live_key.get_text () != key) { _live_key.set_text (key); }
+	}
 	// august 2007: actual update frequency: 25Hz (40ms), not 100Hz
 
 	if (_editor_meter && UIConfiguration::instance().get_show_editor_meter() && _editor_meter_peak_display.get_mapped ()) {
@@ -1159,5 +1177,71 @@ ApplicationBar::reset_route_peak_display (Route* route)
 	if (!_session || !_session->master_out()) return;
 	if (_session->master_out().get() == route) {
 		reset_peak_display ();
+	}
+}
+
+void
+ApplicationBar::setup_live_bar ()
+{
+	_table.set_no_show_all ();
+	_table.hide ();
+	_live_bar.set_spacing (6);
+	_live_bar.set_border_width (4);
+	/* Reuse the real transport/tempo widgets so state and shortcuts agree. */
+	auto move = [this] (Gtk::Widget& widget) {
+		if (auto* parent = widget.get_parent ()) { parent->remove (widget); }
+		_live_bar.pack_start (widget, false, false);
+		widget.set_no_show_all (false);
+		widget.show ();
+	};
+	move (*_primary_clock.left_btn ());
+	move (*_primary_clock.right_btn ());
+	move (_transport_ctrl.click_button ());
+	_live_count_in.add_menu_elem (MenuElem (_("Count-in Off"), sigc::bind (sigc::mem_fun (*this, &ApplicationBar::set_count_in_bars), 0u)));
+	for (uint32_t bars : {1u, 2u, 4u}) {
+		_live_count_in.add_menu_elem (MenuElem (string_compose (P_("Count-in %1 bar", "Count-in %1 bars", bars), bars), sigc::bind (sigc::mem_fun (*this, &ApplicationBar::set_count_in_bars), bars)));
+	}
+	_live_count_in.set_sizing_text (_("Count-in 4 bars"));
+	move (_live_count_in);
+	_live_key.set_text (_("Key..."));
+	_live_key.set_sizing_text ("C# Harmonic Minor");
+	_live_key.signal_clicked.connect (sigc::mem_fun (*this, &ApplicationBar::edit_session_key));
+	set_tooltip (_live_key, _("Session key and scale"));
+	move (_live_key);
+	move (_primary_clock);
+	move (_transport_ctrl.roll_button ());
+	move (_transport_ctrl.stop_button ());
+	move (_transport_ctrl.rec_button ());
+	move (_live_automation);
+	move (_live_piano);
+	set_tooltip (_live_automation, _("Show/hide automation clips"));
+	set_tooltip (_live_piano, _("Play notes with the computer keyboard"));
+	auto* alignment = manage (new Gtk::Alignment (0.0, 0.5, 1.0, 0.0));
+	alignment->add (_live_bar);
+	pack_start (*alignment, true, true);
+	alignment->show ();
+	_live_bar.show_all ();
+}
+
+void
+ApplicationBar::set_count_in_bars (uint32_t bars)
+{
+	if (!_session) { return; }
+	_session->config.set_count_in_bars (bars);
+	_session->config.set_count_in (bars != 0);
+	_session->set_dirty ();
+}
+
+void
+ApplicationBar::edit_session_key ()
+{
+	if (!_session) { return; }
+	ScaleDialog dialog (_("Session"));
+	dialog.set (_session->key ());
+	dialog.sensitize_remove (false);
+	dialog.present ();
+	if (dialog.run () == Gtk::RESPONSE_OK) {
+		_session->set_key (dialog.get ());
+		_session->set_dirty ();
 	}
 }

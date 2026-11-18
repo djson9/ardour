@@ -9349,7 +9349,8 @@ gtk_entry_completion_timeout (gpointer data)
       gtk_entry_completion_complete (completion);
       matches = gtk_tree_model_iter_n_children (GTK_TREE_MODEL (completion->priv->filter_model), NULL);
 
-      gtk_tree_selection_unselect_all (gtk_tree_view_get_selection (GTK_TREE_VIEW (completion->priv->tree_view)));
+      if (!g_object_get_data (G_OBJECT (completion), "ardour-select-first-completion"))
+        gtk_tree_selection_unselect_all (gtk_tree_view_get_selection (GTK_TREE_VIEW (completion->priv->tree_view)));
 
       s = gtk_tree_view_get_selection (GTK_TREE_VIEW (completion->priv->action_view));
 

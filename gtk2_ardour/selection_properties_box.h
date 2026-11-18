@@ -39,6 +39,7 @@ class RegionFxPropertiesBox;
 class RoutePropertiesBox;
 class SlotPropertiesBox;
 class Pianoroll;
+class AutomationClipEditor;
 
 class SelectionPropertiesBox : public Gtk::HBox, public ARDOUR::SessionHandlePtr
 {
@@ -54,7 +55,7 @@ public:
 	~SelectionPropertiesBox ();
 
 	void set_session (ARDOUR::Session*);
-	void edit_midi_region (std::shared_ptr<ARDOUR::Region>);
+	void edit_clip_region (std::shared_ptr<ARDOUR::Region>);
 
 private:
 	void init ();
@@ -73,7 +74,8 @@ private:
 	RegionFxPropertiesBox* _region_fx_box;
 	DispositionMask _disposition;
 	Pianoroll*              _pianoroll;
-	std::weak_ptr<ARDOUR::Region> _explicit_midi_region;
+	AutomationClipEditor*  _automation_editor = nullptr;
+	std::weak_ptr<ARDOUR::Region> _explicit_clip_region;
 
 	PBD::ScopedConnection _region_connection;
 	PBD::ScopedConnection _editor_connection;

@@ -3733,7 +3733,7 @@ R"mcp(
     },
     {
       "name": "ui_canvas_pointer",
-      "description": "Send one pointer event to the named visible Ardour canvas through its normal GTK handler. Coordinates are canvas-local pixels. For a drag send move, press, move(s) with buttonDown=true, then release. Shift requests the normal Shift modifier. Inspect canvas dimensions via ui_get_state.",
+      "description": "Send one pointer event to the named visible Ardour canvas through its normal GTK handler. Coordinates are canvas-local pixels. For a drag send move, press, move(s) with buttonDown=true, then release. Shift requests the normal Shift modifier. Inspect canvas dimensions via ui_get_state. TrackHeader: followed by an exact track name addresses that visible header; primary is Command on macOS. doublePress emits the second press of a double-click.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3748,7 +3748,10 @@ R"mcp(
             "enum": [
               "move",
               "press",
-              "release"
+              "release",
+              "pinch",
+              "doublePress",
+              "scroll"
             ]
           },
           "x": {
@@ -3759,10 +3762,14 @@ R"mcp(
             "type": "number",
             "minimum": 0
           },
+          "deltaX": { "type": "number", "minimum": -1000, "maximum": 1000 },
+          "deltaY": { "type": "number", "minimum": -1000, "maximum": 1000 },
+          "primary": { "type": "boolean" },
           "shift": {
             "type": "boolean"
           },
           "button": {"type": "integer", "enum": [1, 3], "description": "1 is left click (default), 3 is right click."},
+          "magnification": {"type":"number", "minimum":-0.5, "maximum":1.0, "description":"Fractional pinch scale change; 0.25 zooms in 25%."},
           "buttonDown": {
             "type": "boolean"
           }

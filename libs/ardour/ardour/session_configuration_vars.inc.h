@@ -41,6 +41,7 @@ CONFIG_VARIABLE (CueBehavior, cue_behavior, "cue-behavior", FollowCues)
 CONFIG_VARIABLE (bool, punch_in, "punch-in", false)
 CONFIG_VARIABLE (bool, punch_out, "punch-out", false)
 CONFIG_VARIABLE (bool, count_in, "count-in", false)
+CONFIG_VARIABLE (uint32_t, count_in_bars, "count-in-bars", 0) // zero preserves legacy automatic count-in
 CONFIG_VARIABLE (MonitorChoice, session_monitoring, "session-monitoring", MonitorAuto)
 CONFIG_VARIABLE (RecordMode, record_mode, "record-mode", RecLayered)
 CONFIG_VARIABLE (bool, draw_opaque_midi_regions, "draw-opaque-midi-regions", false)

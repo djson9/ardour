@@ -8086,8 +8086,12 @@ MCPHttpServer::dispatch_jsonrpc (const std::string& payload) const
         if (tool_name == "ui/canvas_pointer") {
             const double x = root.get<double> ("params.arguments.x", -1), y = root.get<double> ("params.arguments.y", -1);
             if (!std::isfinite (x) || !std::isfinite (y) || x < 0 || y < 0) return jsonrpc_error (id, -32602, "Invalid canvas coordinates");
+            const double magnification = root.get<double> ("params.arguments.magnification", 0.0);
+            if (!std::isfinite (magnification) || magnification < -0.5 || magnification > 1.0) return jsonrpc_error (id, -32602, "Invalid magnification");
+            const double dx = root.get<double> ("params.arguments.deltaX", 0), dy = root.get<double> ("params.arguments.deltaY", 0);
+            if (!std::isfinite (dx) || !std::isfinite (dy) || std::abs (dx) > 1000 || std::abs (dy) > 1000) return jsonrpc_error (id, -32602, "Invalid scroll deltas");
             std::ostringstream coordinates; coordinates.imbue (std::locale::classic ());
-            coordinates << std::setprecision (17) << x << ' ' << y << ' ' << root.get<bool> ("params.arguments.shift", false) << ' ' << root.get<bool> ("params.arguments.buttonDown", false) << ' ' << root.get<int> ("params.arguments.button", 1);
+            coordinates << std::setprecision (17) << x << ' ' << y << ' ' << root.get<bool> ("params.arguments.shift", false) << ' ' << root.get<bool> ("params.arguments.buttonDown", false) << ' ' << root.get<int> ("params.arguments.button", 1) << ' ' << magnification << ' ' << root.get<bool> ("params.arguments.primary", false) << ' ' << dx << ' ' << dy;
             const auto result = mcp_ui_call (_event_loop, tool_name, root.get<std::string> ("params.arguments.event", ""), root.get<std::string> ("params.arguments.canvas", ""), coordinates.str (), root.get<std::string> ("params.arguments.window", ""));
             return jsonrpc_result (id, "{\"structuredContent\":" + result + ",\"content\":[{\"type\":\"text\",\"text\":\"Canvas pointer event\"}]}");
         }
