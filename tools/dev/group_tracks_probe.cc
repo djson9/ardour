@@ -96,6 +96,8 @@ int main (int argc, char** argv)
 				expect (.0375f); // (A+B) * group effect * group gain, exactly once.
 				g->mute_control ()->set_value (1, PBD::Controllable::NoGroup); expect (0);
 				g->mute_control ()->set_value (0, PBD::Controllable::NoGroup); expect (.0375f);
+				need (GroupTracks::drop (*s, {b}, {}, {}, error), error.c_str ()); expect (.2125f);
+				need (GroupTracks::drop (*s, {b}, g, {}, error), error.c_str ()); expect (.0375f);
 				need (a->gain_control ()->get_value () == 1 && b->gain_control ()->get_value () == 1, "independent child gains");
 				engine->set_session (nullptr);
 			} else {
@@ -113,6 +115,26 @@ int main (int argc, char** argv)
 				need (!GroupTracks::create (*s, {a, c}, error) && s->get_routes ()->size () == count, "cross-parent grouping rejected without mutation");
 				GroupTracks::move (*s, {g}, false);
 				need (c->presentation_info ().order () < g->presentation_info ().order () && g->presentation_info ().order () < a->presentation_info ().order (), "group moves with children");
+				need (!GroupTracks::drop (*s, {outer}, g, {}, error), "reject descendant cycle");
+				need (!GroupTracks::drop (*s, {sink}, g, {}, error) && !GroupTracks::parent (*s, sink), "reject downstream feedback without mutation");
+				need (GroupTracks::drop (*s, {a, b}, outer, g, error), error.c_str ());
+				need (GroupTracks::parent (*s, a) == outer && connected (a, outer) && !connected (a, g), "multi-track reparent rewires outputs");
+				need (a->presentation_info ().order () < b->presentation_info ().order () && b->presentation_info ().order () < g->presentation_info ().order (), "drop preserves selection order at insertion");
+				need (GroupTracks::drop (*s, {a, b}, g, {}, error), error.c_str ());
+				need (GroupTracks::collapsed (g) && GroupTracks::folded (*s, a), "drop into collapsed group preserves fold");
+				need (GroupTracks::drop (*s, {a}, {}, {}, error), error.c_str ());
+				need (!GroupTracks::parent (*s, a) && connected (a, sink) && !connected (a, outer) && !connected (a, g), "leave all nested groups to outer destination");
+				need (GroupTracks::drop (*s, {a}, g, b, error), error.c_str ());
+				need (GroupTracks::drop (*s, {g, a}, {}, {}, error), error.c_str ());
+				need (!GroupTracks::parent (*s, g) && GroupTracks::parent (*s, a) == g && connected (a, g) && connected (g, sink), "move group subtree exactly once");
+				need (GroupTracks::drop (*s, {g}, outer, c, error), error.c_str ());
+				auto mono = s->new_audio_route (1, 1, {}, 1, "Mono", PresentationInfo::AudioBus, PresentationInfo::max_order).front ();
+				need (!GroupTracks::drop (*s, {c, mono}, g, {}, error) && GroupTracks::parent (*s, c) == outer && connected (c, outer), "validate all layouts before any changes");
+				s->remove_route (mono);
+				// Reordering within a group must not overwrite a manual output.
+				b->output ()->disconnect (); b->output ()->connect_ports_to_bundle (sink->input ()->bundle (), false, true);
+				need (GroupTracks::drop (*s, {b}, g, a, error) && connected (b, sink) && !connected (b, g), "same-parent reorder preserves manual routing");
+				b->output ()->disconnect (); b->output ()->connect_ports_to_bundle (g->input ()->bundle (), false, true);
 				group_id = g->id ().to_s (); outer_id = outer->id ().to_s (); child_id = a->id ().to_s ();
 				need (s->save_state ("") == 0, "save hierarchy");
 			}

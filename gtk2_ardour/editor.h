@@ -1204,7 +1204,8 @@ private:
 	void fork_regions_from_unselected ();
 	void start_track_drag (TimeAxisView&, int y, Gtk::Widget& w, bool can_change_cursor);
 	void mid_track_drag (GdkEventMotion*, Gtk::Widget& e);
-	void end_track_drag ();
+	bool end_track_drag (bool apply = false);
+	void update_group_drop (int x, int y);
 	void maybe_move_tracks ();
 	bool track_dragging() const;
 
@@ -2284,6 +2285,12 @@ private:
 		int                direction;
 		bool               first_move;
 		bool               did_reorder;
+		bool               group_drop = false;
+		bool               valid_drop = false;
+		Gtk::Widget*       grab_widget = nullptr;
+		TimeAxisView*      drop_highlight = nullptr;
+		std::shared_ptr<ARDOUR::Route> destination;
+		std::shared_ptr<ARDOUR::Route> before;
 
 		TrackDrag (RouteTimeAxisView* rtav, ARDOUR::Session& s)
 			: track (rtav)

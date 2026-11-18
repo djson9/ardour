@@ -559,7 +559,13 @@ bool
 TimeAxisView::controls_ebox_button_release (GdkEventButton* ev)
 {
 	if (_editor.track_dragging()) {
-		_editor.end_track_drag ();
+		// Include the release position, even if no motion was delivered there.
+		GdkEventMotion motion = {};
+		motion.x = ev->x; motion.y = ev->y;
+		motion.x_root = ev->x_root; motion.y_root = ev->y_root;
+		motion.state = ev->state;
+		_editor.mid_track_drag (&motion, controls_ebox);
+		if (_editor.end_track_drag (true)) return true;
 	} else {
 		if (_resize_drag_start >= 0) {
 			if (_have_preresize_cursor) {

@@ -8,6 +8,7 @@
 #include "ardour/audioengine.h"
 #include "ardour/group_tracks.h"
 #include "ardour/io.h"
+#include "ardour/io_vector.h"
 #include "ardour/port.h"
 #include "ardour/route.h"
 #include "ardour/session.h"
@@ -196,6 +197,116 @@ void GroupTracks::move (Session& s, RouteList const& selected, bool up)
 	}
 	normalize_order (s);
 	s.set_dirty ();
+}
+
+bool GroupTracks::drop (Session& s, RouteList selected, std::shared_ptr<Route> destination,
+                        std::shared_ptr<Route> before, std::string& error)
+{
+	error.clear ();
+	auto live = [&] (std::shared_ptr<Route> r) { return r && s.route_by_id (r->id ()) == r; };
+	if ((destination && (!live (destination) || !is_group (destination))) ||
+	    (before && (!live (before) || before->is_singleton () || parent (s, before) != destination))) {
+		error = "The drop target is no longer available."; return false;
+	}
+	for (auto const& r : selected) if (!live (r) || r->is_singleton ()) {
+		error = "Master and monitor tracks cannot be moved into groups."; return false;
+	}
+	selected.sort (Stripable::Sorter ()); selected.unique ();
+	const std::set<std::shared_ptr<Route>> selection (selected.begin (), selected.end ());
+	selected.remove_if ([&] (std::shared_ptr<Route> r) {
+		for (auto const& p : ancestors (s, r)) if (selection.count (p)) return true;
+		return false;
+	});
+	if (selected.empty ()) return false;
+	const std::set<std::shared_ptr<Route>> moving (selected.begin (), selected.end ());
+	for (auto p = destination; p; p = parent (s, p)) if (moving.count (p)) {
+		error = "A group cannot be placed inside itself or one of its children."; return false;
+	}
+	// Resolve insertion against the original sibling order, even when the
+	// hovered sibling is itself selected. Never split a group's descendants.
+	RouteList siblings;
+	for (auto const& r : *s.get_routes ()) if (!r->is_singleton () && parent (s, r) == destination) siblings.push_back (r);
+	siblings.sort (Stripable::Sorter ());
+	auto insertion = before ? std::find (siblings.begin (), siblings.end (), before) : siblings.end ();
+	while (insertion != siblings.end () && moving.count (*insertion)) ++insertion;
+	before = insertion == siblings.end () ? std::shared_ptr<Route> () : *insertion;
+	siblings.remove_if ([&] (std::shared_ptr<Route> r) { return moving.count (r); });
+	siblings.insert (before ? std::find (siblings.begin (), siblings.end (), before) : siblings.end (), selected.begin (), selected.end ());
+
+	std::map<std::shared_ptr<Route>, Connections> old, replacement;
+	for (auto const& r : selected) {
+		if (parent (s, r) == destination) continue; // Reordering must preserve manual routing.
+		old[r] = connections (r->output ());
+		auto out = old[r];
+		if (out.empty ()) { error = "MIDI-only tracks cannot be routed through an audio group."; return false; }
+		if (destination) {
+			if (out.size () != destination->input ()->n_ports ().n_audio ()) {
+				error = "The track and group need matching audio channel layouts."; return false;
+			}
+			for (size_t n = 0; n < out.size (); ++n) out[n] = {destination->input ()->ports ()->port (DataType::AUDIO, n)->name ()};
+		} else {
+			// Leaving nested groups bypasses their buses, following their current
+			// destinations. Keep manually overridden outputs and MIDI connections.
+			for (auto const& ancestor : ancestors (s, r)) {
+				auto dest = connections (ancestor->output ());
+				for (auto& channel : out) {
+					std::vector<std::string> expanded;
+					for (auto const& name : channel) {
+						auto port = s.engine ().get_port_by_name (name);
+						bool replaced = false;
+						for (uint32_t n = 0; n < ancestor->input ()->n_ports ().n_audio (); ++n) {
+							if (port != ancestor->input ()->ports ()->port (DataType::AUDIO, n)) continue;
+							if (n >= dest.size ()) { error = "Restore matching group input/output channels before moving this track out."; return false; }
+							expanded.insert (expanded.end (), dest[n].begin (), dest[n].end ()); replaced = true; break;
+						}
+						if (!replaced) expanded.push_back (name);
+					}
+					std::sort (expanded.begin (), expanded.end ());
+					expanded.erase (std::unique (expanded.begin (), expanded.end ()), expanded.end ());
+					channel = expanded;
+				}
+			}
+		}
+		replacement[r] = out;
+	}
+	// Inspect actual connections (including sends/sidechains), not the last
+	// processed graph, which can lag an edit. Reject downstream destinations.
+	auto all = s.get_routes ();
+	std::map<std::string, std::shared_ptr<Route>> inputs;
+	for (auto const& r : *all) for (auto const& weak : r->all_inputs ()) if (auto io = weak.lock ()) {
+		for (auto const& port : *io->ports ()) inputs[s.engine ().make_port_name_non_relative (port->name ())] = r;
+	}
+	std::set<std::shared_ptr<Route>> seen;
+	std::function<bool(std::shared_ptr<Route>)> reaches_moving = [&] (std::shared_ptr<Route> r) {
+		if (moving.count (r)) return true;
+		if (!seen.insert (r).second) return false;
+		for (auto const& next : *all) if (r->direct_feeds_according_to_reality (next) && reaches_moving (next)) return true;
+		return false;
+	};
+	for (auto const& entry : replacement) for (auto const& channel : entry.second) for (auto const& name : channel) {
+		auto found = inputs.find (s.engine ().make_port_name_non_relative (name));
+		if (found != inputs.end () && reaches_moving (found->second)) {
+			error = "This move would create an audio feedback loop. Change the routing first."; return false;
+		}
+	}
+	for (auto const& entry : replacement) if (!reconnect (entry.first->output (), entry.second)) {
+		bool restored = true;
+		for (auto const& restore : old) restored = reconnect (restore.first->output (), restore.second) && restored;
+		error = restored ? "Could not connect the track; the original routing was restored." : "Could not connect or fully restore the track outputs. Check audio routing.";
+		return false;
+	}
+	PresentationInfo::ChangeSuspender cs;
+	for (auto const& r : selected) metadata (r).set_property ("parent", destination ? destination->id ().to_s () : std::string ());
+	// Assign unique orders across all stripables before normalizing the tree.
+	StripableList ordered; s.get_stripables (ordered); ordered.sort (Stripable::Sorter ());
+	ordered.remove_if ([&] (std::shared_ptr<Stripable> strip) { auto r = std::dynamic_pointer_cast<Route> (strip); return r && !r->is_singleton () && parent (s, r) == destination; });
+	auto pos = destination ? std::find (ordered.begin (), ordered.end (), destination) : ordered.begin ();
+	if (destination && pos != ordered.end ()) ++pos;
+	ordered.insert (pos, siblings.begin (), siblings.end ());
+	PresentationInfo::order_t order = 0;
+	for (auto const& strip : ordered) strip->set_presentation_order (order++);
+	normalize_order (s); s.set_dirty ();
+	return true;
 }
 
 bool GroupTracks::ungroup (Session& s, std::shared_ptr<Route> bus, std::string& error)

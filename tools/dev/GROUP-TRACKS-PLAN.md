@@ -10,6 +10,11 @@ plugin hosting, latency compensation and anticipation scheduler unchanged.
   them, route their audio through it, and indent the children. Continue the
   parent color down the left edge of each child as an overhang; nested groups
   have separate inset rails, with routing/mixer columns kept aligned.
+- Drag onto the middle of a group header to move tracks into it, including
+  collapsed groups. Drop at its top/bottom edge to place tracks alongside it.
+  Drop beside an ordinary track to join its parent, or into empty space below
+  the tracks to leave all groups. Selected tracks move together; Escape cancels.
+  Membership/routing changes happen only on release.
 - A disclosure button folds the children without muting them or changing their
   individual visibility settings. Groups can contain other groups.
 - The group has normal bus gain, mute, solo, metering and plugin controls.
@@ -39,9 +44,12 @@ plugin hosting, latency compensation and anticipation scheduler unchanged.
 
 ## Boundaries
 
-This first version groups existing tracks using Cmd+G; dragging tracks into or
-out of a group is a follow-up interaction. Grouping does not merge clips or link
-child faders. Ungrouping removes the group's processing, so confirmation makes
+Grouping and dragging do not merge clips or link child faders. Moving into a
+group replaces the moved roots' audio outputs with the group inputs; moving to
+the root follows the old ancestor buses' output destinations. MIDI connections
+and sends remain intact. Same-parent reordering preserves manual audio outputs.
+Incompatible channel layouts, descendant cycles and downstream audio feedback
+are rejected before any connections change. Ungrouping removes the group's processing, so confirmation makes
 the effect explicit. As with Ardour route removal, this is not undoable; keep
 children and restore routing before removing the bus. Failed routing operations
 restore the original connections and leave the existing tracks intact.

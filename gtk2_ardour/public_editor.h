@@ -438,7 +438,7 @@ public:
 
 	virtual void start_track_drag (TimeAxisView&, int y, Gtk::Widget&, bool can_change_cursor) = 0;
 	virtual void mid_track_drag (GdkEventMotion*, Gtk::Widget&) = 0;
-	virtual void end_track_drag () = 0;
+	virtual bool end_track_drag (bool apply = false) = 0;
 	virtual bool track_dragging() const = 0;
 
 	virtual void focus_on_clock() = 0;
