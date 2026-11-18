@@ -6,7 +6,7 @@ Jay wants **A** to reveal automation in the main arrangement. Curves belong to c
 
 ## Where
 
-Implementation branch: `jay/automation-clips`, based on `659d1d06df1b985e884407c8d520e9c0dbecfbaa`, in `/Users/davidson/workspace/ardour-anticipation-spike` on the build Mac. The fork is `djson9/ardour`.
+Implementation branch: `jay/automation-clips`, based on `659d1d06df1b985e884407c8d520e9c0dbecfbaa`, in `/Users/davidson/workspace/ardour-anticipation-spike` on the build Mac. The fork is `djson9/ardour`. Review: [draft PR #2](https://github.com/djson9/ardour/pull/2), stacked on the anticipation integration branch.
 
 The desktop uses the isolated **Ardour Anticipation.app**, with the **Automation Clips - Older 8 Bars** session. The original **Older 8 Bars** and **Latest Chords** sessions are preserved. The Chord Grid MIDI embedded JUCE editor remains the default, followed by Apple DLS Electric Piano 1.
 
@@ -77,7 +77,7 @@ Desktop verification passed on the installed app:
 - Native region resize and undo restored the original duration.
 - The target dialog assigned piano volume (0.15–0.30 linear gain) and reverse pan (0.20–0.80 in native pan units). Both mappings survived app restarts.
 - The 1.81-second playback check observed piano audio, rising volume, and falling native pan values. The xrun counter stayed at 2 throughout that check; this is not a claim of zero xruns across the entire editing session.
-- The bounded native suite passed in 1.01 seconds after the final model changes.
+- The bounded native suite passed in 0.94 seconds with private preferences and process-scoped semaphore names.
 
 Evidence: `artifacts/chord-grid-ardour-recording/automation-ui-point-test.json` and `automation-gui-validation.json`; the build checkout stores `artifacts/automation-clips/test-result.json`.
 
