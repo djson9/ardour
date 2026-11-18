@@ -640,7 +640,6 @@ def build(bld):
 #        obj.use       = [
 #                'libpbd',
 #                'libardour',
-                'libaudiographer',
 #                'libardour_cp',
 #                'libtemporal',
 #                'libmidipp',
