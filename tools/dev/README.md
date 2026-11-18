@@ -430,7 +430,9 @@ count-in (Off/1/2/4 bars), session key/scale, position, play/stop/record,
 Automation visibility, the native computer-keyboard Piano toggle, and independent
 Grid and Nudge sizes. New sessions start both at 1/4 note. Grid controls the
 arrangement lines and snapping. With a clip selected on the timeline, Left and
-Right move it by the Nudge size. The buttons beside Nudge and the keypad −/+
+Right move it by the Nudge size. Shift+Left and Shift+Right extend the time
+selection by one Nudge step from the playhead or current selection. Reversing
+direction moves the same edge back across the anchor. The buttons beside Nudge and the keypad −/+
 shortcuts also move the selection. The secondary editing toolbar is hidden.
 Its mode, snap/grid and edit-point shortcuts are removed at startup and after
 live key-file reloads.
