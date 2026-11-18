@@ -93,6 +93,10 @@ XMLNode&
 MidiSource::get_state () const
 {
 	XMLNode& node (Source::get_state());
+	if (_model) {
+		std::unique_ptr<XMLNode> state (&_model->get_state ());
+		if (!state->children ().empty ()) node.add_child_nocopy (*state.release ());
+	}
 
 	if (_captured_for.length()) {
 		node.set_property ("captured-for", _captured_for);
@@ -117,6 +121,9 @@ int
 MidiSource::set_state (const XMLNode& node, int /*version*/)
 {
 	node.get_property ("captured-for", _captured_for);
+	if (_model) {
+		if (auto state = node.child ("MidiModel")) _model->set_state (*state);
+	}
 
 	std::string str;
 	XMLNodeList children = node.children ();

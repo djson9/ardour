@@ -33,6 +33,7 @@
 #include "pbd/enumwriter.h"
 #include "pbd/error.h"
 #include "pbd/history_owner.h"
+#include "pbd/unwind.h"
 
 #include "evoral/Control.h"
 
@@ -71,6 +72,10 @@ MidiModel::MidiModel (MidiModel const & other, MidiSource & s)
 	: AutomatableSequence<TimeType> (other)
 	, _midi_source (s)
 {
+	auto lock = other.read_lock ();
+	for (auto& layer : other._background_notes) {
+		_background_notes[layer.first] = std::make_shared<Evoral::Note<TimeType>> (*layer.second);
+	}
 	_midi_source.InterpolationChanged.connect_same_thread (_midi_source_connections, std::bind (&MidiModel::source_interpolation_changed, this, _1, _2));
 	_midi_source.AutomationStateChanged.connect_same_thread (_midi_source_connections, std::bind (&MidiModel::source_automation_state_changed, this, _1, _2));
 }
@@ -163,16 +168,28 @@ MidiModel::ShiftCommand::ShiftCommand (std::shared_ptr<MidiModel> m, const XMLNo
 }
 
 void
+MidiModel::shift_with_background (TimeType distance)
+{
+	{
+		auto lock = write_lock ();
+		for (auto& layer : _background_notes) {
+			layer.second->set_time (layer.second->time () + distance);
+		}
+	}
+	shift (distance);
+}
+
+void
 MidiModel::ShiftCommand::operator() ()
 {
-	_model->shift (_distance);
+	_model->shift_with_background (_distance);
 	_model->ContentsChanged (); /* EMIT SIGNAL */
 }
 
 void
 MidiModel::ShiftCommand::undo ()
 {
-	_model->shift (-_distance);
+	_model->shift_with_background (-_distance);
 	_model->ContentsChanged (); /* EMIT SIGNAL */
 }
 
@@ -295,13 +312,59 @@ MidiModel::NoteDiffCommand::operator+= (const NoteDiffCommand& other)
 	return *this;
 }
 
+static bool
+notes_overlap (const MidiModel::NotePtr& a, const MidiModel::NotePtr& b)
+{
+	return a->channel () == b->channel () && a->note () == b->note () &&
+	       a->time () < b->end_time () && b->time () < a->end_time ();
+}
+
+std::vector<MidiModel::NotePtr>
+MidiModel::overlapping_notes (const NotePtr& note) const
+{
+	std::vector<NotePtr> result;
+	const Pitches& row = pitches (note->channel ());
+	for (auto it = row.lower_bound (note); it != row.end () && (*it)->note () == note->note (); ++it) {
+		if (notes_overlap (*it, note)) result.push_back (*it);
+	}
+	return result;
+}
+
+void
+MidiModel::uncover_notes (BackgroundNotes& uncovered)
+{
+	/* Test newest first. A covered note can itself cover an older layer. */
+	for (auto it = _background_notes.end (); it != _background_notes.begin ();) {
+		--it;
+		const NotePtr& note = it->second;
+		if (!overlapping_notes (note).empty () ||
+		    std::any_of (std::next (it), _background_notes.end (), [&note] (const auto& newer) { return notes_overlap (note, newer.second); })) {
+			continue;
+		}
+		if (add_note_unlocked (note)) {
+			uncovered.insert (*it);
+			it = _background_notes.erase (it);
+		}
+	}
+}
+
 void
 MidiModel::NoteDiffCommand::operator() ()
 {
 	{
 		MidiModel::WriteLock lock(_model->edit_lock());
 
+		_covered.clear ();
+		_uncovered.clear ();
 		for (NoteList::iterator i = _added_notes.begin(); i != _added_notes.end(); ++i) {
+			if (_stack_additions) {
+				auto& stack = _model->_background_notes;
+				for (auto& old : _model->overlapping_notes (*i)) {
+					uint64_t ordinal = stack.empty () ? 1 : stack.rbegin ()->first + 1;
+					_model->remove_note_unlocked (old);
+					stack[ordinal] = _covered[ordinal] = old;
+				}
+			}
 			if (!_model->add_note_unlocked(*i)) {
 				/* failed to add it, so don't leave it in the removed list, to
 				   avoid apparent errors on undo.
@@ -381,6 +444,8 @@ MidiModel::NoteDiffCommand::operator() ()
 			}
 		}
 
+		_model->uncover_notes (_uncovered);
+
 		if (!side_effect_removals.empty()) {
 			cerr << "SER: \n";
 			for (set<NotePtr>::iterator i = side_effect_removals.begin(); i != side_effect_removals.end(); ++i) {
@@ -397,6 +462,11 @@ MidiModel::NoteDiffCommand::undo ()
 {
 	{
 		MidiModel::WriteLock lock(_model->edit_lock());
+
+		for (auto& layer : _uncovered) {
+			_model->remove_note_unlocked (layer.second);
+			_model->_background_notes.insert (layer);
+		}
 
 		for (NoteList::iterator i = _added_notes.begin(); i != _added_notes.end(); ++i) {
 			_model->remove_note_unlocked(*i);
@@ -497,13 +567,21 @@ MidiModel::NoteDiffCommand::undo ()
 		for (set<NotePtr>::iterator i = side_effect_removals.begin(); i != side_effect_removals.end(); ++i) {
 			_model->add_note_unlocked (*i);
 		}
+
+		/* These notes may already have overlapped before this edit. Restore
+		 * them exactly even if the normal insertion policy now differs. */
+		PBD::Unwinder<bool> restoring (_model->_restoring_background, true);
+		for (auto& layer : _covered) {
+			_model->_background_notes.erase (layer.first);
+			_model->add_note_unlocked (layer.second);
+		}
 	}
 
 	_model->ContentsChanged(); /* EMIT SIGNAL */
 }
 
 XMLNode&
-MidiModel::NoteDiffCommand::marshal_note(const NotePtr note) const
+MidiModel::marshal_note (const NotePtr note)
 {
 	XMLNode* xml_note = new XMLNode("note");
 
@@ -513,12 +591,13 @@ MidiModel::NoteDiffCommand::marshal_note(const NotePtr note) const
 	xml_note->set_property ("time", note->time ());
 	xml_note->set_property ("length", note->length ());
 	xml_note->set_property ("velocity", note->velocity ());
+	xml_note->set_property ("off-velocity", note->off_velocity ());
 
 	return *xml_note;
 }
 
 Evoral::Sequence<MidiModel::TimeType>::NotePtr
-MidiModel::NoteDiffCommand::unmarshal_note (XMLNode *xml_note)
+MidiModel::unmarshal_note (XMLNode *xml_note)
 {
 	Evoral::event_id_t id = -1;
 	if (!xml_note->get_property ("id", id)) {
@@ -551,6 +630,8 @@ MidiModel::NoteDiffCommand::unmarshal_note (XMLNode *xml_note)
 	}
 
 	NotePtr note_ptr(new Evoral::Note<TimeType>(channel, time, length, note, velocity));
+	uint8_t off_velocity;
+	if (xml_note->get_property ("off-velocity", off_velocity)) note_ptr->set_off_velocity (off_velocity);
 	note_ptr->set_id (id);
 
 	return note_ptr;
@@ -649,6 +730,10 @@ MidiModel::NoteDiffCommand::set_state (const XMLNode& diff_command, int /*versio
 		return 1;
 	}
 
+	diff_command.get_property ("stack-additions", _stack_additions);
+	load_background (diff_command, "Covered", _covered);
+	load_background (diff_command, "Uncovered", _uncovered);
+
 	/* additions */
 
 	_added_notes.clear();
@@ -656,7 +741,7 @@ MidiModel::NoteDiffCommand::set_state (const XMLNode& diff_command, int /*versio
 	if (added_notes) {
 		XMLNodeList notes = added_notes->children();
 		transform(notes.begin(), notes.end(), back_inserter(_added_notes),
-		          std::bind (&NoteDiffCommand::unmarshal_note, this, _1));
+		          &MidiModel::unmarshal_note);
 	}
 
 
@@ -667,7 +752,7 @@ MidiModel::NoteDiffCommand::set_state (const XMLNode& diff_command, int /*versio
 	if (removed_notes) {
 		XMLNodeList notes = removed_notes->children();
 		transform(notes.begin(), notes.end(), back_inserter(_removed_notes),
-		          std::bind (&NoteDiffCommand::unmarshal_note, this, _1));
+		          &MidiModel::unmarshal_note);
 	}
 
 
@@ -706,6 +791,10 @@ MidiModel::NoteDiffCommand::get_state () const
 	XMLNode* diff_command = new XMLNode (NOTE_DIFF_COMMAND_ELEMENT);
 	diff_command->set_property("midi-source", _model->midi_source().id().to_s());
 
+	if (_stack_additions) diff_command->set_property ("stack-additions", true);
+	save_background (*diff_command, "Covered", _covered);
+	save_background (*diff_command, "Uncovered", _uncovered);
+
 	XMLNode* changes = diff_command->add_child(DIFF_NOTES_ELEMENT);
 	for_each(_changes.cbegin(), _changes.cend(),
 	         std::bind (
@@ -716,13 +805,13 @@ MidiModel::NoteDiffCommand::get_state () const
 	for_each(_added_notes.cbegin(), _added_notes.cend(),
 	         std::bind(
 		         std::bind (&XMLNode::add_child_nocopy, added_notes, _1),
-		         std::bind (&NoteDiffCommand::marshal_note, this, _1)));
+		         std::bind (&MidiModel::marshal_note, _1)));
 
 	XMLNode* removed_notes = diff_command->add_child(REMOVED_NOTES_ELEMENT);
 	for_each(_removed_notes.cbegin(), _removed_notes.cend(),
 	         std::bind (
 		         std::bind (&XMLNode::add_child_nocopy, removed_notes, _1),
-		         std::bind (&NoteDiffCommand::marshal_note, this, _1)));
+		         std::bind (&MidiModel::marshal_note, _1)));
 
 	/* if this command had side-effects, store that state too
 	 */
@@ -732,7 +821,7 @@ MidiModel::NoteDiffCommand::get_state () const
 		for_each(side_effect_removals.begin(), side_effect_removals.end(),
 		         std::bind (
 			         std::bind (&XMLNode::add_child_nocopy, side_effect_notes, _1),
-			         std::bind (&NoteDiffCommand::marshal_note, this, _1)));
+			         std::bind (&MidiModel::marshal_note, _1)));
 	}
 
 	return *diff_command;
@@ -1407,10 +1496,44 @@ MidiModel::write_section_to (std::shared_ptr<MidiSource>     source,
 	return true;
 }
 
+void
+MidiModel::save_background (XMLNode& parent, const char* name, const BackgroundNotes& notes)
+{
+	if (notes.empty ()) return;
+	XMLNode* stack = parent.add_child (name);
+	for (auto& layer : notes) {
+		XMLNode& child = marshal_note (layer.second);
+		child.set_property ("layer", layer.first);
+		stack->add_child_nocopy (child);
+	}
+}
+
+void
+MidiModel::load_background (const XMLNode& parent, const char* name, BackgroundNotes& notes)
+{
+	notes.clear ();
+	if (auto stack = parent.child (name)) {
+		for (auto child : stack->children ("note")) {
+			uint64_t ordinal;
+			if (child->get_property ("layer", ordinal)) notes[ordinal] = unmarshal_note (child);
+		}
+	}
+}
+
+int
+MidiModel::set_state (const XMLNode& node)
+{
+	auto lock = write_lock ();
+	load_background (node, "BackgroundNotes", _background_notes);
+	return 0;
+}
+
 XMLNode&
 MidiModel::get_state() const
 {
+	ReadLock lock (read_lock ());
 	XMLNode *node = new XMLNode("MidiModel");
+	save_background (*node, "BackgroundNotes", _background_notes);
 	return *node;
 }
 
@@ -1501,7 +1624,7 @@ MidiModel::resolve_overlaps_unlocked (const NotePtr note, void* arg)
 {
 	using namespace Evoral;
 
-	if (_writing || insert_merge_policy() == InsertMergeRelax) {
+	if (_writing || _restoring_background || insert_merge_policy() == InsertMergeRelax) {
 		return 0;
 	}
 

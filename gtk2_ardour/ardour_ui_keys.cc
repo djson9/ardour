@@ -40,6 +40,7 @@
 #include "audio_rack_ui.h"
 #include "debug.h"
 #include "keyboard.h"
+#include "pianoroll.h"
 #include "public_editor.h"
 #include "processor_box.h"
 #include "time_axis_view.h"
@@ -63,6 +64,15 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 	Gtkmm2ext::BindingSet* bindings = nullptr;
 	Gtk::Window* window = 0;
 
+	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
+	if (focus) {
+		auto* roll = static_cast<Pianoroll*> (g_object_get_data (G_OBJECT (focus), "pianoroll-note-cursor"));
+		if (roll) {
+			if (ev->type == GDK_KEY_PRESS) roll->note_cursor_key (ev);
+			return true;
+		}
+	}
+
 	if (ev->type == GDK_KEY_PRESS && event_window == &_main_window &&
 	    (ev->keyval == GDK_f || ev->keyval == GDK_F) &&
 	    Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
@@ -70,15 +80,13 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 		if (auto action = ActionManager::get_action ("Editor", "search-files")) action->activate ();
 		return true;
 	}
-	GtkWidget* search_focus = gtk_window_get_focus (event_window->gobj ());
-	if (search_focus && std::string (gtk_widget_get_name (search_focus)) == "browser-search") {
+	if (focus && std::string (gtk_widget_get_name (focus)) == "browser-search") {
 		gtk_window_propagate_key_event (event_window->gobj (), ev);
 		return true;
 	}
 
 	/* Let focused lists handle their own keys before arrangement bindings
 	 * and the computer-keyboard piano. */
-	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
 	if (ev->type == GDK_KEY_PRESS && focus) {
 		auto* rack = static_cast<AudioRackUI*> (g_object_get_data (G_OBJECT (focus), "audio-rack-ui"));
 		if (rack && rack->list_key_press (ev)) return true;

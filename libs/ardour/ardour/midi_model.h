@@ -65,6 +65,9 @@ public:
 	MidiModel (MidiSource&);
 	MidiModel (MidiModel const & other, MidiSource&);
 
+	/* The ordinal preserves layering even when a single edit uncovers several notes. */
+	typedef std::map<uint64_t, NotePtr> BackgroundNotes;
+
 	class LIBARDOUR_API DiffCommand : public PBD::Command {
 	public:
 
@@ -124,6 +127,7 @@ public:
 		void add (const NotePtr note);
 		void remove (const NotePtr note);
 		void side_effect_remove (const NotePtr note);
+		void add_on_top (const NotePtr note) { _stack_additions = true; add (note); }
 
 		void change (const NotePtr note, Property prop, uint8_t new_value) {
 			change(note, prop, Variant(new_value));
@@ -161,6 +165,9 @@ public:
 		const NoteList&   removed_notes() const { return _removed_notes; }
 
 	private:
+		bool _stack_additions = false;
+		BackgroundNotes _covered;
+		BackgroundNotes _uncovered;
 		ChangeList _changes;
 		NoteList   _added_notes;
 		NoteList   _removed_notes;
@@ -169,9 +176,6 @@ public:
 
 		XMLNode &marshal_change(const NoteChange&) const;
 		NoteChange unmarshal_change(XMLNode *xml_note);
-
-		XMLNode &marshal_note(const NotePtr note) const;
-		NotePtr unmarshal_note(XMLNode *xml_note);
 	};
 
 	/* Currently this class only supports changes of sys-ex time, but could be expanded */
@@ -324,7 +328,7 @@ public:
 	// MidiModel doesn't use the normal AutomationList serialisation code
 	// since controller data is stored in the .mid
 	XMLNode& get_state() const;
-	int set_state(const XMLNode&) { return 0; }
+	int set_state (const XMLNode&);
 
 	PBD::Signal<void()> ContentsChanged;
 	PBD::Signal<void(Temporal::timecnt_t)> ContentsShifted;
@@ -372,6 +376,15 @@ public:
 
 private:
 	friend class DeltaCommand;
+	BackgroundNotes _background_notes;
+	bool _restoring_background = false;
+	void shift_with_background (TimeType);
+	std::vector<NotePtr> overlapping_notes (const NotePtr&) const;
+	void uncover_notes (BackgroundNotes&);
+	static XMLNode& marshal_note (const NotePtr);
+	static NotePtr unmarshal_note (XMLNode*);
+	static void save_background (XMLNode&, const char*, const BackgroundNotes&);
+	static void load_background (const XMLNode&, const char*, BackgroundNotes&);
 
 	void source_interpolation_changed (Evoral::Parameter const&, AutomationList::InterpolationStyle);
 	void source_automation_state_changed (Evoral::Parameter const&, AutoState);

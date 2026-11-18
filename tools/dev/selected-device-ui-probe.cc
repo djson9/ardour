@@ -16,6 +16,7 @@
 #include "ardour/audio_track.h"
 #include "ardour/gain_control.h"
 #include "ardour/midi_track.h"
+#include "ardour/midi_model.h"
 #include "ardour/midi_source.h"
 #include "ardour/playlist.h"
 #include "ardour/region.h"
@@ -334,6 +335,45 @@ static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<Pl
  check (state && state->children ().size () == 2 && control->get_value () == value, "Wrong serialized parameter list or value");
 }
 
+static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> model)
+{
+ auto check = [] (bool ok, const char* message) { if (!ok) throw std::runtime_error (message); };
+ check (piano.is_focus () && model->notes ().empty (), "Enter must focus the empty clip without inserting");
+ Temporal::timecnt_t next;
+ auto step = PublicEditor::instance ().get_nudge_distance (timepos_t (Temporal::Beats ()), next).beats ();
+ key (piano, GDK_Right);
+ key (piano, GDK_Down);
+ key (piano, GDK_bracketright);
+ key (piano, GDK_bracketright);
+ key (piano, GDK_bracketleft);
+ check (piano.is_focus () && model->notes ().empty (), "Cursor navigation wrote a note or left the pane");
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1, "Enter did not place exactly one note");
+ auto original = *model->notes ().begin ();
+ check (original->time () == step && original->length () == step + step && original->note () == 59,
+        "Wrong cursor pitch, nudge distance or bracket length");
+
+ // Cover the tail, then put a third note directly on top of the second.
+ key (piano, GDK_Right);
+ key (piano, GDK_bracketleft);
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1, "Overlapping original remained in playback");
+ auto second = *model->notes ().begin ();
+ check (second->time () == step + step && second->length () == step, "Wrong overlapping note");
+ key (piano, GDK_KP_Enter);
+ check (model->notes ().size () == 1 && *model->notes ().begin () != second, "Exact overlap did not stack");
+ key (piano, GDK_Delete);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == second, "Delete did not uncover the second note");
+ key (piano, GDK_BackSpace);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == original, "Backspace did not restore the original");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == second, "Undo did not re-cover the original");
+ key (piano, GDK_Delete);
+ key (piano, GDK_Up);
+ key (piano, GDK_Return);
+ check (piano.is_focus () && model->notes ().size () == 2, "A different pitch must coexist at the same beat");
+}
+
 static gboolean tick (gpointer) {
  const char* output = getenv ("ARDOUR_DEVICE_UI_PROBE"); if (!output) return FALSE;
  static int stage = 0;
@@ -416,7 +456,8 @@ static gboolean tick (gpointer) {
    if (stage == 32) {
     if (!has_midi (midi_b)) return finish ("Enter did not open the MIDI clip at the selection marker");
     auto* piano = piano_canvas ();
-    snapshot (piano, ".midi"); piano->grab_focus (); key (*piano, GDK_Escape);
+    verify_note_cursor (*piano, std::dynamic_pointer_cast<MidiSource> (midi_b->source ())->model ());
+    snapshot (piano, ".midi"); key (*piano, GDK_Escape);
     stage = 40; return TRUE;
    }
    if (stage == 40 || stage == 43) {

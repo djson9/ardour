@@ -316,6 +316,16 @@ are traversed, and pinned Master is last. Navigation stops at either end.
 Text fields retain their normal arrow keys, and record-armed tracks retain the
 existing rename restriction.
 
+In the piano roll, Enter focuses the first occurrence of the clip's lowest
+pitch. An empty clip starts at middle C (MIDI 60). Left and Right move the
+cursor by the arrangement Nudge size. Up and Down move one semitone.
+Use `[` and `]` to change the preview length by one nudge. Enter places the
+preview and keeps the cursor there. A vacant position pulses, and existing
+notes touched by the preview on the same pitch and channel are highlighted.
+Placing the note covers those notes during playback. Delete or Backspace at a
+covered position removes the top note and reveals the previous layer. Escape
+returns keyboard focus to the track header.
+
 Tab moves from the focused track/group header into its bottom device list,
 opening the bottom panel if needed. In that list, Up or Left selects the previous device and
 Down or Right selects the next plugin, rack or Fader, stopping at either end. Fader shows the

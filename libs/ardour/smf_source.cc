@@ -185,6 +185,7 @@ SMFSource::SMFSource (Session& s, const XMLNode& node, bool must_exist)
 
 	/* no lock required since we do not actually exist yet */
 	load_model_unlocked (true);
+	if (auto model_state = node.child ("MidiModel")) _model->set_state (*model_state);
 }
 
 SMFSource::~SMFSource ()

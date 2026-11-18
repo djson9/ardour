@@ -832,6 +832,35 @@ Pianoroll::position_playhead_cursor (samplepos_t pos)
 	}
 }
 
+void
+Pianoroll::focus_note_cursor ()
+{
+	if (!_active_view) return;
+	_canvas.set_data ("pianoroll-note-cursor", this);
+	_canvas.grab_focus ();
+	ActionManager::set_sensitive (_midi_actions, true);
+	_active_view->start_note_cursor ();
+}
+
+void
+Pianoroll::note_cursor_key (GdkEventKey* ev)
+{
+	if (!_active_view) return;
+	if (Keyboard::modifier_state_equals (ev->state, 0)) {
+		if (ev->keyval == GDK_Escape) {
+			PublicEditor::instance ().leave_clip_editor ();
+			return;
+		}
+		if (_active_view->note_cursor_key (ev->keyval)) return;
+	}
+
+	/* Keep the piano roll's configured shortcuts, including its own undo history. */
+	Gtkmm2ext::KeyboardKey key (ev->state, ev->keyval);
+	for (auto* binding : bindings) {
+		if (binding->activate (key, Gtkmm2ext::Bindings::Press)) return;
+	}
+}
+
 bool
 Pianoroll::canvas_enter_leave (GdkEventCrossing* ev)
 {
@@ -847,9 +876,11 @@ Pianoroll::canvas_enter_leave (GdkEventCrossing* ev)
 		break;
 	case GDK_LEAVE_NOTIFY:
 		if (ev->detail != GDK_NOTIFY_INFERIOR) {
-			ActionManager::set_sensitive (_midi_actions, false);
+			if (!_canvas.get_data ("pianoroll-note-cursor")) {
+				ActionManager::set_sensitive (_midi_actions, false);
+				ARDOUR_UI::instance()->reset_focus (&_canvas_viewport);
+			}
 			within_track_canvas = false;
-			ARDOUR_UI::instance()->reset_focus (&_canvas_viewport);
 			gdk_window_set_cursor (_canvas_viewport.get_window()->gobj(), nullptr);
 			if (xcursor) {
 				xcursor->hide();

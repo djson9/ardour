@@ -54,6 +54,9 @@ class PianorollMidiView : public MidiView
 	void set_samples_per_pixel (double);
 	void set_height (double);
 
+	void start_note_cursor ();
+	bool note_cursor_key (guint);
+
 	void clear_events ();
 	void clear_ghost_events();
 	void ghosts_model_changed();
@@ -153,6 +156,18 @@ class PianorollMidiView : public MidiView
 
 	void cut_copy_clear_one (AutomationLine& line, ::Selection& selection, Editing::CutCopyOp op);
 	void cut_copy_points (Editing::CutCopyOp op, Temporal::timepos_t const & earliest_time);
+
+	Temporal::Beats cursor_time;
+	Temporal::Beats cursor_length;
+	uint8_t cursor_pitch = 60;
+	std::unique_ptr<ArdourCanvas::Rectangle> cursor_rect;
+	std::shared_ptr<NoteType> cursor_hit;
+	std::vector<std::shared_ptr<NoteType>> cursor_overlaps;
+	sigc::connection cursor_timer;
+	Temporal::Beats cursor_step () const;
+	Temporal::Beats clip_end () const;
+	void refresh_note_cursor ();
+	void animate_note_cursor ();
 
 	sigc::connection er_connection;
 	sigc::connection parent_connection;
