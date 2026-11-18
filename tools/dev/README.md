@@ -756,8 +756,9 @@ python3 tools/dev/test-browser-audio-ui.py /absolute/private/browser-audio-test 
 On 2026-11-18 the native analysis test passed in 0.88 seconds, checking equal
 perceived loudness, waveform peaks/duration, true intersample-peak limiting,
 silence, short clips, multichannel fallback, gain caps, invalid audio,
-cancellation, and unchanged source bytes. Native GUI playback passed in 0.90
+cancellation, and unchanged source bytes. Native GUI playback passed in 0.98
 seconds: actual audition-region gain, advancing position, waveform seeking,
 toggling gain without losing position, Stop, and rapid selection without late
-playback. Restart preference restoration passed in 0.42 seconds. Every runner
+playback. Restart preference restoration passed in 0.06 seconds; folder/filter regression
+and restart checks passed in 1.38 and 0.14 seconds. Every runner
 has a hard nine-second deadline; compilation and application startup are separate.
