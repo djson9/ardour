@@ -43,6 +43,18 @@ public:
 	void get_buffers ();
 	void drop_buffers ();
 
+	/** Bind preallocated private scratch storage for a non-engine DSP worker.
+	 * The caller owns its lifetime; it never enters BufferManager's RT pool. */
+	class BufferScope {
+	public:
+		explicit BufferScope (ThreadBuffers& buffers) : _previous (_private_thread_buffers.get ()) { _private_thread_buffers.set (&buffers); }
+		~BufferScope () { _private_thread_buffers.set (_previous); }
+		BufferScope (BufferScope const&) = delete;
+		BufferScope& operator= (BufferScope const&) = delete;
+	private:
+		ThreadBuffers* const _previous;
+	};
+
 	/* A moving render has a project cursor and an unwrapped cursor.  The latter
 	 * advances across loop boundaries and does not depend on the device clock.
 	 */

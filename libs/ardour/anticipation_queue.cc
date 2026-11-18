@@ -11,6 +11,7 @@
 #include "ardour/midi_buffer.h"
 #include "ardour/process_thread.h"
 #include "ardour/session_event.h"
+#include "ardour/thread_buffers.h"
 
 using namespace ARDOUR;
 
@@ -37,6 +38,15 @@ AnticipationQueue::AnticipationQueue (Configuration const& config, Render render
 	}
 	allocate (_scratch);
 	allocate (_live_input);
+	_worker_buffers.reset (new ThreadBuffers);
+	_worker_buffers->ensure_buffers (config.channels, config.max_frames);
+	/* ThreadBuffers' custom size applies to both data types. MIDI needs byte
+	 * capacity independent of the audio quantum, including for MIDI-capable FX. */
+	for (auto* buffers : {_worker_buffers->silent_buffers, _worker_buffers->scratch_buffers,
+	                     _worker_buffers->noinplace_buffers, _worker_buffers->route_buffers,
+	                     _worker_buffers->mix_buffers}) {
+		buffers->ensure_buffers (DataType::MIDI, std::max (1u, config.channels.n_midi ()), std::max (size_t (8192), config.midi_bytes));
+	}
 	for (uint32_t i = 0; i < config.blocks; ++i) {
 		std::unique_ptr<Slot> slot (new Slot);
 		allocate (slot->buffers);
@@ -124,64 +134,67 @@ AnticipationQueue::render (BufferSet& buffers, Range const& range, bool live)
 void
 AnticipationQueue::worker ()
 {
-	pthread_set_name ("Anticipation");
-	SessionEvent::create_per_thread_pool ("Anticipation", 64);
-	PBD::notify_event_loops_about_thread_creation (pthread_self (), "Anticipation", 64);
-	Temporal::TempoMap::fetch ();
-	ProcessThread process_thread;
-	process_thread.get_buffers ();
-	while (!_quit.load (std::memory_order_acquire)) {
-		State state = _state.load (std::memory_order_acquire);
-		if (state == State::Draining) {
-			_state.compare_exchange_strong (state, State::Drained, std::memory_order_release);
-		}
-		uint64_t w = _write.load (std::memory_order_relaxed);
-		uint64_t r = _read.load (std::memory_order_acquire);
-		if (state != State::Ahead || w - r >= _config.blocks) {
-			std::this_thread::sleep_for (std::chrono::microseconds (50));
-			continue;
-		}
-		bool retained = false;
-		if (w >= _config.blocks) {
-			for (auto const& reader : _readers) {
-				if (w - reader->index.load (std::memory_order_acquire) >= _config.blocks) {
-					retained = true;
-					break;
-				}
+	try {
+		pthread_set_name ("Anticipation");
+		SessionEvent::create_per_thread_pool ("Anticipation", 64);
+		PBD::notify_event_loops_about_thread_creation (pthread_self (), "Anticipation", 64);
+		Temporal::TempoMap::fetch ();
+		ProcessThread process_thread;
+		ProcessThread::BufferScope buffers (*_worker_buffers);
+		while (!_quit.load (std::memory_order_acquire)) {
+			State state = _state.load (std::memory_order_acquire);
+			if (state == State::Draining) {
+				_state.compare_exchange_strong (state, State::Drained, std::memory_order_release);
 			}
-		}
-		if (retained) {
-			std::this_thread::sleep_for (std::chrono::microseconds (50));
-			continue;
-		}
-		try {
-			if (!_next.frames || _next.frames > _config.max_frames) {
-				throw std::runtime_error ("Invalid anticipation subdivision");
-			}
-			if (_ready && !_ready (_next)) {
+			uint64_t w = _write.load (std::memory_order_relaxed);
+			uint64_t r = _read.load (std::memory_order_acquire);
+			if (state != State::Ahead || w - r >= _config.blocks) {
 				std::this_thread::sleep_for (std::chrono::microseconds (50));
 				continue;
 			}
-			_scratch.set_count (_config.channels);
-			for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { _scratch.get_midi (c).clear (); }
-			_scratch.silence (_next.frames, 0);
-			render (_scratch, _next, false);
-			if (!(_scratch.count () <= _config.channels)) {
-				throw std::runtime_error ("Anticipation channel layout changed");
+			bool retained = false;
+			if (w >= _config.blocks) {
+				for (auto const& reader : _readers) {
+					if (w - reader->index.load (std::memory_order_acquire) >= _config.blocks) {
+						retained = true;
+						break;
+					}
+				}
 			}
-			Slot& slot = *_slots[w % _config.blocks];
-			slot.buffers.set_count (_scratch.count ());
-			for (uint32_t c = 0; c < _scratch.count ().n_midi (); ++c) { slot.buffers.get_midi (c).clear (); }
-			slot.buffers.read_from (_scratch, _next.frames);
-			slot.range = _next;
-			slot.generation = _generation;
-			_next = next (_next);
-			_write.store (w + 1, std::memory_order_release);
-		} catch (...) {
-			_state.store (State::Fault, std::memory_order_release);
+			if (retained) {
+				std::this_thread::sleep_for (std::chrono::microseconds (50));
+				continue;
+			}
+			try {
+				if (!_next.frames || _next.frames > _config.max_frames) {
+					throw std::runtime_error ("Invalid anticipation subdivision");
+				}
+				if (_ready && !_ready (_next)) {
+					std::this_thread::sleep_for (std::chrono::microseconds (50));
+					continue;
+				}
+				_scratch.set_count (_config.channels);
+				for (uint32_t c = 0; c < _config.channels.n_midi (); ++c) { _scratch.get_midi (c).clear (); }
+				_scratch.silence (_next.frames, 0);
+				render (_scratch, _next, false);
+				if (!(_scratch.count () <= _config.channels)) {
+					throw std::runtime_error ("Anticipation channel layout changed");
+				}
+				Slot& slot = *_slots[w % _config.blocks];
+				slot.buffers.set_count (_scratch.count ());
+				for (uint32_t c = 0; c < _scratch.count ().n_midi (); ++c) { slot.buffers.get_midi (c).clear (); }
+				slot.buffers.read_from (_scratch, _next.frames);
+				slot.range = _next;
+				slot.generation = _generation;
+				_next = next (_next);
+				_write.store (w + 1, std::memory_order_release);
+			} catch (...) {
+				_state.store (State::Fault, std::memory_order_release);
+			}
 		}
+	} catch (...) {
+		_state.store (State::Fault, std::memory_order_release);
 	}
-	process_thread.drop_buffers ();
 	_exited.store (true, std::memory_order_release);
 }
 

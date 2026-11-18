@@ -13,6 +13,8 @@
 
 namespace ARDOUR {
 
+class ThreadBuffers;
+
 /** Exclusive DSP ownership with bounded, timestamped audio/MIDI read-ahead.
  *
  * Construction, start() and stop() belong to the control thread, with the
@@ -112,6 +114,7 @@ private:
 	std::vector<std::unique_ptr<Reader>> _readers;
 	BufferSet _scratch;
 	BufferSet _live_input;
+	std::unique_ptr<ThreadBuffers> _worker_buffers;
 	std::thread _worker;
 	std::atomic<State> _state;
 	std::atomic<bool> _quit;
