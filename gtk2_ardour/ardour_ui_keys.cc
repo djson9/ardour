@@ -190,6 +190,19 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 		}
 	}
 
+	if ((ev->keyval == GDK_Return || ev->keyval == GDK_KP_Enter || ev->keyval == GDK_Escape) &&
+	    Keyboard::modifier_state_equals (ev->state, 0) && editor && top_level_bindings &&
+	    top_level_bindings == editor->contents ().get_data (ARDOUR_BINDING_KEY) &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		const std::string name = focus ? gtk_widget_get_name (focus) : "";
+		if (ev->keyval == GDK_Escape) {
+			if (name == "MidiCueCanvas" && editor->leave_clip_editor ()) return true;
+		} else if ((!focus || name == "EditorMainCanvas" || name == "MidiCueCanvas" || name == "AutomationClipCanvas") &&
+		    editor->edit_selected_clip ()) {
+			return true;
+		}
+	}
+
 	const bool up = ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up;
 	const bool down = ev->keyval == GDK_Down || ev->keyval == GDK_KP_Down;
 	if ((up || down) && Keyboard::modifier_state_equals (ev->state, 0) &&

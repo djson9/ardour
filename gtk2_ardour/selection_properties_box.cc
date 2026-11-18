@@ -185,6 +185,15 @@ SelectionPropertiesBox::delete_region_editor ()
 	_region_editor_box.hide ();
 }
 
+std::shared_ptr<ARDOUR::Region>
+SelectionPropertiesBox::visible_clip () const
+{
+	if (!_region_editor_box.get_mapped ()) return nullptr;
+	if (_pianoroll) return _pianoroll->region ();
+	if (_automation_editor) return _automation_editor->region ();
+	return _region_editor ? _region_editor->region () : nullptr;
+}
+
 void
 SelectionPropertiesBox::edit_clip_region (std::shared_ptr<ARDOUR::Region> region)
 {

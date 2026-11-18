@@ -39,6 +39,7 @@ extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #include "../../gtk2_ardour/automation_clip_editor.h"
 #include "../../gtk2_ardour/region_view.h"
 #include "../../gtk2_ardour/selection.h"
+#include "../../gtk2_ardour/selection_properties_box.h"
 #include "../../gtk2_ardour/processor_box.h"
 #include "../../gtk2_ardour/route_properties_box.h"
 #include "../../gtk2_ardour/public_editor.h"
@@ -207,17 +208,60 @@ static gboolean tick (gpointer) {
     header_key (midi_track, GDK_Return);
     stage = 32; return TRUE;
    }
-   if (stage == 32 || stage == 33 || stage == 34) {
-    auto* piano = piano_canvas ();
-    if (!piano || editor.get_selection ().regions.size () != 1 || editor.get_selection ().regions.front ()->region () != midi_b) return finish ("Enter did not open the MIDI clip at the selection marker");
-    if (stage == 32) {
-     snapshot (piano, ".midi");
-     auto* view = editor.time_axis_view_from_stripable (midi_track); view->focus_track_header ();
-     key (*piano, GDK_KP_Enter); stage = 33; return TRUE;
+   auto has_midi = [&] (std::shared_ptr<Region> clip) {
+    auto const& regions = editor.get_selection ().regions;
+    if (regions.size () != 1 || regions.front ()->region () != clip) return false;
+    for (auto* widget = piano_canvas (); widget; widget = widget->get_parent ()) {
+     if (auto* box = dynamic_cast<SelectionPropertiesBox*> (widget)) return box->visible_clip () == clip;
     }
-    range (midi_track, timepos_t (Temporal::Beats (stage == 33 ? 8 : 13, 0)));
-    header_key (midi_track, GDK_Return);
-    stage = stage == 33 ? 34 : 35; return TRUE;
+    return false;
+   };
+   auto* midi_view = editor.time_axis_view_from_stripable (midi_track);
+   if (stage == 32) {
+    if (!has_midi (midi_b)) return finish ("Enter did not open the MIDI clip at the selection marker");
+    auto* piano = piano_canvas ();
+    snapshot (piano, ".midi"); piano->grab_focus (); key (*piano, GDK_Escape);
+    stage = 40; return TRUE;
+   }
+   if (stage == 40 || stage == 43) {
+    if (piano_canvas ()) return finish ("First Escape left the piano roll open");
+    if (!editor.get_selection ().selected (midi_view)) return finish ("First Escape lost the track selection");
+    if (!midi_view->track_header_has_focus ()) return finish ("First Escape lost keyboard focus on the track");
+    header_key (midi_track, stage == 40 ? GDK_KP_Enter : GDK_Escape);
+    stage = stage == 40 ? 41 : 44; return TRUE;
+   }
+   if (stage == 41) {
+    if (!has_midi (midi_b)) return finish ("Enter after Escape did not reopen the same clip");
+    session->request_locate (timepos_t (Temporal::Beats (5, 0)).samples ());
+    stage = 42; return TRUE;
+   }
+   if (stage == 42) {
+    if (editor.playhead_cursor_sample () != timepos_t (Temporal::Beats (5, 0)).samples ()) return TRUE;
+    auto* piano = piano_canvas (); if (!piano) return finish ("Piano roll closed during locate");
+    piano->grab_focus (); key (*piano, GDK_Return); stage = 45; return TRUE;
+   }
+   if (stage == 45) {
+    if (!has_midi (midi_a)) return finish ("Enter did not follow the moved playhead into another clip");
+    auto* canvas = named (piano_canvas ()->get_toplevel (), "EditorMainCanvas");
+    auto* next = editor.regionview_from_region (midi_b);
+    if (!canvas || !next) return finish ("Missing arrangement clip or canvas");
+    editor.get_selection ().set (next);
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 46; return TRUE;
+   }
+   if (stage == 46) {
+    if (!has_midi (midi_b)) return finish ("Enter did not open the newly selected clip in the arrangement");
+    key (*piano_canvas (), GDK_Escape); stage = 43; return TRUE;
+   }
+   if (stage == 44) {
+    if (midi_view->track_header_has_focus () || editor.get_selection ().selected (midi_view))
+     return finish ("Second Escape kept the track focused or selected");
+    range (midi_track, timepos_t (Temporal::Beats (8, 0)));
+    header_key (midi_track, GDK_Return); stage = 34; return TRUE;
+   }
+   if (stage == 34) {
+    if (!has_midi (midi_b)) return finish ("Enter selected the wrong clip at a shared boundary");
+    range (midi_track, timepos_t (Temporal::Beats (13, 0)));
+    header_key (midi_track, GDK_Return); stage = 35; return TRUE;
    }
    if (stage == 35) {
     if (!editor.get_selection ().regions.empty () || piano_canvas ()) return finish ("Enter in a gap selected a clip elsewhere");
@@ -240,6 +284,27 @@ static gboolean tick (gpointer) {
     auto* curve = panel (static_cast<AutomationClipEditor*> (nullptr));
     if (!curve || curve->region () != automation_region || editor.get_selection ().regions.size () != 1 || editor.get_selection ().regions.front ()->region () != automation_region) return finish ("Enter did not open the automation clip curve");
     snapshot (curve, ".automation");
+    auto* canvas = named (curve, "AutomationClipCanvas");
+    if (!canvas) return finish ("Missing automation canvas");
+    canvas->grab_focus (); key (*canvas, GDK_Escape); stage = 38; return TRUE;
+   }
+   if (stage == 38) {
+    auto* view = editor.time_axis_view_from_stripable (automation_track);
+    if (panel (static_cast<AutomationClipEditor*> (nullptr)) || !view->track_header_has_focus () || !editor.get_selection ().selected (view))
+     return finish ("Escape from the automation curve did not return to the track");
+    header_key (automation_track, GDK_Return); stage = 39; return TRUE;
+   }
+   if (stage == 39) {
+    auto* curve = panel (static_cast<AutomationClipEditor*> (nullptr));
+    if (!curve || curve->region () != automation_region) return finish ("Enter did not reopen the automation curve");
+    auto* canvas = named (curve->get_toplevel (), "EditorMainCanvas");
+    range (midi_track, timepos_t (Temporal::Beats (9, 0)));
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 47; return TRUE;
+   }
+   if (stage == 47) {
+    if (!has_midi (midi_b) || panel (static_cast<AutomationClipEditor*> (nullptr))) return finish ("Enter on a new track range did not switch from automation to the piano roll");
+    key (*piano_canvas (), GDK_Escape);
+    header_key (midi_track, GDK_Escape);
     midi_track->playlist ()->remove_region (midi_a); midi_track->playlist ()->remove_region (midi_b);
     session->remove_route (automation_track);
     return finish (nullptr);
