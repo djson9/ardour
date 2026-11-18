@@ -34,6 +34,23 @@ struct Capture : Processor {
 	}
 };
 
+// Exercise the observed in-flight latency callback deterministically after
+// Session::destroy has released anticipation, while route processors still exist.
+struct LatencyAccess : Session {
+	static auto callback () { return &LatencyAccess::update_latency_compensation; }
+};
+static unsigned teardown_callbacks = 0;
+struct TeardownLatency : Processor {
+	TeardownLatency (Session& s) : Processor (s, "Teardown latency callback", s) {}
+	bool can_support_io_configuration (ChanCount const& in, ChanCount& out) override { out = in; return true; }
+	~TeardownLatency () override {
+		if (_session.deletion_in_progress ()) {
+			(_session.*LatencyAccess::callback ()) (false, true);
+			++teardown_callbacks;
+		}
+	}
+};
+
 static bool connected (std::shared_ptr<Route> a, std::shared_ptr<Route> b)
 {
 	return a->output ()->connected_to (b->input ());
@@ -139,7 +156,9 @@ int main (int argc, char** argv)
 				need (s->save_state ("") == 0, "save hierarchy");
 			}
 		}
+		need (s->route_by_name ("Sink")->add_processor (std::make_shared<TeardownLatency> (*s), PreFader) == 0, "teardown callback fixture");
 		delete s;
+		need (teardown_callbacks == 1, "latency callback survived session teardown");
 		if (!audio) {
 			s = new Session (*engine, argv[1], "group-tracks", nullptr, "", true);
 			engine->set_session (nullptr);
