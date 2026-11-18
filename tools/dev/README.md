@@ -572,12 +572,12 @@ It remains selectable, including from the canvas, while scrolling or resizing th
 bottom device pane. Shift-click ordering treats Master as the last row rather than
 inserting it between scrolling tracks according to its temporary canvas position.
 
-Track headers have a colored name column, native input/output routing buttons,
-In/Auto/Off monitoring, track number, mute/solo/record, numeric gain and a fader,
-and a level meter. Off means playback-only monitoring (`MonitorDisk`); Auto uses
-Ardour's automatic record/transport policy. Short rows hide routing details while
-preserving column alignment. Master keeps its numeric gain in its short row.
-These are existing routing/gain controls; this does not implement folder groups.
+In the Live arrangement, click the colored track or bus number to mute it. The
+number dims when muted. Solo and track record-arm sit to its right. Drag the
+gain bar or double-click its value for numeric entry. Stereo pan displays
+`C` at center and the offset to the left or right as you drag. Short rows retain
+the input selector. Taller rows add output routing, gain and pan, then In/Auto/Off
+monitoring. Master keeps its gain in its pinned row.
 
 Additional nine-second native GTK cases:
 
@@ -592,7 +592,7 @@ selection through bottom-pane allocation changes. The second creates a disposabl
 track, exercises monitoring and gain against persisted/native controls, opens both
 routing editors, and confirms deletion of only that test track. The pointer helper
 accepts `TrackControl:track name|input`, `output`, `monitor-in`, `monitor-auto`,
-`monitor-off`, and `gain`, and reports target geometry. It delivers button crossing
+`monitor-off`, `activator`, `solo`, `record`, `pan`, and `gain`, and reports target geometry. It delivers button crossing
 events and uses GtkEntry's inner text window, as real native pointer events do.
 
 Measured on 2026-11-18 after these changes: track information 1.15 s, header

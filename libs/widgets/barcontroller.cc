@@ -164,7 +164,8 @@ void
 BarController::before_expose ()
 {
 	double xpos = -1;
-	_slider.set_text (get_label (xpos), false, false);
+	const std::string label = get_label (xpos);
+	_slider.set_text (label, xpos == 0.5, false);
 }
 
 void

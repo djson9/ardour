@@ -70,6 +70,7 @@ class Selection;
 class RegionSelection;
 class Selectable;
 class AutomationTimeAxisView;
+class AutomationController;
 class EditorAutomationLine;
 class TimeSelection;
 class RouteGroupMenu;
@@ -293,7 +294,12 @@ protected:
 	ArdourWidgets::ArdourButton live_monitor_in {"In"};
 	ArdourWidgets::ArdourButton live_monitor_auto {"Auto"};
 	ArdourWidgets::ArdourButton live_monitor_off {"Off"};
+	Gtk::HBox live_gain_box;
+	std::shared_ptr<AutomationController> live_pan;
 	bool live_header = false;
+	void setup_live_gain ();
+	void update_live_pan ();
+	void end_live_gain_edit ();
 	void setup_live_header ();
 	void update_live_monitor ();
 
