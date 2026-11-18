@@ -37,7 +37,17 @@ int main(int argc,char** argv)
  write_audio(dir+"/near-silence.wav",.00001f);auto near=BrowserAudio::analyze(dir+"/near-silence.wav",cancel);assert(near&&near->error.empty()&&near->gain<=15.848933f);
  write_audio(dir+"/nan.wav",.1f,1,.1,true);auto invalid=BrowserAudio::analyze(dir+"/nan.wav",cancel);assert(invalid&&!invalid->error.empty()&&invalid->peaks.empty());
  auto missing=BrowserAudio::analyze(dir+"/missing.wav",cancel);assert(missing&&!missing->error.empty());
+ // A 12 kHz sine sampled at 45 degrees peaks between samples: sample=.9,
+ // reconstructed peak about 1.27. LUFS is unavailable for this 50 ms clip.
+ SF_INFO info={};info.samplerate=48000;info.channels=1;info.format=SF_FORMAT_WAV|SF_FORMAT_FLOAT;
+ auto* tpfile=sf_open((dir+"/intersample.wav").c_str(),SFM_WRITE,&info);assert(tpfile);
+ std::vector<float> tp(2400);for(size_t n=0;n<tp.size();++n)tp[n]=(n%4<2?.9f:-.9f);
+ assert(sf_write_float(tpfile,tp.data(),tp.size())==sf_count_t(tp.size()));sf_close(tpfile);
+ auto intersample=BrowserAudio::analyze(dir+"/intersample.wav",cancel);
+ assert(intersample&&intersample->error.empty()&&!intersample->loudness_measured&&intersample->gain<.8f&&intersample->gain>.5f);
+ write_audio(dir+"/surround.wav",.2f,4,.05);auto surround=BrowserAudio::analyze(dir+"/surround.wav",cancel);
+ assert(surround&&surround->error.empty()&&surround->channels==4&&!surround->loudness_measured&&surround->gain>1&&surround->sample_peak*surround->gain<=.891251f);
  int checks=0;assert(!BrowserAudio::analyze(dir+"/quiet.wav",[&] {return ++checks>=4;}));
- std::cout<<"PASS: perceived loudness, stereo peaks, duration, true-peak/sample ceiling, silence, short clips, gain cap, malformed input, cancellation, unchanged source bytes\n";
+ std::cout<<"PASS: perceived loudness, stereo peaks, duration, true/sample-peak ceilings, multichannel fallback, silence, short clips, gain cap, malformed input, cancellation, unchanged source bytes\n";
  std::cout<<"quiet gain="<<quiet->gain<<" loud gain="<<loud->gain<<" short gain="<<short_clip->gain<<"\n";
 }
