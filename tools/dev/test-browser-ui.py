@@ -16,13 +16,23 @@ if not args.restore:
         (files/name).touch()
     if not (files/'pipe.wav').exists():os.mkfifo(files/'pipe.wav')
 result=root/'result.json';result.unlink(missing_ok=True)
+key_request=root/'key-request';key_request.unlink(missing_ok=True)
 def timeout(*_):raise TimeoutError('Browser GUI test exceeded 9 seconds')
 signal.signal(signal.SIGALRM,timeout);signal.alarm(9)
 start=time.monotonic()
 if args.pid:
     subprocess.run(['osascript','-e',f'tell application "System Events" to tell (first application process whose unix id is {args.pid}) to set frontmost to true'],check=True,timeout=2)
 (root/'trigger').write_text('restore' if args.restore else ('keys' if args.keys else 'full'))
-while not result.exists():time.sleep(.025)
+keycodes={65364:125,65362:126,65361:123,65363:124,65360:115,65367:119,65293:36}
+while not result.exists():
+    if key_request.exists():
+        keyval,modifiers=map(int,key_request.read_text().split())
+        assert args.pid and keyval in keycodes
+        shift=' using shift down' if modifiers & 1 else ''
+        script=f'tell application "System Events" to tell (first application process whose unix id is {args.pid})\nset frontmost to true\nkey code {keycodes[keyval]}{shift}\nend tell'
+        subprocess.run(['osascript','-e',script],check=True,timeout=2)
+        key_request.unlink()
+    time.sleep(.025)
 # Producer closes this tiny file immediately; allow one retry if preempted.
 try:data=json.loads(result.read_text())
 except json.JSONDecodeError:time.sleep(.025);data=json.loads(result.read_text())

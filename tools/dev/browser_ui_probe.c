@@ -63,20 +63,11 @@ static int files(int expected) {
  if(gtk_tree_model_get_iter_first(m,&i))do {gboolean file=FALSE;gtk_tree_model_get(m,&i,3,&file,-1);if(file)count++;}while(gtk_tree_model_iter_next(m,&i));
  return count==expected;
 }
-/* Dispatch to the real window handler, not directly to the tree: this catches
- * arrangement accelerators stealing navigation keys. */
+/* Ask the runner for a native macOS key event. It activates only the private
+ * app and acknowledges dispatch before this probe checks the actual GTK tree. */
 static void key(guint keyval,guint modifiers) {
- GtkWidget *w=gtk_widget_get_toplevel(browser);
- GdkKeymapKey *keys=NULL;gint count=0;
- gdk_keymap_get_entries_for_keyval(gdk_keymap_get_default(),keyval,&keys,&count);
- for(int release=0;release<2;release++) {
-  GdkEvent *e=gdk_event_new(release?GDK_KEY_RELEASE:GDK_KEY_PRESS);
-  e->key.window=g_object_ref(gtk_widget_get_window(w));e->key.send_event=TRUE;
-  e->key.time=GDK_CURRENT_TIME;e->key.keyval=keyval;e->key.state=modifiers;
-  if(count){e->key.hardware_keycode=keys[0].keycode;e->key.group=keys[0].group;}
-  e->key.string=g_strdup("");gdk_event_put(e);gdk_event_free(e);
- }
- g_free(keys);
+ char path[4096];snprintf(path,sizeof(path),"%s/key-request",getenv("ARDOUR_BROWSER_UI_PROBE"));
+ FILE *f=fopen(path,"w");if(f){fprintf(f,"%u %u",keyval,modifiers);fclose(f);}
 }
 static int cursor(const char *name) {
  GtkTreePath *path=NULL;GtkTreeIter iter;char *text=NULL;
@@ -97,6 +88,13 @@ static int expanded(const char *name) {
 }
 static void respond(GtkWidget *dialog,int response) {gtk_dialog_response(GTK_DIALOG(dialog),response);}
 static void edit(GtkWidget *dialog,const char *text) {gtk_entry_set_text(GTK_ENTRY(find(dialog,"browser-extension-entry")),text);}
+static void disable_autoplay(GtkWidget *w,gpointer unused) {
+ if(GTK_IS_CHECK_BUTTON(w)) {
+  const char *label=gtk_button_get_label(GTK_BUTTON(w));
+  if(label&&!strcmp(label,"Auto-play"))gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(w),FALSE);
+ }
+ if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),disable_autoplay,NULL);
+}
 static gboolean tick(gpointer unused) {
  if(!active) {
   if(!g_file_test(trigger,G_FILE_TEST_EXISTS))return TRUE;
@@ -104,6 +102,8 @@ static gboolean tick(gpointer unused) {
   started=g_get_monotonic_time();active=1;stage=0;browser=NULL;
  }
  if(g_get_monotonic_time()-started>8000000){finish("8 second GUI deadline");return TRUE;}
+ char pending_key[4096];snprintf(pending_key,sizeof(pending_key),"%s/key-request",getenv("ARDOUR_BROWSER_UI_PROBE"));
+ if(g_file_test(pending_key,G_FILE_TEST_EXISTS))return TRUE;
  GtkWidget *dialog;GtkTreeIter i;
  switch(stage) {
  case 0: {
@@ -114,6 +114,8 @@ static gboolean tick(gpointer unused) {
   }
   g_list_free(list);if(!browser)return TRUE;
   gtk_window_present(GTK_WINDOW(gtk_widget_get_toplevel(browser)));
+  disable_autoplay(browser,NULL);
+
   GtkWidget *child=browser,*parent;
   while((parent=gtk_widget_get_parent(child))) {if(GTK_IS_NOTEBOOK(parent))gtk_notebook_set_current_page(GTK_NOTEBOOK(parent),gtk_notebook_page_num(GTK_NOTEBOOK(parent),child));child=parent;}
   stage=!strcmp(mode,"restore")?30:40;break;
@@ -220,7 +222,7 @@ static gboolean tick(gpointer unused) {
   if(!cursor("Bass.flac")){finish("Keyboard selection anchor");break;}
   key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
  case 59:
-  {gchar *message=g_strdup_printf("Shift selection count=%d",gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files")))));
+  {gchar *message=g_strdup_printf("Shift selection count=%d cursorMoved=%d",gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files")))),cursor("Chords.MID"));
   if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish(message);g_free(message);break;}
   g_free(message);}
   select_row("Nested");key(GDK_Return,0);stage=60;break;
