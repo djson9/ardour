@@ -8,6 +8,7 @@
 #include <stdio.h>
 static GtkWidget *browser;
 static int stage, active;
+static const char *pending_failure;
 static gint64 started;
 static char directory[4096], trigger[4096], result[4096], mode[32];
 struct Search {const char *name; GtkWidget *found;};
@@ -99,9 +100,9 @@ static gboolean tick(gpointer unused) {
  if(!active) {
   if(!g_file_test(trigger,G_FILE_TEST_EXISTS))return TRUE;
   FILE *f=fopen(trigger,"r");if(!f)return TRUE;mode[0]=0;fscanf(f,"%31s",mode);fclose(f);remove(trigger);
-  started=g_get_monotonic_time();active=1;stage=0;browser=NULL;
+  started=g_get_monotonic_time();active=1;stage=0;browser=NULL;pending_failure=NULL;
  }
- if(g_get_monotonic_time()-started>8000000){finish("8 second GUI deadline");return TRUE;}
+ if(g_get_monotonic_time()-started>8000000){finish(pending_failure?pending_failure:"8 second GUI deadline");return TRUE;}
  char pending_key[4096];snprintf(pending_key,sizeof(pending_key),"%s/key-request",getenv("ARDOUR_BROWSER_UI_PROBE"));
  if(g_file_test(pending_key,G_FILE_TEST_EXISTS))return TRUE;
  GtkWidget *dialog;GtkTreeIter i;
@@ -188,52 +189,50 @@ static gboolean tick(gpointer unused) {
   finish(NULL);break;
  case 50:
   if(!gtk_widget_has_focus(find(browser,"browser-files")))return TRUE;
-  if(gtk_window_get_focus(GTK_WINDOW(gtk_widget_get_toplevel(browser)))!=find(browser,"browser-files")){finish("Folder chooser did not return focus to files");break;}
+  if(gtk_window_get_focus(GTK_WINDOW(gtk_widget_get_toplevel(browser)))!=find(browser,"browser-files")){pending_failure="Folder chooser did not return focus to files";return TRUE;}
   select_row("Nested");key(GDK_Down,0);stage=51;break;
  case 51:
-  if(!cursor("Bass.flac")){finish("Down did not select next file");break;}
+  if(!cursor("Bass.flac")){pending_failure="Down did not select next file";return TRUE;}
   key(GDK_Up,0);stage=52;break;
  case 52:
-  if(!cursor("Nested")){finish("Up did not select previous row");break;}
+  if(!cursor("Nested")){pending_failure="Up did not select previous row";return TRUE;}
   key(GDK_Right,0);stage=53;break;
  case 53:
-  if(!expanded("Nested")){finish("Right did not expand folder");break;}
+  if(!expanded("Nested")){pending_failure="Right did not expand folder";return TRUE;}
   key(GDK_Down,0);stage=54;break;
  case 54:
-  if(!cursor("Inside.wav")){finish("Down did not enter expanded folder");break;}
+  if(!cursor("Inside.wav")){pending_failure="Down did not enter expanded folder";return TRUE;}
   key(GDK_Left,0);stage=55;break;
  case 55:
-  if(!cursor("Nested")){finish("Left did not select parent row");break;}
+  if(!cursor("Nested")){pending_failure="Left did not select parent row";return TRUE;}
   key(GDK_Left,0);stage=56;break;
  case 56:
-  if(expanded("Nested")){finish("Left did not collapse folder");break;}
+  if(expanded("Nested")){pending_failure="Left did not collapse folder";return TRUE;}
   key(GDK_Home,0);stage=57;break;
  case 57:
-  if(!cursor("..")){finish("Home did not select first row");break;}
+  if(!cursor("..")){pending_failure="Home did not select first row";return TRUE;}
   key(GDK_Up,0);stage=58;break;
  case 58:
-  if(!cursor("..")){finish("Top boundary changed browser cursor");break;}
+  if(!cursor("..")){pending_failure="Top boundary changed browser cursor";return TRUE;}
   key(GDK_End,0);stage=63;break;
  case 63:
   key(GDK_Up,0);stage=64;break;
  case 64:
   key(GDK_Up,0);stage=65;break;
  case 65:
-  if(!cursor("Bass.flac")){finish("Keyboard selection anchor");break;}
+  if(!cursor("Bass.flac")){pending_failure="Keyboard selection anchor";return TRUE;}
   key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
  case 59:
-  {gchar *message=g_strdup_printf("Shift selection count=%d cursorMoved=%d",gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files")))),cursor("Chords.MID"));
-  if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish(message);g_free(message);break;}
-  g_free(message);}
+  if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){pending_failure="Shift-Down selection did not extend";return TRUE;}
   select_row("Nested");key(GDK_Return,0);stage=60;break;
  case 60:
-  if(!row("Inside.wav",NULL)||row("Nested",NULL)){finish("Enter did not open selected folder");break;}
+  if(!row("Inside.wav",NULL)||row("Nested",NULL)){pending_failure="Enter did not open selected folder";return TRUE;}
   select_row("..");key(GDK_Return,0);stage=61;break;
  case 61:
-  if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)){finish("Enter on parent did not return to root");break;}
+  if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)){pending_failure="Enter on parent did not return to root";return TRUE;}
   key(GDK_End,0);stage=62;break;
  case 62:
-  if(!cursor("Piano.WaV")){finish("End did not select last file");break;}
+  if(!cursor("Piano.WaV")){pending_failure="End did not select last file";return TRUE;}
   finish(NULL);break;
  case 30:
   if(strcmp(gtk_label_get_text(GTK_LABEL(find(browser,"browser-directory"))),directory)||!files(1)||!row("Chords.MID",NULL)||!row("Nested",NULL)){finish("Folder/filter not restored at startup");break;}
