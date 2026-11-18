@@ -588,3 +588,25 @@ and replace its binary without restarting Ardour. Loading this new host button
 requires one initial Ardour update/restart. See [controls, implementation and
 validation](CHORD-GRID-RELOAD.md). Native 1.3.2 → 1.3.3 replacement, rollback,
 playback guard and packaged-GUI button/editor tests passed on macOS arm64.
+
+## Locating during loop playback
+
+A locate that resumes playback uses its requested position instead of applying
+Play's loop-start policy again. The loop bracket stays enabled. A seek after
+its end plays forward outside the bracket; the lookahead timeline follows that
+linear position too. A seek exactly to the end still wraps with the host.
+
+Prepare the native test separately from its nine-second execution deadline:
+
+```sh
+python3 tools/dev/run-anticipation-probe.py . loop_locate_probe.cc --build-only
+python3 tools/dev/test-loop-locate.py
+python3 tools/dev/verify-compact-workflow.py --case loop-locate \
+  --url http://127.0.0.1:4840/mcp --session-path '/absolute/path/Group Tracks Verification'
+```
+
+On 2026-11-18, the native test reproduced the old loop-start jump, then passed
+in 1.77 seconds with the fixes. It verifies device-time DSP positions, active
+lookahead, continued playback beyond the seek, inside/outside/end-boundary
+positions, loop wrapping, and stopped locates. The native GTK mouse test passed
+in 1.64 seconds. App startup and compilation are outside those test budgets.

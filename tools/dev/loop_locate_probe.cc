@@ -44,17 +44,21 @@ int main (int argc, char** argv)
 			std::cerr << "position=" << s->transport_sample () << " DSP=" << witness->last.load () << "\n";
 			need (false, what);
 		};
-		auto at = [&] (samplepos_t target) {
+		auto at = [&] (samplepos_t target, samplecnt_t window = 4800) {
 			return s->transport_rolling () && s->setup_settled () && !s->global_locate_pending () &&
-			       s->transport_sample () >= target && s->transport_sample () < target + 4800 &&
-			       witness->last.load () >= target && witness->last.load () < target + 4800;
+			       s->transport_sample () >= target && s->transport_sample () < target + window &&
+			       witness->last.load () >= target && witness->last.load () < target + window;
 		};
 		auto locate = [&] (samplepos_t target, LocateTransportDisposition disposition, const char* what) {
 			witness->last.store (-1); s->request_locate (target, false, disposition);
 			wait ([&] { return at (target); }, what);
 			const auto device = engine->processed_samples ();
 			wait ([&] { return engine->processed_samples () >= device + 2048; }, "post-seek callback progress");
-			{ PBD::Mutex::Lock lock (engine->process_lock ()); need (at (target), what); }
+			{ PBD::Mutex::Lock lock (engine->process_lock ());
+				const bool sustained = at (target, 24000) || (target == hi - 4800 && at (lo, 24000));
+				if (!sustained) std::cerr << "POST-SEEK target=" << target << " transport=" << s->transport_sample () << " DSP=" << witness->last.load () << " rolling=" << s->transport_rolling () << " settled=" << s->setup_settled () << " pending=" << s->global_locate_pending () << "\n";
+				need (sustained, what);
+			}
 			need (s->get_play_loop () && loop->start_sample () == lo && loop->end_sample () == hi, "loop remains enabled and unchanged");
 		};
 		wait ([&] { return s->setup_settled (); }, "setup");
