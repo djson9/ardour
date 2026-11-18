@@ -217,10 +217,11 @@ TriggerClipPicker::TriggerClipPicker ()
 	_view.signal_key_press_event ().connect ([this] (GdkEventKey* event) {
 		bool const right = event->keyval == GDK_Right || event->keyval == GDK_KP_Right;
 		bool const left = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
-		if ((!right && !left) || !Keyboard::modifier_state_equals (event->state, 0)) { return false; }
+		if ((!right && !left) || !Gtkmm2ext::Keyboard::modifier_state_equals (event->state, 0)) { return false; }
 		Gtk::TreeModel::Path path;
 		Gtk::TreeViewColumn* column = nullptr;
 		_view.get_cursor (path, column);
+		if (path.empty ()) { return true; }
 		auto row = _model->get_iter (path);
 		if (!row) { return true; }
 		if (right && !(*row)[_columns.file]) {
