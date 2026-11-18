@@ -4,8 +4,9 @@
 
 The default suite now contains **25 native cases**: the original 13 integration
 cases, ten controlled worker-stall cases at 64/128 frames, and two negative controls.
-The final complete pass took **8.99 s wall-clock** on the build Mac; two preceding
-passes took 8.95 s and 8.83 s before the additional finite-sample guard.
+The latest complete pass takes **8.58 s wall-clock** on the build Mac, including
+the deferred-demotion regressions. The previous coverage-only suite passed in
+8.99 s, with earlier passes in 8.95 s and 8.83 s.
 Prepare binaries separately, then run with a nine-second execution deadline:
 
 ```sh
@@ -54,15 +55,24 @@ milliseconds, queue generation, underruns, state, callback gaps and render durat
 | `stall-handoff` | Record-arm while DSP is held; no concurrent ownership and live processing begins after the in-flight block. |
 | `stall-demotion` | Delayed first background job after leaving live mode produces diagnosed holes; monitoring continues and playback recovers. |
 
-Demotion has **no initial playback reserve**. Its fault case intentionally requires
+Demotion now offers DSP ownership to the worker: until the worker claims it, the
+callback continues live processing and downstream dependencies stay live. Both
+full-routing cases pause the source worker across disarm for 1,536 frames (32 ms)
+and require exact output, zero misses, and resumed source/bus anticipation. The
+queue case checks the same boundary for audio/MIDI at both quanta.
+
+After the worker claims ownership there is still **no initial playback reserve**.
+The `stall-demotion` fault case holds an already-entered plugin and requires
 underruns and verifies accurate diagnosis/recovery; it does not certify dropout-free
 demotion. In the controlled 32 ms starvation pair, both quanta lost exactly 32 ms
 (24 blocks at 64 frames, 12 at 128). Independent monitoring remained sample-exact.
 Negative controls insert a one-block monitor delay or stale playback after recovery;
 the oracle must detect each at the injected frame, in the correct signal lane.
 
-See `anticipation-evidence/native-faults-2026-11-18/README.md` for final evidence,
-failed directions, and limitations. Synthetic/dummy correctness evidence does not
+See `anticipation-evidence/demotion-2026-11-18/README.md` for the latest patch,
+REAPER comparison and before/after regressions, and
+`anticipation-evidence/native-faults-2026-11-18/README.md` for the preceding fault
+coverage experiments. Synthetic/dummy correctness evidence does not
 establish physical monitoring latency or clear the failed sustained hardware gate.
 Capacity probes still default to 512 blocks; longer captures require explicit
 `--soak` and never run in this regression suite.
@@ -103,7 +113,7 @@ stress testing; this is an experimental integration, not release certification.
 
 ## Native integration evidence
 
-- `anticipation_queue_contract_probe.cc`: fourteen deterministic queue checks,
+- `anticipation_queue_contract_probe.cc`: 22 deterministic queue checks,
   including partial MIDI ranges, cancellation, exceptions and slow fan-out readers.
 - `anticipation_plan_probe.cc`: eligibility and dependency closure from real controls.
 - `anticipation_native_route_probe.cc`: original registered track and bus DSP,

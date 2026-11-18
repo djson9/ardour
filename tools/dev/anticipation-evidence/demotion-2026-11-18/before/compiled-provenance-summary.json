@@ -1,0 +1,16 @@
+{
+  "anticipation_queue_contract_probe.cc": {
+    "source_commit": "5ca5e4794d30c3e418ea1d743202cb8e5ddf2ebc",
+    "linked_source_commit": "5ca5e4794d30c3e418ea1d743202cb8e5ddf2ebc",
+    "build_root": "/Users/davidson/workspace/ardour-anticipation-spike",
+    "probe_sha256": "6b3c7fa983e0a14197f25cf9d836e1d31dfa1bf21eea2ffa726c6db80ce3bf2d",
+    "isolation_sha256": "64e465b578c4125d178a4ab279bccb6f0a9cbfe6c400cae14f0fd651ab0cf9b1",
+    "all_inputs_sha256": "e675b7e66f60c673b5b93d08343457525f4c91665b0d59abf90244e1d365558e",
+    "test_source_inputs": {
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc": "915b316fbbb658ffec6094cc32c4a3fe5e7a6e87a2801e1b92a49c051611624c",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_queue_contract_probe.cc": "87da759322edc3993822016f5f71c4ff9e832a8fbf60853c3ca92bf572130ad4",
+      "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/run-anticipation-probe.py": "a580c0d2830139881b590ac66f2814d2b3820cb950723c1846aeaa1ff0354dc9"
+    }
+  }
+}

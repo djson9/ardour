@@ -1,0 +1,259 @@
+Waf: Entering directory `/Users/davidson/workspace/ardour-anticipation-spike/build'
+Git version: 9.10-68-gafa1b683e8
+
+Writing revision info to libs/ardour/revision.cc using 9.10-68-gafa1b683e8, 2026-11-18
+[ 821/1578] Compiling libs/ardour/revision.cc
+[1027/1578] Compiling libs/ardour/anticipative_process.cc
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:56:21: warning: 'set_name' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   56 |         LIBARDOUR_API bool set_name (std::string const& str);
+      |                            ^
+../libs/ardour/ardour/session_object.h:60:15: note: overridden virtual function is here
+   60 |         virtual bool set_name (const std::string& str) {
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:58:28: warning: 'display_name' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   58 |         LIBARDOUR_API std::string display_name () const;
+      |                                   ^
+../libs/ardour/ardour/processor.h:71:22: note: overridden virtual function is here
+   71 |         virtual std::string display_name() const { return SessionObject::name(); }
+      |                             ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:72:21: warning: 'run' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   72 |         LIBARDOUR_API void run (BufferSet& /*bufs*/, samplepos_t /*start_sample*/, samplepos_t /*end_sample*/, double speed, pframes_t /*nframes*/, bool /*result_required*/);
+      |                            ^
+../libs/ardour/ardour/processor.h:112:15: note: overridden virtual function is here
+  112 |         virtual void run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample, double speed, pframes_t nframes, bool result_required) {}
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:73:21: warning: 'realtime_handle_transport_stopped' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   73 |         LIBARDOUR_API void realtime_handle_transport_stopped ();
+      |                            ^
+../libs/ardour/ardour/processor.h:129:15: note: overridden virtual function is here
+  129 |         virtual void realtime_handle_transport_stopped () {}
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:74:21: warning: 'realtime_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   74 |         LIBARDOUR_API void realtime_locate (bool);
+      |                            ^
+../libs/ardour/ardour/processor.h:130:15: note: overridden virtual function is here
+  130 |         virtual void realtime_locate (bool) {}
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:79:21: warning: 'set_loop' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   79 |         LIBARDOUR_API void set_loop (Location*);
+      |                            ^
+../libs/ardour/ardour/processor.h:132:15: note: overridden virtual function is here
+  132 |         virtual void set_loop (Location *loc) { _loop_location = loc; }
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:81:20: warning: 'set_state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   81 |         LIBARDOUR_API int set_state (const XMLNode&, int version);
+      |                           ^
+../libs/ardour/ardour/disk_io.h:95:6: note: overridden virtual function is here
+   95 |         int set_state (const XMLNode&, int version);
+      |             ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:85:22: warning: 'buffer_load' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   85 |         LIBARDOUR_API float buffer_load () const;
+      |                             ^
+../libs/ardour/ardour/disk_io.h:76:16: note: overridden virtual function is here
+   76 |         virtual float buffer_load() const = 0;
+      |                       ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:104:21: warning: 'adjust_buffering' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  104 |         LIBARDOUR_API void adjust_buffering ();
+      |                            ^
+../libs/ardour/ardour/disk_io.h:109:15: note: overridden virtual function is here
+  109 |         virtual void adjust_buffering() = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:108:21: warning: 'seek' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  108 |         LIBARDOUR_API int  seek (samplepos_t sample, bool complete_refill = false);
+      |                            ^
+../libs/ardour/ardour/disk_io.h:113:15: note: overridden virtual function is here
+  113 |         virtual int  seek (samplepos_t which_sample, bool complete_refill = false) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:112:21: warning: 'playlist_modified' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  112 |         LIBARDOUR_API void playlist_modified ();
+      |                            ^
+../libs/ardour/ardour/disk_io.h:106:15: note: overridden virtual function is here
+  106 |         virtual void playlist_modified () {}
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:164:25: warning: 'state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  164 |         LIBARDOUR_API XMLNode& state () const;
+      |                                ^
+../libs/ardour/ardour/processor.h:173:19: note: overridden virtual function is here
+  173 |         virtual XMLNode& state () const;
+      |                          ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:168:21: warning: 'use_playlist' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  168 |         LIBARDOUR_API int  use_playlist (DataType, std::shared_ptr<Playlist>);
+      |                            ^
+../libs/ardour/ardour/disk_io.h:107:14: note: overridden virtual function is here
+  107 |         virtual int use_playlist (DataType, std::shared_ptr<Playlist>);
+      |                     ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:169:21: warning: 'playlist_ranges_moved' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  169 |         LIBARDOUR_API void playlist_ranges_moved (std::list<Temporal::RangeMove> const&, bool);
+      |                            ^
+../libs/ardour/ardour/disk_io.h:186:15: note: overridden virtual function is here
+  186 |         virtual void playlist_ranges_moved (std::list<Temporal::RangeMove> const &, bool) {}
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:171:20: warning: 'add_channel_to' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  171 |         LIBARDOUR_API int add_channel_to (std::shared_ptr<ChannelList>, uint32_t how_many);
+      |                           ^
+../libs/ardour/ardour/disk_io.h:178:14: note: overridden virtual function is here
+  178 |         virtual int add_channel_to (std::shared_ptr<ChannelList>, uint32_t how_many) = 0;
+      |                     ^
+In file included from ../libs/ardour/anticipative_process.cc:15:
+../libs/ardour/ardour/disk_reader.h:263:7: warning: 'configuration_changed' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  263 |         void configuration_changed ();
+      |              ^
+../libs/ardour/ardour/disk_io.h:114:15: note: overridden virtual function is here
+  114 |         virtual void configuration_changed () = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:510:7: warning: 'queue_event' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  510 |         void queue_event (SessionEvent*);
+      |              ^
+../libs/ardour/ardour/session_event.h:166:15: note: overridden virtual function is here
+  166 |         virtual void queue_event (SessionEvent *ev) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1475:7: warning: 'locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1475 |         void locate (samplepos_t, bool for_loop_end=false, bool force=false, bool with_mmc=true);
+      |              ^
+../libs/ardour/ardour/transport_api.h:40:15: note: overridden virtual function is here
+   40 |         virtual void locate (samplepos_t, bool with_loop=false, bool force=false, bool with_mmc=true) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1476:7: warning: 'stop_transport' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1476 |         void stop_transport (bool abort = false, bool clear_state = false);
+      |              ^
+../libs/ardour/ardour/transport_api.h:42:15: note: overridden virtual function is here
+   42 |         virtual void stop_transport (bool abort = false, bool clear_state = false) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1477:7: warning: 'start_transport' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1477 |         void start_transport (bool after_loop);
+      |              ^
+../libs/ardour/ardour/transport_api.h:43:15: note: overridden virtual function is here
+   43 |         virtual void start_transport (bool after_loop) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1478:7: warning: 'butler_completed_transport_work' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1478 |         void butler_completed_transport_work ();
+      |              ^
+../libs/ardour/ardour/transport_api.h:44:15: note: overridden virtual function is here
+   44 |         virtual void butler_completed_transport_work () = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1480:7: warning: 'schedule_butler_for_transport_work' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1480 |         void schedule_butler_for_transport_work ();
+      |              ^
+../libs/ardour/ardour/transport_api.h:45:15: note: overridden virtual function is here
+   45 |         virtual void schedule_butler_for_transport_work () = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1481:7: warning: 'should_roll_after_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1481 |         bool should_roll_after_locate () const;
+      |              ^
+../libs/ardour/ardour/transport_api.h:46:15: note: overridden virtual function is here
+   46 |         virtual bool should_roll_after_locate () const = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1482:7: warning: 'user_roll_after_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1482 |         bool user_roll_after_locate () const;
+      |              ^
+../libs/ardour/ardour/transport_api.h:47:15: note: overridden virtual function is here
+   47 |         virtual bool user_roll_after_locate() const = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1483:7: warning: 'should_stop_before_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1483 |         bool should_stop_before_locate () const;
+      |              ^
+../libs/ardour/ardour/transport_api.h:41:15: note: overridden virtual function is here
+   41 |         virtual bool should_stop_before_locate () const = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1484:14: warning: 'position' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1484 |         samplepos_t position() const { return _transport_sample; }
+      |                     ^
+../libs/ardour/ardour/transport_api.h:49:22: note: overridden virtual function is here
+   49 |         virtual samplepos_t position() const = 0;
+      |                             ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1485:7: warning: 'set_transport_speed' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1485 |         void set_transport_speed (double speed);
+      |              ^
+../libs/ardour/ardour/transport_api.h:48:15: note: overridden virtual function is here
+   48 |         virtual void set_transport_speed (double speed) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1487:7: warning: 'need_declick_before_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1487 |         bool need_declick_before_locate () const;
+      |              ^
+../libs/ardour/ardour/transport_api.h:50:18: note: overridden virtual function is here
+   50 |         virtual bool need_declick_before_locate () const = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1885:7: warning: 'process_event' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1885 |         void process_event (SessionEvent*);
+      |              ^
+../libs/ardour/ardour/session_event.h:195:15: note: overridden virtual function is here
+  195 |         virtual void process_event(SessionEvent*) = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:1886:7: warning: 'set_next_event' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 1886 |         void set_next_event ();
+      |              ^
+../libs/ardour/ardour/session_event.h:196:15: note: overridden virtual function is here
+  196 |         virtual void set_next_event () = 0;
+      |                      ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:2240:11: warning: 'get_state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 2240 |         XMLNode& get_state () const;
+      |                  ^
+../libs/pbd/pbd/stateful.h:53:30: note: overridden virtual function is here
+   53 |         LIBPBD_API virtual XMLNode& get_state () const = 0;
+      |                                     ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:2241:11: warning: 'set_state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 2241 |         int      set_state (const XMLNode& node, int version); // not idempotent
+      |                  ^
+../libs/pbd/pbd/stateful.h:54:25: note: overridden virtual function is here
+   54 |         LIBPBD_API virtual int set_state (const XMLNode&, int version) = 0;
+      |                                ^
+In file included from ../libs/ardour/anticipative_process.cc:25:
+../libs/ardour/ardour/session.h:2512:7: warning: 'time_domain_changed' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+ 2512 |         void time_domain_changed ();
+      |              ^
+../libs/temporal/temporal/domain_provider.h:80:15: note: overridden virtual function is here
+   80 |         virtual void time_domain_changed() {
+      |                      ^
+33 warnings generated.
+
+[1552/1578] Linking build/libs/ardour/libardour.dylib
+ld: warning: ignoring duplicate libraries: '-ldl', '-lfftw3f_threads', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lgthread-2.0', '-lintl', '-lsamplerate', '-lserd-0', '-lsigc-2.0', '-lsord-0'
+
+[1553/1578] Linking build/libs/waveview/libwaveview.dylib
+[1554/1578] Linking build/libs/ctrl-interface/control_protocol/libardourcp.dylib
+[1555/1578] Linking build/libs/backends/coreaudio/libcoreaudio_backend.dylib
+[1556/1578] Linking build/libs/backends/dummy/libdummy_audiobackend.dylib
+ld: warning: ignoring duplicate libraries: '-lcairo', '-lcairomm-1.0', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lintl', '-lsigc-2.0'
+
+[1557/1578] Linking build/libs/ardour/run-tests
+ld: warning: ignoring duplicate libraries: '-lsigc-2.0'
+
+ld: warning: ignoring duplicate libraries: '-lfftw3f_threads', '-lglib-2.0', '-lgthread-2.0', '-lintl', '-lsamplerate', '-lsigc-2.0'
+
+[1558/1578] Linking build/gtk2_ardour/ardour-9.10.18
+ld: warning: ignoring duplicate libraries: '-ldl', '-lfftw3f_threads', '-lfontconfig', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lgthread-2.0', '-lharfbuzz', '-lintl', '-lpango-1.0', '-lsigc-2.0'
+
+[1573/1578] Symlinking build/libs/ardour/libardour.dylib
+Waf: Leaving directory `/Users/davidson/workspace/ardour-anticipation-spike/build'
+'build' finished successfully (3.715s)

@@ -1,0 +1,35 @@
+desc:Anticipation ownership trace
+options:gmem=ardour_anticipation_handoff
+slider1:0<0,1,1>Trace slot
+@init
+history=0;
+samples_seen=0;
+init_count+=1;
+@block
+slider1==1 ? gmem[2000005]=play_position;
+slider1==0 && play_state==1 && gmem[2000000]>0 ? (
+  duration=gmem[2000000]/1000;gmem[2000000]=0;
+  gmem[2000001]=time_precise();gmem[2000003]=play_position;gmem[2000004]=gmem[2000005];
+  until=time_precise()+duration;
+  while(time_precise()<until)(nothing=0;);
+  gmem[2000002]=time_precise();
+);
+base=slider1*1000000;
+idx=gmem[base];
+idx<16000 ? (
+  p=base+16+idx*8;
+  gmem[p]=time_precise();
+  gmem[p+1]=play_position;
+  gmem[p+2]=samplesblock;
+  gmem[p+3]=samples_seen;
+  gmem[p+4]=history;
+  gmem[p+5]=init_count;
+  gmem[p+6]=play_state;
+  gmem[p+7]=srate;
+  gmem[base]=idx+1;
+);
+@sample
+history=history*0.9999+spl0*0.0001;
+samples_seen+=1;
+// Silent trace: graph still processes the real source and effect.
+spl0=0; spl1=0;

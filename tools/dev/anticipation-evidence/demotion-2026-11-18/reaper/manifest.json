@@ -1,0 +1,27 @@
+{
+  "host": "REAPER 7.81/macOS-arm64",
+  "binary_arm64_sha256": "5efb42a1b8d7cfae0bf5fb09e94d8246e3ba352cf35723971660438d2790f9a2",
+  "reused_rea_renderer_evidence": "ev_c8937f92800e268f8588c245890042f38399e1e3a301b998081bc44cc6527840",
+  "runs": {
+    "control-64": {
+      "block": 64,
+      "requested_stall_ms": 0,
+      "user_preferences_unchanged": true
+    },
+    "stalled-64": {
+      "block": 64,
+      "requested_stall_ms": 32,
+      "user_preferences_unchanged": true
+    },
+    "control-128": {
+      "block": 128,
+      "requested_stall_ms": 0,
+      "user_preferences_unchanged": true
+    },
+    "stalled-128": {
+      "block": 128,
+      "requested_stall_ms": 20,
+      "user_preferences_unchanged": true
+    }
+  }
+}

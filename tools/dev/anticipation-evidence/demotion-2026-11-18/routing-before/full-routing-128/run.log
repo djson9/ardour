@@ -1,0 +1,5 @@
+/Users/davidson/.bashrc: line 3: atuin: command not found
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+NATIVE TIMELINE preroll=384 source=47616,0,127 bus=47616,0,127
+NATIVE ROUTES error=0.015136 first=131328 peak=0.0238394 handoffs=2 misses=950 faults=0,0
+FAIL native route equivalence
