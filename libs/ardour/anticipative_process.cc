@@ -6,6 +6,7 @@
 
 #include "ardour/record_enable_control.h"
 #include "ardour/audio_buffer.h"
+#include "ardour/amp.h"
 #include "ardour/midi_buffer.h"
 #include "ardour/midi_track.h"
 #include "ardour/delivery.h"
@@ -142,6 +143,10 @@ struct AnticipativeProcess::RouteAdapter {
 	}
 	~RouteAdapter () {
 		if (!attached) { return; }
+		/* An exception before Amp::run may leave automation prepared in the
+		 * worker's private storage. Retiring the owner invalidates that storage. */
+		route->amp ()->set_gain_automation_buffer (nullptr);
+		route->trim ()->set_gain_automation_buffer (nullptr);
 		route->set_render_consumer (nullptr, nullptr); route->set_render_observer (nullptr, nullptr); route->main_outs ()->set_render_buffers (nullptr);
 		for (auto& tap : taps) { if (tap.send) { tap.send->set_manual_cycle_start (false); } }
 		for (auto& side : side_inputs) { side->sidechain->set_cached_input_reader (nullptr, nullptr); }

@@ -442,4 +442,8 @@ void
 Amp::set_gain_automation_buffer (gain_t* g)
 {
 	_gain_automation_buffer = g;
+	if (!g) {
+		_apply_gain_automation = false;
+		_current_automation_sample = INT64_MAX;
+	}
 }
