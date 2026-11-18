@@ -32,6 +32,8 @@ gtk2_ardour_sources = [
         'add_route_dialog.cc',
         'ambiguous_file_dialog.cc',
         'analysis_window.cc',
+        'browser_audio_analysis.cc',
+        'browser_audio_preview.cc',
         'application_bar.cc',
         'ardour_color_dialog.cc',
         'ardour_dialog.cc',
@@ -579,6 +581,7 @@ def build(bld):
         obj.use       = [
                 'libpbd',
                 'libardour',
+                'libaudiographer',
                 'libardour_cp',
                 'libtemporal',
                 'libmidipp',
@@ -637,6 +640,7 @@ def build(bld):
 #        obj.use       = [
 #                'libpbd',
 #                'libardour',
+                'libaudiographer',
 #                'libardour_cp',
 #                'libtemporal',
 #                'libmidipp',
@@ -675,6 +679,7 @@ def build(bld):
 
     obj.use      = [ 'libpbd',
                      'libardour',
+                     'libaudiographer',
                      'libardour_cp',
                      'libtemporal',
                      'libmidipp',

@@ -52,6 +52,7 @@ UI_CONFIG_VARIABLE (std::string, vkeybd_layout, "vkeybd-layout", "QWERTY Single"
 UI_CONFIG_VARIABLE (bool, only_copy_imported_files, "only-copy-imported-files", true)
 UI_CONFIG_VARIABLE (bool, autoplay_files, "autoplay-files", false)
 UI_CONFIG_VARIABLE (bool, autoplay_clips, "autoplay-clips", true)
+UI_CONFIG_VARIABLE (bool, normalize_browser_audio, "normalize-browser-audio", true)
 UI_CONFIG_VARIABLE (std::string, browser_file_extensions, "browser-file-extensions", BrowserFileFilter::defaults ())
 UI_CONFIG_VARIABLE (std::string, browser_directory, "browser-directory", "")
 UI_CONFIG_VARIABLE (bool, highlight_auditioned_clips, "highlight-auditioned-clips", true)
