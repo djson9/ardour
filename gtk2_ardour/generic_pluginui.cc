@@ -319,6 +319,11 @@ GenericPluginUI::build ()
 {
 	std::vector<ControlUI *> control_uis;
 	bool more_controls = false;
+	if (_max_controls && _pi) {
+		auto learned = manage (new Gtk::Button (_("Learned controls…")));
+		learned->signal_clicked ().connect (sigc::mem_fun (*this, &GenericPluginUI::show_learned_controls));
+		main_contents.pack_start (*learned, false, false); learned->show ();
+	}
 
 	// Build a ControlUI for each control port
 	for (size_t i = 0; i < plugin->parameter_count(); ++i) {

@@ -88,6 +88,7 @@
 #include "ardour/port.h"
 #include "ardour/port_insert.h"
 #include "ardour/processor.h"
+#include "ardour/audio_rack.h"
 #include "ardour/profile.h"
 #include "ardour/revision.h"
 #include "ardour/route.h"
@@ -3824,7 +3825,10 @@ Route::set_processor_state (XMLNode const& node, int version, XMLProperty const*
 
 		std::shared_ptr<Processor> processor;
 
-		if (prop->value() == "intsend") {
+		if (prop->value() == "audio-rack") {
+			processor = std::make_shared<AudioRack> (_session, tdp);
+			processor->set_owner (this);
+		} else if (prop->value() == "intsend") {
 
 			processor.reset (new InternalSend (_session, _pannable, _mute_master, std::dynamic_pointer_cast<ARDOUR::Route>(shared_from_this()), std::shared_ptr<Route>(), Delivery::Aux, true));
 
@@ -5026,6 +5030,10 @@ Route::update_signal_latency (bool apply_to_delayline, bool* delayline_update_ne
 				pio->set_private_port_latencies (lat, true);
 				pio->set_public_port_latencies (lat, true);
 			}
+		}
+		if (auto rack = std::dynamic_pointer_cast<AudioRack> (*i)) {
+			if (apply_to_delayline) rack->update_latency ();
+			else if (delayline_update_needed && rack->latency_needs_update ()) *delayline_update_needed = true;
 		}
 		(*i)->set_output_latency (l_out);
 		if ((*i)->active ()) { // XXX

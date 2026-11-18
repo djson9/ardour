@@ -94,6 +94,7 @@ extern VST3PluginUI* create_mac_vst3_gui (std::shared_ptr<ARDOUR::PlugInsertBase
 #include "plugin_eq_gui.h"
 #include "plugin_presets_ui.h"
 #include "plugin_ui.h"
+#include "audio_rack_ui.h"
 #include "processor_box.h"
 #include "public_editor.h"
 #include "timers.h"
@@ -684,8 +685,21 @@ PlugUIBase::plugin_going_away ()
 }
 
 void
+PlugUIBase::show_learned_controls ()
+{
+	if (!_pi) return;
+	if (!_learned_window) _learned_window.reset (new LearnedPluginWindow (_pi));
+	_learned_window->show_all (); _learned_window->present ();
+}
+
+void
 PlugUIBase::add_common_widgets (Gtk::HBox* b, bool with_focus)
 {
+	if (_pi) {
+		auto learned = Gtk::manage (new Gtk::Button (_("Learned controls…")));
+		learned->signal_clicked ().connect (sigc::mem_fun (*this, &PlugUIBase::show_learned_controls));
+		b->pack_start (*learned, false, false, 4);
+	}
 	PlugInsertBase::UIElements const ui_elements = _pib->ui_elements ();
 
 	if (ui_elements == PlugInsertBase::NoGUIToolbar) {

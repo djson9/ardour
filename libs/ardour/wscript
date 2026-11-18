@@ -190,6 +190,7 @@ libardour_sources = [
         'plug_insert_base.cc',
         'plugin.cc',
         'plugin_insert.cc',
+        'audio_rack.cc',
         'plugin_manager.cc',
         'plugin_scan_result.cc',
         'polarity_processor.cc',
@@ -645,6 +646,8 @@ def build(bld):
             'LOCALEDIR="' + autowaf.normpath(bld.env['LOCALEDIR']) + '"',
             ]
         testcommon.name         = 'testcommon'
+
+        create_ardour_test_program(bld, obj.includes, 'unit-test-audio-racks', 'test_audio_racks', ['test/audio_rack_test.cc'])
 
         create_ardour_test_program(bld, obj.includes, 'unit-test-automation-clips', 'test_automation_clips', ['test/automation_clip_test.cc'])
 

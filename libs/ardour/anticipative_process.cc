@@ -15,6 +15,7 @@
 #include "ardour/disk_reader.h"
 #include "ardour/meter.h"
 #include "ardour/plugin_insert.h"
+#include "ardour/audio_rack.h"
 #include "ardour/sidechain.h"
 #include "ardour/port_insert.h"
 #include "ardour/send.h"
@@ -126,6 +127,7 @@ struct AnticipativeProcess::RouteAdapter {
 			auto send = std::dynamic_pointer_cast<InternalSend> (proc);
 			auto meter = std::dynamic_pointer_cast<PeakMeter> (proc);
 			auto plugin = std::dynamic_pointer_cast<PluginInsert> (proc);
+			if (std::dynamic_pointer_cast<AudioRack> (proc)) { requires_live = true; }
 			if ((!send && std::dynamic_pointer_cast<Send> (proc)) || std::dynamic_pointer_cast<PortInsert> (proc)) { requires_live = true; }
 			if (plugin && plugin->has_sidechain ()) { std::unique_ptr<SideInput> side (new SideInput); side->owner = this; side->sidechain = plugin->sidechain (); side_inputs.push_back (std::move (side)); }
 			if (!send && !(meter && suffix)) { return; }
