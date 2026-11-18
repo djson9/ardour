@@ -56,6 +56,21 @@ restore the original connections and leave the existing tracks intact.
 
 ## Validation completed (2026-11-18)
 
+Drag/drop follow-up:
+
+- Native hierarchy, reparenting, multi-selection, feedback/channel-layout
+  rejection, ordering and save/reload: 4.09 seconds.
+- Native callback audio after moving a source out of and back into its group:
+  1.38 seconds. The old group's gain/effect no longer processes the moved source.
+- GTK mouse gestures: 3.27 seconds. Collapsed and nested destinations, moving
+  out, multiple selected tracks, invalid descendant drop, and Escape cancellation.
+- Existing GTK group workflow: 2.25 seconds; header selection/shortcut/deletion
+  regression: 1.22 seconds. The header check initially timed out waiting for its
+  saved-selection snapshot after dismissing a dialog; a clean fixture rerun passed.
+- Tests retain a nine-second deadline; build/app startup is separate.
+
+Original grouping validation:
+
 - Native hierarchy/routing/reorder/save-reopen/ungroup: 3.26 seconds.
 - Native callback audio: 3.14 seconds. Two sources sum once through a group
   processor and group gain; group mute/unmute works without changing child gains.
@@ -82,6 +97,8 @@ GTK check with the prepared app already running in a disposable session:
 
 ```sh
 python3 tools/dev/verify-compact-workflow.py --case groups \
+  --session-path '/absolute/path/Group Tracks Verification'
+python3 tools/dev/verify-compact-workflow.py --case group-drag \
   --session-path '/absolute/path/Group Tracks Verification'
 ```
 
