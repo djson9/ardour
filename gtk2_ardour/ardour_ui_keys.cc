@@ -145,6 +145,12 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	}
 
 	/* Select All belongs to an active name/text entry before editor actions. */
+	if (focus && GTK_IS_ENTRY (focus) && (ev->keyval == GDK_g || ev->keyval == GDK_G) &&
+	    (ev->state & Keyboard::PrimaryModifier)) {
+		gtk_window_propagate_key_event (win, ev);
+		return true;
+	}
+
 	if (focus && GTK_IS_ENTRY (focus) && ev->keyval == GDK_a &&
 	    Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
 		return gtk_window_propagate_key_event (win, ev);

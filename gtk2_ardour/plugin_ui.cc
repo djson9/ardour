@@ -72,6 +72,8 @@
 
 #ifdef VST3_SUPPORT
 #include "ardour/vst3_plugin.h"
+#include "chord_grid_reload.h"
+#include "ytkmm/messagedialog.h"
 # ifdef PLATFORM_WINDOWS
 #  include "vst3_hwnd_plugin_ui.h"
 # elif defined(__APPLE__)
@@ -725,6 +727,34 @@ PlugUIBase::add_common_widgets (Gtk::HBox* b, bool with_focus)
 		b->pack_end (_preset_combo, false, false);
 		b->pack_end (_preset_modified, false, false);
 	}
+
+#ifdef VST3_SUPPORT
+	if (ChordGridReload::supported (_pi)) {
+		auto* reload = Gtk::manage (new ArdourButton (_("Reload")));
+		reload->set_name ("generic button");
+		set_tooltip (*reload, _("Load the installed Chord Grid build and preserve its state. Stop playback first."));
+		std::weak_ptr<ARDOUR::PluginInsert> weak = _pi;
+		reload->signal_clicked.connect ([weak] {
+			/* Replacing destroys this editor; wait until its click has returned. */
+			Glib::signal_idle ().connect ([weak] {
+				auto current = weak.lock ();
+				if (!current) { return false; }
+				try {
+					auto replacement = ChordGridReload::replace (current);
+					Glib::signal_idle ().connect ([replacement] { replacement->ShowUI (); return false; });
+				} catch (std::exception const& e) {
+					Gtk::MessageDialog dialog (e.what (), false, Gtk::MESSAGE_ERROR, Gtk::BUTTONS_OK);
+					dialog.run ();
+				} catch (...) {
+					Gtk::MessageDialog dialog (_("The new plugin could not be loaded. The original plugin is still in place."), false, Gtk::MESSAGE_ERROR, Gtk::BUTTONS_OK);
+					dialog.run ();
+				}
+				return false;
+			});
+		});
+		b->pack_end (*reload, false, false, 4);
+	}
+#endif
 
 	if (_pi) {
 		b->pack_end (_pin_management_button, false, false);

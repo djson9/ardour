@@ -579,3 +579,12 @@ latency alignment across block boundaries, malformed schema rejection and full
 session reopening. On macOS, the runner isolates preferences and semaphore names.
 `--prepare-gui` creates an isolated launchd job and native GTK interaction probe;
 its generated plist is launched explicitly and must be booted out after verification.
+
+## Chord Grid plugin reload
+
+Chord Grid MIDI VST3 has a Reload button in its host toolbar. After installing a
+new plugin build, stop transport and click Reload to preserve the current state
+and replace its binary without restarting Ardour. Loading this new host button
+requires one initial Ardour update/restart. See [controls, implementation and
+validation](CHORD-GRID-RELOAD.md). Native 1.3.2 → 1.3.3 replacement, rollback,
+playback guard and packaged-GUI button/editor tests passed on macOS arm64.

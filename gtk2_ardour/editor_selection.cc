@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "ardour/group_tracks.h"
 #include <algorithm>
 #include <cstdlib>
 
@@ -1101,6 +1102,7 @@ Editor::presentation_info_changed (PropertyChange const & what_changed)
 		return;
 	}
 
+	if (what_changed.contains (Properties::color)) queue_redisplay_track_views ();
 	uint32_t n_tracks = 0;
 	uint32_t n_busses = 0;
 	uint32_t n_vcas = 0;
@@ -2437,6 +2439,18 @@ struct ViewStripable {
 void
 Editor::move_selected_tracks (bool up)
 {
+	if (!_session) return;
+	bool has_groups = false;
+	for (auto const& r : *_session->get_routes ()) has_groups |= GroupTracks::is_group (r);
+	if (has_groups) {
+		RouteList selected;
+		for (auto const& r : *_session->get_routes ()) if (r->is_selected ()) selected.push_back (r);
+		if (!selected.empty ()) {
+			GroupTracks::move (*_session, selected, up);
+			queue_redisplay_track_views ();
+			return;
+		}
+	}
 	TimeAxisView* scroll_to = 0;
 	StripableList sl;
 	_session->get_stripables (sl);

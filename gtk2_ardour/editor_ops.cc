@@ -87,6 +87,7 @@
 
 #include "actions.h"
 #include "ardour_message.h"
+#include "ardour/group_tracks.h"
 #include "ardour_ui.h"
 #include "audio_region_view.h"
 #include "audio_streamview.h"
@@ -7955,6 +7956,7 @@ Editor::_remove_tracks ()
 	vector<std::shared_ptr<Route> > routes;
 	vector<std::shared_ptr<VCA> > vcas;
 	bool special_bus = false;
+	std::set<std::shared_ptr<Route>> grouped_routes;
 
 	for (TrackSelection::iterator x = ts.begin(); x != ts.end(); ++x) {
 		VCATimeAxisView* vtv = dynamic_cast<VCATimeAxisView*> (*x);
@@ -7967,16 +7969,17 @@ Editor::_remove_tracks ()
 		if (!rtv) {
 			continue;
 		}
-		if (rtv->is_track()) {
-			++ntracks;
-		} else {
-			++nbusses;
-		}
-		routes.push_back (rtv->route());
+		grouped_routes.insert (rtv->route ());
+		for (auto const& child : GroupTracks::children (*_session, rtv->route (), true)) grouped_routes.insert (child);
 
 		if (rtv->route()->is_singleton ()) {
 			special_bus = true;
 		}
+	}
+
+	for (auto const& r : grouped_routes) {
+		routes.push_back (r);
+		if (r->is_track ()) ++ntracks; else ++nbusses;
 	}
 
 	if (special_bus && !Config->get_allow_special_bus_removal()) {
@@ -9704,6 +9707,11 @@ Editor::find_and_display_track ()
 	if (stv) {
 		if (live) {
 			s->presentation_info ().set_hidden (false);
+			if (auto route = std::dynamic_pointer_cast<Route> (s)) {
+				for (auto const& group : GroupTracks::ancestors (*_session, route)) GroupTracks::set_collapsed (*_session, group, false);
+				queue_redisplay_track_views ();
+				process_redisplay_track_views ();
+			}
 			set_selected_track (*stv, SelectionSet, false);
 		}
 		ensure_time_axis_view_is_visible (*stv, true);
