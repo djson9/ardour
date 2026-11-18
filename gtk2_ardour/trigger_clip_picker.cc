@@ -372,8 +372,9 @@ TriggerClipPicker::search_changed ()
  stop_audition ();
  if (_search_entry.get_text ().empty ()) { refresh_library (); return; }
  _model->clear ();
- _browser_status.set_text (_("Searching…"));
+ _browser_status.set_text (_current_path.empty () ? _("Open a folder to search.") : _("Searching…"));
  _browser_status.show ();
+ if (_current_path.empty ()) return;
  _search_debounce = Glib::signal_timeout ().connect ([this] {
   _search->request (_current_path, _search_entry.get_text (), _file_extensions);
   return false;
