@@ -1,0 +1,25 @@
+{
+  "diagnostic_only": "Different buffer quantum; not a paired exact-equivalence qualification",
+  "seconds_above_1e_7": [
+    {
+      "second": 180,
+      "max_error": 0.0006357245147228241,
+      "different_samples": 11604
+    },
+    {
+      "second": 181,
+      "max_error": 0.0012715794146060944,
+      "different_samples": 36796
+    },
+    {
+      "second": 182,
+      "max_error": 0.0034736618399620056,
+      "different_samples": 86042
+    },
+    {
+      "second": 183,
+      "max_error": 0.0022822394967079163,
+      "different_samples": 44408
+    }
+  ]
+}

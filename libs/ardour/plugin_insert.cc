@@ -48,6 +48,7 @@
 #include "ardour/types.h"
 
 #include "pbd/i18n.h"
+#include "ardour/audioengine.h"
 
 using namespace std;
 using namespace ARDOUR;
@@ -1357,7 +1358,10 @@ PluginInsert::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sa
 #endif
 		/* run as normal if we are active or moving from inactive to active */
 
-		if (_session.transport_rolling() || _session.bounce_processing()) {
+		/* A render can advance before the audible transport starts. Use its
+		 * supplied speed to evaluate automation at its supplied sample range.
+		 */
+		if (speed != 0 || _session.transport_rolling() || _session.bounce_processing()) {
 			automate_and_run (bufs, start_sample, end_sample, speed, nframes);
 		} else {
 			PBD::Mutex::Lock lm (control_lock(), PBD::Mutex::TryLock);
@@ -3166,6 +3170,10 @@ PluginInsert::add_sidechain_from_xml (const XMLNode& node, int version)
 bool
 PluginInsert::load_preset (ARDOUR::Plugin::PresetRecord pr)
 {
+	/* Presets can restore non-parameter DSP state. Retire the future owner
+	 * before restoring it, and keep the callback out until restoration ends. */
+	PBD::Mutex::Lock lock (_session.engine ().process_lock ());
+	_session.retire_anticipation_for_edit ();
 	bool ok = true;
 	for (Plugins::iterator i = _plugins.begin(); i != _plugins.end(); ++i) {
 		if (! (*i)->load_preset (pr)) {

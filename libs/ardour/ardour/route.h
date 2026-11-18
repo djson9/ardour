@@ -117,6 +117,24 @@ public:
 	Route (Session&, std::string name, PresentationInfo::Flag flags = PresentationInfo::Flag(0), DataType default_type = DataType::AUDIO);
 	virtual ~Route();
 
+	/** Install/remove only with a quiescent consumer and exclusive DSP ownership.
+	 * A true return owns delivery for this cycle, bypassing the normal DSP loop. */
+	using RenderConsumer = bool (*) (void*, BufferSet&, samplepos_t, samplepos_t, pframes_t, bool);
+	void set_render_consumer (RenderConsumer reader, void* context) { _render_consumer = reader; _render_consumer_context = context; }
+	using RenderObserver = void (*) (void*, Processor const*, BufferSet const&, pframes_t);
+	void set_render_observer (RenderObserver observer, void* context) { _render_observer = observer; _render_observer_context = context; }
+	/** Same normal processor loop, with disk capture left to the audible owner.
+	 * Caller provides owned Delivery buffers and exclusive processor ownership. */
+	void render_anticipative (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool live_input, bool run_disk_reader, bool include_oob, bool gain_automation);
+	void capture_anticipative_input (BufferSet&, samplepos_t, samplepos_t, pframes_t, bool include_oob);
+	void deliver_anticipative (BufferSet&, pframes_t);
+	void set_anticipative_processing_disabled (bool disabled);
+	bool anticipative_processing_disabled () const { return _anticipation_disabled.load (); }
+	bool has_anticipative_owner () const { return _render_consumer != nullptr; }
+	std::string anticipative_status () const;
+	uint64_t anticipation_underruns () const { return _anticipation_underruns.load (); }
+	void set_anticipative_status (uint32_t reason, uint64_t misses) { _anticipation_reason.store (reason); _anticipation_underruns.store (misses); }
+
 	virtual int init ();
 
 	DataType data_type () const {
@@ -607,7 +625,8 @@ protected:
 	                             samplepos_t start_sample, samplepos_t end_sample,
 	                             pframes_t nframes,
 	                             bool gain_automation_ok,
-	                             bool run_disk_processors);
+	                             bool run_disk_processors,
+	                             bool owned_render = false, bool include_oob = true);
 
 	void flush_processor_buffers_locked (samplecnt_t nframes);
 
@@ -616,12 +635,28 @@ protected:
 															 std::shared_ptr<Processor> endpoint, bool include_endpoint,
 	                             bool for_export, bool for_freeze);
 
+	/* Same processing slice, with normal playback timestamps for each plugin.
+	 * The caller owns the processors exclusively and all routing boundaries.
+	 */
+	void render_process (BufferSet&, samplepos_t, samplecnt_t,
+	                     std::shared_ptr<Processor>, bool, bool, bool);
+	void bounce_process_impl (BufferSet&, samplepos_t, samplecnt_t,
+	                          std::shared_ptr<Processor>, bool, bool, bool, bool);
+
 	samplecnt_t  bounce_get_latency (std::shared_ptr<Processor> endpoint, bool include_endpoint, bool for_export, bool for_freeze) const;
 	ChanCount    bounce_get_output_streams (ChanCount &cc, std::shared_ptr<Processor> endpoint, bool include_endpoint, bool for_export, bool for_freeze) const;
 
 	bool can_freeze_processor (std::shared_ptr<Processor>, bool allow_routing = false) const;
 
 	bool           _active;
+	RenderConsumer _render_consumer {nullptr};
+	void* _render_consumer_context {nullptr};
+	RenderObserver _render_observer {nullptr};
+	void* _render_observer_context {nullptr};
+	std::atomic<bool> _render_declick {false};
+	std::atomic<bool> _anticipation_disabled {false};
+	std::atomic<uint32_t> _anticipation_reason {0x80000000u};
+	std::atomic<uint64_t> _anticipation_underruns {0};
 	samplecnt_t    _signal_latency;
 	samplecnt_t    _output_latency;
 

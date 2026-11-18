@@ -61,6 +61,7 @@
 #include "temporal/types_convert.h"
 
 #include "ardour/amp.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/analyser.h"
 #include "ardour/async_midi_port.h"
 #include "ardour/audio_buffer.h"
@@ -365,6 +366,9 @@ Session::Session (AudioEngine &eng,
 	, tb_with_filled_slots (0)
 	, _global_quantization (Config->get_default_quantization())
 {
+	_anticipative_process.reset (new AnticipativeProcess (*this));
+	_anticipation_enabled.store (Config->get_anticipative_processing ());
+	_anticipation_horizon.store (std::max (1u, std::min (2000u, Config->get_anticipation_milliseconds ())));
 	_suspend_save.store (0);
 	_playback_load.store (0);
 	_capture_load.store (0);
@@ -601,6 +605,52 @@ Session::~Session ()
 	destroy ();
 }
 
+AnticipativeProcess&
+Session::anticipative_process ()
+{
+	if (!_anticipative_process) {
+		_anticipative_process.reset (new AnticipativeProcess (*this));
+	}
+	return *_anticipative_process;
+}
+
+void
+Session::retire_anticipation_for_edit ()
+{
+	if (!_anticipative_process || !_anticipative_process->size ()) { return; }
+	assert (!_engine.in_process_thread ());
+	_anticipative_process->clear ();
+	_anticipation_priming = false;
+	_anticipation_edit_pending.store (true);
+	/* Hold output until the existing locate path restores audible disk position
+	 * and plugin state. The edit completes under the caller's process lock. */
+	request_locate (_transport_sample, true, transport_rolling () ? MustRoll : MustStop);
+}
+
+bool
+Session::anticipation_edit_ready ()
+{
+	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
+	_anticipative_process->suspend ();
+	_anticipation_priming = false;
+	_anticipation_edit_pending.store (true);
+	if (!_anticipation_retirement_scheduled) {
+		_anticipation_retirement_scheduled = true;
+		add_post_transport_work (PostTransportRetireAnticipation);
+		_butler->schedule_transport_work ();
+	}
+	return false;
+}
+
+void
+Session::set_anticipative_processing (bool enabled, uint32_t milliseconds)
+{
+	if (milliseconds < 1 || milliseconds > 2000) { throw std::invalid_argument ("Anticipation horizon must be 1..2000 ms"); }
+	const bool horizon_changed = _anticipation_horizon.exchange (milliseconds) != milliseconds;
+	const bool enabled_changed = _anticipation_enabled.exchange (enabled) != enabled;
+	if (horizon_changed || enabled_changed) { request_anticipative_refresh (); }
+}
+
 unsigned int
 Session::next_name_id ()
 {
@@ -706,6 +756,10 @@ Session::destroy ()
 	ControlProtocolManager::instance().drop_protocols ();
 
 	_engine.remove_session ();
+
+	/* No consumer can run now. Join render owners before dropping ports,
+	 * processors, playlists or Butler state used by their snapshots. */
+	_anticipative_process.reset ();
 
 	/* deregister all ports - there will be no process or any other
 	 * callbacks from the engine any more.
@@ -2501,6 +2555,7 @@ Session::set_block_size (pframes_t nframes)
 	 * ::process(). It is therefore fine to do things that block
 	 * here.
 	 */
+	retire_anticipation_for_edit ();
 	current_block_size = nframes;
 	_required_thread_buffersize = -1;
 
@@ -2524,6 +2579,7 @@ Session::set_block_size (pframes_t nframes)
 void
 Session::resort_routes ()
 {
+	if (_anticipation_enabled.load ()) { _anticipation_external_edit.store (true); }
 	/* don't do anything here with signals emitted
 	   by Routes during initial setup or while we
 	   are being destroyed.
@@ -3943,6 +3999,12 @@ Session::add_internal_send (std::shared_ptr<Route> dest, std::shared_ptr<Process
 void
 Session::remove_routes (std::shared_ptr<RouteList> routes_to_remove)
 {
+	/* Retire while the session still retains every route. Clearing the last
+	 * future reference after RCU removal could destroy an IO under process_lock. */
+	{
+		PBD::Mutex::Lock lock (_engine.process_lock ());
+		retire_anticipation_for_edit ();
+	}
 	bool mute_changed = false;
 	bool send_selected = false;
 
@@ -6078,6 +6140,7 @@ Session::available_capture_duration ()
 void
 Session::tempo_map_changed ()
 {
+	if (_anticipation_enabled.load ()) { _anticipation_external_edit.store (true); }
 	clear_clicks ();
 	sync_cues ();
 
@@ -6454,6 +6517,7 @@ Session::write_one_track (Track& track, samplepos_t start, samplepos_t end,
 	 * are available here.
 	 */
 	block_processing ();
+	retire_anticipation_for_edit ();
 
 	_bounce_processing_active = true;
 
@@ -7456,6 +7520,12 @@ Session::set_owned_port_public_latency (bool playback)
 void
 Session::update_latency (bool playback)
 {
+	if (_anticipation_enabled.load () &&
+	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
+		_anticipation_external_edit.store (true);
+		_engine.queue_latency_update (playback);
+		return;
+	}
 	/* called only from AudioEngine::latency_callback.
 	 * but may indirectly be triggered from
 	 * Session::update_latency_compensation -> _engine.update_latencies
@@ -7645,6 +7715,13 @@ Session::set_worst_input_latency ()
 void
 Session::update_latency_compensation (bool force_whole_graph, bool called_from_backend)
 {
+	if (_anticipation_enabled.load () &&
+	    (_anticipation_preparing.load () || _anticipative_process->bound ())) {
+		_anticipation_external_edit.store (true);
+		_engine.queue_latency_update (false);
+		_engine.queue_latency_update (true);
+		return;
+	}
 	/* Called to update Ardour's internal latency values and compensation
 	 * planning. Typically case is from within ::graph_reordered()
 	 */

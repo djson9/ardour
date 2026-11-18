@@ -1,0 +1,7 @@
+{
+  "fixture": "compiled sleep(30), no audio processing",
+  "returncode": 1,
+  "wall_seconds": 8.550268166931346,
+  "runner_exit_status": "timeout",
+  "passed": true
+}

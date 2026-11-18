@@ -1,0 +1,8 @@
+{
+  "package_base_commit": "8c4e2c58f0463b3fb83c8d86058fa3510ef7ee8b",
+  "package_production_patch_sha256": "9a8baa4a81ac7985585e47380ae8618cf65ef3a08d1a6c45d4277ae8c43fd47d",
+  "equivalent_committed_engine": "2e57d0f82ceef21f97fad831b8296eb34496a520",
+  "unrelocated_library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "production_patch_equals_committed_diff": true,
+  "hardware_and_regression_library_match": true
+}

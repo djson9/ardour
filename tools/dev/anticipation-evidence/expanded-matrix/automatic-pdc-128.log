@@ -1,0 +1,11 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+PDC setup preroll=384 route_latency=257 reference_latency=257 render_origin=-127 live_send_delay=0
+PDC chunks=127,1,128 frames=262016
+PDC first_difference_frame=0 cache=0.00159845 reference=0.00159845
+PDC slice_error=2.55369e-20 lengths=262016,262016
+PDC input_starts=-127,0,1,129,257,385,513,641,
+PDC input_starts=-127,0,1,129,257,385,513,641,
+PDC output error=0 peak=0.0975176 cache_misses=0 cutover=587
+ENGINE observed_max_us=4890
+RESULT {"passed":true,"normal_session_callback":true,"normal_route_reference":true,"blocks":[128],"reported_latency":257,"preroll":384,"render_origin":-127,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"engine_mean_us":151.482,"engine_max_us":12610,"peak":0.0975176,"hardware_latency_measured":false}
+

@@ -33,6 +33,7 @@
 #include "temporal/tempo.h"
 
 #include "ardour/audioengine.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/auditioner.h"
 #include "ardour/butler.h"
 #include "ardour/debug.h"
@@ -91,6 +92,8 @@ Session::process (pframes_t nframes)
 	samplepos_t transport_at_start = _transport_sample;
 
 	setup_thread_local_variables ();
+	if (_anticipation_external_edit.exchange (false)) { anticipation_edit_ready (); }
+	_transport_fsm->retry_pending_events ();
 
 	if (non_realtime_work_pending()) {
 		DEBUG_TRACE (DEBUG::Butler, string_compose ("non-realtime work pending: %1 (%2%3%4)\n", enum_2_string (post_transport_work()), std::hex, post_transport_work(), std::dec));
@@ -142,7 +145,7 @@ Session::process (pframes_t nframes)
 	if (_update_send_delaylines) {
 		std::shared_ptr<RouteList const> r = routes.reader ();
 		for (auto const& i : *r) {
-			i->update_send_delaylines ();
+			if (!i->has_anticipative_owner ()) { i->update_send_delaylines (); }
 		}
 	}
 
@@ -163,11 +166,23 @@ Session::process (pframes_t nframes)
 	 * 2) is the transport FSM waiting to be told this
 	 */
 
+	if (_anticipation_edit_pending.load () ||
+	    (_anticipative_process && _anticipative_process->size () &&
+	     !_anticipative_process->running () && _anticipative_process->quiescent ())) {
+		/* Queues were cancelled before the transport event entered the FSM.
+		 * Their future DiskReader fade state is not an audible declick. */
+		one_or_more_routes_declicking = false;
+	}
 	if (!one_or_more_routes_declicking && declick_in_progress()) {
 		/* end of the declick has been reached by all routes */
 		TFSM_EVENT (TransportFSM::DeclickDone);
 	}
 
+	if (_anticipation_prepare_requested) {
+		_anticipation_prepare_requested = false;
+		add_post_transport_work (PostTransportPrepareAnticipation);
+		TFSM_EVENT (TransportFSM::ButlerRequired);
+	}
 	_engine.main_thread()->drop_buffers ();
 
 	/* deliver MIDI clock. Note that we need to use the transport sample
@@ -240,6 +255,9 @@ int
 Session::process_routes (pframes_t nframes, bool& need_butler)
 {
 	TimerRAII tr (dsp_stats[Roll]);
+	if (_anticipative_process && _anticipative_process->running ()) {
+		_anticipative_process->begin_cycle ();
+	}
 	std::shared_ptr<RouteList const> r = routes.reader ();
 
 	const samplepos_t start_sample = _transport_sample;
@@ -394,6 +412,42 @@ Session::process_with_events (pframes_t nframes)
 		SessionEvent *ev = immediate_events.front ();
 		immediate_events.pop_front ();
 		process_event (ev);
+	}
+
+	if (!non_realtime_work_pending () && !locate_pending () && !declick_in_progress () && _anticipation_settings_dirty.exchange (false)) {
+		if (_anticipative_process->bound ()) {
+			anticipation_edit_ready ();
+		} else if (_anticipation_enabled.load () && transport_rolling () && !_anticipation_priming) {
+			request_locate (_transport_sample, true, MustRoll);
+		} else if (!_anticipation_enabled.load ()) {
+			_anticipation_priming = false;
+		}
+	}
+	if (_anticipation_edit_pending.load ()) {
+		_silent = true;
+		return;
+	}
+	if (!_anticipation_priming && _anticipative_process->running () && _anticipative_process->faulted ()) {
+		/* An exception or invalid timeline cannot safely fall through to the
+		 * same DSP in realtime. Use the normal asynchronous stop/retire path. */
+		TFSM_STOP (false, false);
+		_silent = true;
+		return;
+	}
+	if (_anticipation_priming) {
+		if (_anticipation_prepare_failed.load () || (_anticipative_process && _anticipative_process->faulted ())) {
+			_anticipation_priming = false;
+			TFSM_STOP (false, false);
+		} else if (!_anticipation_preparing.load () && _anticipative_process && _anticipative_process->primed ()) {
+			_anticipation_priming = false;
+		} else {
+			/* Immediate events above still run, so stop/seek can cancel priming.
+			 * Hold the project clock; no DSP is processed twice during prefill. */
+			/* Route::silence/no_roll also advances plugins. Silence only the
+			 * backend ports, via AudioEngine's existing Session::silent flag. */
+			_silent = true;
+			return;
+		}
 	}
 
 	/* only count-in when going to roll at speed 1.0 */
@@ -917,12 +971,26 @@ Session::process_event (SessionEvent* ev)
 
 	DEBUG_TRACE (DEBUG::SessionEvents, string_compose ("Processing event: %1 @ %2\n", enum_2_string (ev->type), _transport_sample));
 
+	const bool changes_loop = ev->type == SessionEvent::SetLoop && ev->yes_or_no != get_play_loop () && !(actively_recording () && ev->yes_or_no);
+	const bool overwrites_reader = !actively_recording () && (ev->type == SessionEvent::Overwrite || ev->type == SessionEvent::OverwriteAll);
+	if ((changes_loop || overwrites_reader) && !anticipation_edit_ready ()) {
+		/* Keep the original event, including its overwrite reason. In particular
+		 * a loop edit must still reset the disk reader's loop crossfades. */
+		if (changes_loop && ev->yes_or_no && transport_rolling ()) { ev->third_yes_or_no = true; }
+		immediate_events.push_back (ev);
+		_remove_event (ev);
+		return;
+	}
+
 	switch (ev->type) {
 	case SessionEvent::SetLoop:
 		/* this is the event sent by a UI to define whether or not we
 		   use loop range playback or not.
 		*/
 		set_play_loop (ev->yes_or_no, true);
+		/* Retirement may temporarily put the FSM in its stopped/locating
+		 * state. Preserve a playing user's loop-enable request across that gap. */
+		if (ev->third_yes_or_no) { TFSM_ROLL (); }
 		break;
 
 	case SessionEvent::AutoLoop:

@@ -1,0 +1,6 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+LOOP actual_range=48000,57975 planned=48000,57975
+LOOP chunks=2048,2048 bad_size=0,0 wraps=25 frames=258944,258944 planned_frames=258944
+RENDER CLOCK calls=2048,2048 final_position=306944,306944 repeated_device_clock=311
+RESULT {"passed":true,"normal_session_callback":true,"blocks":[128],"loop_length":9975,"loop_wraps":25,"verified_frames":258944,"monitor_cutover":587,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"engine_mean_us":170.574,"engine_max_us":3137,"hardware_latency_measured":false}
+

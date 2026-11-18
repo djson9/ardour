@@ -1,0 +1,26 @@
+{
+  "exit_status": -15,
+  "user_config_unchanged": true,
+  "runtime_hashes_verified": true,
+  "source_commit": "8c4e2c58f0463b3fb83c8d86058fa3510ef7ee8b",
+  "runtime_manifest_sha256": "48345dd02a2b7b6ddd6b75d97350b3887800121fcd4aa08dcc53e22c9b4a2a2a",
+  "elapsed_seconds": 33.70587283396162,
+  "settings": {
+    "ARDOUR_PROBE_CONSOLE": "1",
+    "ARDOUR_PROBE_OUTPUT_DEVICE": "BlackHole 2ch",
+    "ARDOUR_PROBE_BLOCKS": "1000",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/native-coreaudio-ahead-1794970772858148000/private-home",
+    "DYLD_INSERT_LIBRARIES": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/private-home.dylib",
+    "ARDOUR_DLL_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/lib",
+    "ARDOUR_CONFIG_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/native-coreaudio-ahead-1794970772858148000/empty",
+    "ARDOUR_DATA_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/share",
+    "ARDOUR_BACKEND_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/backends",
+    "ARDOUR_PANNER_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/panners",
+    "ARDOUR_SURFACES_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/native-coreaudio-ahead-1794970772858148000/empty",
+    "VAMP_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/native-coreaudio-ahead-1794970772858148000/empty",
+    "LV2_PATH": "/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/late-init/LV2",
+    "ARDOUR_PROBE_BACKEND": "CoreAudio",
+    "ARDOUR_PROBE_BLOCK": "64"
+  },
+  "physical_loopback_latency_measured": false
+}

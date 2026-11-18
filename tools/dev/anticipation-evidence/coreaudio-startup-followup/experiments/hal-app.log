@@ -1,0 +1,14 @@
+BEGIN runloop
+END runloop 0
+BEGIN device size
+END device size 0
+BEGIN devices
+END devices 0
+DEVICE 125 BlackHole 2ch
+BEGIN new
+END new 0
+BEGIN input off
+END input off 0
+BEGIN output on
+END output on 0
+BEGIN select device

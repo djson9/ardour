@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "identical": true,
+  "finite": true,
+  "capture_bytes": [
+    262144,
+    262144
+  ],
+  "capture_sha256": [
+    "f838b1fac1b0def103422861ec5dffd2956822c6bec84b1dfdf985aa0320fd63",
+    "f838b1fac1b0def103422861ec5dffd2956822c6bec84b1dfdf985aa0320fd63"
+  ],
+  "different_samples": 0,
+  "first_different_sample": null,
+  "max_sample_error": 0,
+  "mean_callback_ratio": 28.952815638168662,
+  "source_commit": "2e57d0f82ceef21f97fad831b8296eb34496a520",
+  "hardware_deadlines_proven": false
+}

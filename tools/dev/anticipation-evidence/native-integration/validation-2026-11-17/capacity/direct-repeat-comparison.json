@@ -1,0 +1,10 @@
+{
+  "identical": false,
+  "different_samples": 2,
+  "first_different_sample": 0,
+  "max_sample_error": 5.1932311711245606e-20,
+  "capture_sha256": [
+    "f186080843a767f9c0528fc32e791c7cf3a7d9d27bc6a1e0064656dcc8b8ddde",
+    "ff19b9351bc51efaa10ea421e5ef60ca638e33bbf422601930985862f85320f9"
+  ]
+}

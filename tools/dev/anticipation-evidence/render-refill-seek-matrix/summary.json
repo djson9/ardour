@@ -1,0 +1,126 @@
+{
+  "correctness_passed": true,
+  "hardware_latency_validated": false,
+  "cases": [
+    {
+      "case": "actual-arm-64-a",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "actual-arm-64-b",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": true
+    },
+    {
+      "case": "actual-arm-128",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "held-midi-64",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "held-midi-128-automation",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "send-delay-187",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "main-output-sidechain-64",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "main-output-sidechain-128",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": true
+    },
+    {
+      "case": "automatic-pdc-64",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "automatic-pdc-128",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "actual-eligibility-controls",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": null,
+      "cache_underruns": null,
+      "measured_callback_budget_met": null
+    },
+    {
+      "case": "ongoing-disk-refill-64",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": true
+    },
+    {
+      "case": "ongoing-disk-refill-128",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": false
+    },
+    {
+      "case": "seek-edit-64",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": true
+    },
+    {
+      "case": "seek-edit-128",
+      "exit_code": 0,
+      "correctness_passed": true,
+      "max_sample_error": 0,
+      "cache_underruns": 0,
+      "measured_callback_budget_met": true
+    }
+  ]
+}

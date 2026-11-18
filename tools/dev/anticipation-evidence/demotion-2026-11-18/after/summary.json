@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "elapsed_seconds": 1.2919135829433799,
+  "execution_deadline_seconds": 9,
+  "case_count": 1,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "library_unchanged": true,
+  "validation_runner_sha256": "323707f8c047967191ba5e078d5b2157737246ad0616acd28c073c586e68128e",
+  "hardware_deadlines_proven": false,
+  "max_parallel_engines": 8,
+  "dummy_driver": "Realtime",
+  "compact_sequences": true,
+  "source_commit": "76f2f945b85e5021e207324916b87246c60c1725",
+  "library_sha256": "7d8629b0fd9a61b1a3c9713021bd2cf9d2e54a634e43f63e1a4f22f00d67e61b",
+  "cases": [
+    {
+      "case": "queue-contracts",
+      "elapsed_seconds": 1.2391226249746978,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "contract_checks": 22,
+        "audio_midi_partial_loop": true,
+        "exclusive_handoff": true,
+        "generation_reuse": true,
+        "nonblocking_stalled_producer": true,
+        "joined_before_mutation": true
+      },
+      "probe_sha256": "6b3c7fa983e0a14197f25cf9d836e1d31dfa1bf21eea2ffa726c6db80ce3bf2d"
+    }
+  ]
+}

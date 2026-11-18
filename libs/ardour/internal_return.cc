@@ -30,12 +30,14 @@ using namespace ARDOUR;
 
 InternalReturn::InternalReturn (Session& s, Temporal::TimeDomainProvider const & tdp, std::string const& name)
 	: Processor (s, name, tdp)
+	, _cached_input_reader (nullptr)
+	, _cached_input_context (nullptr)
 {
 	_display_to_user = false;
 }
 
 void
-InternalReturn::run (BufferSet& bufs, samplepos_t /*start_sample*/, samplepos_t /*end_sample*/, double /*speed*/, pframes_t nframes, bool)
+InternalReturn::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t /*end_sample*/, double /*speed*/, pframes_t nframes, bool)
 {
 	if (!check_active()) {
 		return;
@@ -48,10 +50,21 @@ InternalReturn::run (BufferSet& bufs, samplepos_t /*start_sample*/, samplepos_t 
 	}
 
 	for (auto & send : _sends) {
+		if (_cached_input_reader && _cached_input_reader (_cached_input_context, send, bufs, start_sample, nframes)) {
+			continue;
+		}
 		if ((send->active() || send->actually_active()) && (!send->source_route() || send->source_route()->active())) {
 			bufs.merge_from (send->get_buffers(), nframes);
 		}
 	}
+}
+
+void
+InternalReturn::set_cached_input_reader (CachedInputReader reader, void* context)
+{
+	PBD::Mutex::Lock lm (_sends_mutex);
+	_cached_input_reader = reader;
+	_cached_input_context = context;
 }
 
 void

@@ -4989,7 +4989,10 @@ Session::config_changed (std::string p, bool ours)
 		set_dirty ();
 	}
 
-	if (p == "auto-loop") {
+	if (p == "anticipative-processing" || p == "anticipation-milliseconds") {
+		set_anticipative_processing (Config->get_anticipative_processing (),
+		                            std::max (1u, std::min (2000u, Config->get_anticipation_milliseconds ())));
+	} else if (p == "auto-loop") {
 
 	} else if (p == "session-monitoring") {
 

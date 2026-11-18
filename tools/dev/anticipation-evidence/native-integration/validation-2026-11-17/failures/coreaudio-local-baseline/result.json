@@ -1,0 +1,17 @@
+{
+  "exit_status": "timeout",
+  "mode": "capacity-ahead",
+  "elapsed_seconds": 65.02665570797399,
+  "user_config_unchanged": true,
+  "runtime_manifest": "/Users/davidson/workspace/artifacts/ardour-anticipation-spike/portable-anticipation-1794953431722407000/manifest.json",
+  "runtime_manifest_sha256": "1d8328efd1aeaac22fdab448d49b5d6592168ecba86fbae2f5ac0b582f684a1e",
+  "runtime_hashes_verified": true,
+  "physical_loopback_latency_measured": false,
+  "settings": {
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/artifacts/ardour-anticipation-spike/coreaudio-run-1794961655383929000/private-home",
+    "ARDOUR_PROBE_BACKEND": "CoreAudio",
+    "ARDOUR_PROBE_BLOCK": "64",
+    "ARDOUR_PROBE_CHAINS": "8",
+    "ARDOUR_PROBE_INSERTS": "64"
+  }
+}

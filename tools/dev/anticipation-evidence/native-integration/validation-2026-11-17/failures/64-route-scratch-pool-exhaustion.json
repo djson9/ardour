@@ -1,0 +1,65 @@
+{
+  "engine_commit": "3fe4204b32",
+  "exception": {
+    "codes": "0x0000000000000001, 0x0000000000000028",
+    "rawCodes": [
+      1,
+      40
+    ],
+    "type": "EXC_BAD_ACCESS",
+    "signal": "SIGSEGV",
+    "subtype": "KERN_INVALID_ADDRESS at 0x0000000000000028"
+  },
+  "frames": [
+    {
+      "imageOffset": 3433948,
+      "symbol": "ARDOUR::ProcessThread::gain_automation_buffer()",
+      "symbolLocation": 20,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 3811872,
+      "symbol": "ARDOUR::Route::process_output_buffers(ARDOUR::BufferSet&, long long, long long, unsigned int, bool, bool, bool, bool)",
+      "symbolLocation": 420,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 3814652,
+      "symbol": "ARDOUR::Route::render_anticipative(ARDOUR::BufferSet&, long long, long long, unsigned int, bool, bool, bool, bool)",
+      "symbolLocation": 252,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 78492,
+      "symbol": "ARDOUR::AnticipativeProcess::RouteAdapter::render(ARDOUR::BufferSet&, ARDOUR::AnticipationQueue::Range const&, bool)",
+      "symbolLocation": 312,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 83928,
+      "symbol": "ARDOUR::AnticipationQueue::worker()",
+      "symbolLocation": 780,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 88400,
+      "symbol": "void* std::__1::__thread_proxy[abi:ne190102]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, void (ARDOUR::AnticipationQueue::*)(), ARDOUR::AnticipationQueue*>>(void*)",
+      "symbolLocation": 72,
+      "imageIndex": 2
+    },
+    {
+      "imageOffset": 27592,
+      "symbol": "_pthread_start",
+      "symbolLocation": 136,
+      "imageIndex": 102
+    },
+    {
+      "imageOffset": 7040,
+      "symbol": "thread_start",
+      "symbolLocation": 8,
+      "imageIndex": 102
+    }
+  ],
+  "diagnosis": "64 future workers exhausted the fixed BufferManager pool; release builds lost the assert and dereferenced a null thread buffer.",
+  "fix": "Queue-owned preallocated ThreadBuffers bound by ProcessThread::BufferScope"
+}

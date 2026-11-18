@@ -1,0 +1,409 @@
+{
+  "passed": false,
+  "elapsed_seconds": 9.061637582723051,
+  "execution_deadline_seconds": 9,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "library_unchanged": true,
+  "validation_runner_sha256": "9cb2793dd430aa3e5b23f5237055d75d76c7e798fcbb4c165c99442dc5acb651",
+  "hardware_deadlines_proven": false,
+  "dummy_driver": "Double Speed",
+  "source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "cases": [
+    {
+      "case": "queue-contracts",
+      "elapsed_seconds": 1.7354201655834913,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "contract_checks": 14,
+        "audio_midi_partial_loop": true,
+        "exclusive_handoff": true,
+        "generation_reuse": true,
+        "nonblocking_stalled_producer": true,
+        "joined_before_mutation": true
+      },
+      "probe_sha256": "e7db5fbe226a6575d398fb6ef30a11e324cbc05fd284e878326d583bcf56a4a2"
+    },
+    {
+      "case": "plan-eligibility",
+      "elapsed_seconds": 3.4413096252828836,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "session_owned_engine_plan": true,
+        "eligibility_cases": 6,
+        "existing_graph_reused": true,
+        "actual_record_and_monitor_controls": true,
+        "sidechain_graph_revision_checked": true,
+        "hardware_latency_measured": false
+      },
+      "probe_sha256": "e1d7e041fe5f88a55c00158dcb4a335b15989948ca85dd09b53889b514e6f223"
+    },
+    {
+      "case": "full-routing-64",
+      "elapsed_seconds": 6.610122874844819,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 2,
+        "block": 64,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "464850997451e1ac4b672109b33cf7e437171ffe580b849cac93613703053f57"
+    },
+    {
+      "case": "gain-automation-64",
+      "elapsed_seconds": 6.608188374899328,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 0,
+        "block": 64,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "464850997451e1ac4b672109b33cf7e437171ffe580b849cac93613703053f57"
+    },
+    {
+      "case": "monitor-64",
+      "elapsed_seconds": 5.249222708866,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "block": 64,
+        "max_sample_error": 0,
+        "compared_samples": 33280,
+        "monitor_live_handoffs": 1,
+        "cache_underruns": 0,
+        "same_cycle_as_direct_monitor": true,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "0d4d4ebcb4271668f19bfdb312e1fad2812e061384c3dee8cb45f1d1400358e2"
+    },
+    {
+      "case": "midi-64",
+      "elapsed_seconds": 6.744204875081778,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_midi_track": true,
+        "held_notes": 4,
+        "immediate_events_delivered_once": 1,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "66c96b656f987266ecd0252b67c02ad4731c7b8977350841ceabb836543779c3"
+    },
+    {
+      "case": "recording-64",
+      "elapsed_seconds": 6.4916377500630915,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_disk_writer": true,
+        "live_capture_with_anticipated_playback": true,
+        "recorded_sample_error": 0,
+        "recorded_channels": 2,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "e34800390f5b24abc3b4347fcda6699f96e2ad56caa8e9db3eb0e83c23c5bf5c"
+    },
+    {
+      "case": "stall-absorbed-64",
+      "elapsed_seconds": 5.429861874785274,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "absorbed",
+        "block": 64,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 20480,
+        "first_missing_frame": -1,
+        "last_missing_frame": -1,
+        "cache_underruns": 0,
+        "exact_playback_frames": 48000,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "stall-starved-64",
+      "elapsed_seconds": 5.372180791106075,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "starved",
+        "block": 64,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 26112,
+        "first_missing_frame": 24576,
+        "last_missing_frame": 26112,
+        "cache_underruns": 25,
+        "exact_playback_frames": 46400,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "stall-handoff-64",
+      "elapsed_seconds": 5.262059499975294,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "handoff",
+        "block": 64,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 22528,
+        "first_missing_frame": -1,
+        "last_missing_frame": -1,
+        "cache_underruns": 0,
+        "exact_playback_frames": 48000,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 1,
+        "first_live_frame": 24640,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "full-routing-128",
+      "elapsed_seconds": 8.979432832915336,
+      "exit_code": -9,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "464850997451e1ac4b672109b33cf7e437171ffe580b849cac93613703053f57",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition",
+        "NATIVE TIMELINE preroll=384 source=47616,0,127 bus=47616,0,127"
+      ]
+    },
+    {
+      "case": "gain-automation-128",
+      "elapsed_seconds": 8.977874292060733,
+      "exit_code": -9,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "464850997451e1ac4b672109b33cf7e437171ffe580b849cac93613703053f57",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition",
+        "NATIVE TIMELINE preroll=384 source=47616,0,127 bus=47616,0,127"
+      ]
+    },
+    {
+      "case": "monitor-128",
+      "elapsed_seconds": 6.859456290956587,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "block": 128,
+        "max_sample_error": 0,
+        "compared_samples": 65792,
+        "monitor_live_handoffs": 1,
+        "cache_underruns": 0,
+        "same_cycle_as_direct_monitor": true,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "0d4d4ebcb4271668f19bfdb312e1fad2812e061384c3dee8cb45f1d1400358e2"
+    },
+    {
+      "case": "midi-128",
+      "elapsed_seconds": 8.973849666770548,
+      "exit_code": -9,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "66c96b656f987266ecd0252b67c02ad4731c7b8977350841ceabb836543779c3",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition"
+      ]
+    },
+    {
+      "case": "recording-128",
+      "elapsed_seconds": 8.97260154178366,
+      "exit_code": -9,
+      "passed": false,
+      "result": {},
+      "probe_sha256": "e34800390f5b24abc3b4347fcda6699f96e2ad56caa8e9db3eb0e83c23c5bf5c",
+      "diagnostic_tail": [
+        "/Users/davidson/.bashrc: line 3: atuin: command not found",
+        ": [WARNING]: Falling back to Reasonable Synth for Midi Audition"
+      ]
+    },
+    {
+      "case": "stall-absorbed-128",
+      "elapsed_seconds": 5.537850167136639,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "absorbed",
+        "block": 128,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 20480,
+        "first_missing_frame": -1,
+        "last_missing_frame": -1,
+        "cache_underruns": 0,
+        "exact_playback_frames": 48000,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "stall-starved-128",
+      "elapsed_seconds": 5.470312250312418,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "starved",
+        "block": 128,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 26112,
+        "first_missing_frame": 24576,
+        "last_missing_frame": 25984,
+        "cache_underruns": 12,
+        "exact_playback_frames": 46464,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "stall-handoff-128",
+      "elapsed_seconds": 5.46839633397758,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "handoff",
+        "block": 128,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 22528,
+        "first_missing_frame": -1,
+        "last_missing_frame": -1,
+        "cache_underruns": 0,
+        "exact_playback_frames": 48000,
+        "oracle_mutation": "none",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 1,
+        "first_live_frame": 24704,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "transport-controls-edits",
+      "elapsed_seconds": 4.777500916272402,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_transport_retirements": 2,
+        "automatic_edit_rebuilds": 6,
+        "fault_stop_and_restart": true,
+        "stalled_worker_callback_progress": true,
+        "concurrent_dsp_resets": 0,
+        "stopped_processing_restored": true
+      },
+      "probe_sha256": "9381de8563577fc9ea70687153e00176b5de2bb57bcfb9089c1ecc60df5928a8"
+    },
+    {
+      "case": "oracle-reject-monitor-delay-64",
+      "elapsed_seconds": 5.184175959322602,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "absorbed",
+        "block": 64,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 20480,
+        "first_missing_frame": -1,
+        "last_missing_frame": -1,
+        "cache_underruns": 0,
+        "exact_playback_frames": 48000,
+        "oracle_mutation": "monitor-delay",
+        "monitor_sample_error": 0.366821,
+        "playback_sample_error_outside_missing_blocks": 0,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    },
+    {
+      "case": "oracle-reject-stale-playback-128",
+      "elapsed_seconds": 5.6499236659146845,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "scenario": "starved",
+        "block": 128,
+        "stall_render_frame": 24576,
+        "release_audible_frame": 26112,
+        "first_missing_frame": 24576,
+        "last_missing_frame": 25984,
+        "cache_underruns": 12,
+        "exact_playback_frames": 41728,
+        "oracle_mutation": "stale-playback",
+        "monitor_sample_error": 0,
+        "playback_sample_error_outside_missing_blocks": 0.00090607,
+        "ownership_races": 0,
+        "live_handoffs": 0,
+        "first_live_frame": -1,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "6390625da7ec9ea1780d312bb4718afd5d9ef80b40455cbbdb52bfd904f227bf"
+    }
+  ]
+}

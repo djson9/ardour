@@ -1,0 +1,143 @@
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:56:21: warning: 'set_name' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   56 |         LIBARDOUR_API bool set_name (std::string const& str);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/session_object.h:60:15: note: overridden virtual function is here
+   60 |         virtual bool set_name (const std::string& str) {
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:58:28: warning: 'display_name' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   58 |         LIBARDOUR_API std::string display_name () const;
+      |                                   ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:71:22: note: overridden virtual function is here
+   71 |         virtual std::string display_name() const { return SessionObject::name(); }
+      |                             ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:72:21: warning: 'run' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   72 |         LIBARDOUR_API void run (BufferSet& /*bufs*/, samplepos_t /*start_sample*/, samplepos_t /*end_sample*/, double speed, pframes_t /*nframes*/, bool /*result_required*/);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:112:15: note: overridden virtual function is here
+  112 |         virtual void run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample, double speed, pframes_t nframes, bool result_required) {}
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:73:21: warning: 'realtime_handle_transport_stopped' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   73 |         LIBARDOUR_API void realtime_handle_transport_stopped ();
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:129:15: note: overridden virtual function is here
+  129 |         virtual void realtime_handle_transport_stopped () {}
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:74:21: warning: 'realtime_locate' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   74 |         LIBARDOUR_API void realtime_locate (bool);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:130:15: note: overridden virtual function is here
+  130 |         virtual void realtime_locate (bool) {}
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:79:21: warning: 'set_loop' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   79 |         LIBARDOUR_API void set_loop (Location*);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:132:15: note: overridden virtual function is here
+  132 |         virtual void set_loop (Location *loc) { _loop_location = loc; }
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:81:20: warning: 'set_state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   81 |         LIBARDOUR_API int set_state (const XMLNode&, int version);
+      |                           ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:94:6: note: overridden virtual function is here
+   94 |         int set_state (const XMLNode&, int version);
+      |             ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:85:22: warning: 'buffer_load' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+   85 |         LIBARDOUR_API float buffer_load () const;
+      |                             ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:75:16: note: overridden virtual function is here
+   75 |         virtual float buffer_load() const = 0;
+      |                       ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:104:21: warning: 'adjust_buffering' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  104 |         LIBARDOUR_API void adjust_buffering ();
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:108:15: note: overridden virtual function is here
+  108 |         virtual void adjust_buffering() = 0;
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:108:21: warning: 'seek' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  108 |         LIBARDOUR_API int  seek (samplepos_t sample, bool complete_refill = false);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:112:15: note: overridden virtual function is here
+  112 |         virtual int  seek (samplepos_t which_sample, bool complete_refill = false) = 0;
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:112:21: warning: 'playlist_modified' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  112 |         LIBARDOUR_API void playlist_modified ();
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:105:15: note: overridden virtual function is here
+  105 |         virtual void playlist_modified () {}
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:162:25: warning: 'state' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  162 |         LIBARDOUR_API XMLNode& state () const;
+      |                                ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/processor.h:173:19: note: overridden virtual function is here
+  173 |         virtual XMLNode& state () const;
+      |                          ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:166:21: warning: 'use_playlist' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  166 |         LIBARDOUR_API int  use_playlist (DataType, std::shared_ptr<Playlist>);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:106:14: note: overridden virtual function is here
+  106 |         virtual int use_playlist (DataType, std::shared_ptr<Playlist>);
+      |                     ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:167:21: warning: 'playlist_ranges_moved' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  167 |         LIBARDOUR_API void playlist_ranges_moved (std::list<Temporal::RangeMove> const&, bool);
+      |                            ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:185:15: note: overridden virtual function is here
+  185 |         virtual void playlist_ranges_moved (std::list<Temporal::RangeMove> const &, bool) {}
+      |                      ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:169:20: warning: 'add_channel_to' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  169 |         LIBARDOUR_API int add_channel_to (std::shared_ptr<ChannelList>, uint32_t how_many);
+      |                           ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:177:14: note: overridden virtual function is here
+  177 |         virtual int add_channel_to (std::shared_ptr<ChannelList>, uint32_t how_many) = 0;
+      |                     ^
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_callback_probe.cc:4:
+In file included from /Users/davidson/workspace/ardour-anticipation-spike/tools/dev/anticipation_probe.cc:36:
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_reader.h:258:7: warning: 'configuration_changed' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  258 |         void configuration_changed ();
+      |              ^
+/Users/davidson/workspace/ardour-anticipation-spike/libs/ardour/ardour/disk_io.h:113:15: note: overridden virtual function is here
+  113 |         virtual void configuration_changed () = 0;
+      |                      ^
+16 warnings generated.
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+latcomp-Shared callback bus-0x107bcd800 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Shared callback bus | Shared callback bus | 
+latcomp-Reference callback bus-0x11f83b200 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Reference callback bus | Reference callback bus | 
+READER PREFILL monitoring=4,4 choice=2,2
+CALLBACK wall_seconds=8.64811 sample_rate=48000 buffer=128 backend=None (Dummy)
+CALLBACK block=128 processed=2048 taps=2048 misses=0 cutover=589 error=0 peak=0.149884 max_us=11154.2
+ENGINE observed_max_us=66699 at_block=1943
+ENGINE steady_max_us=66699 at_block=1943
+READER INPUT error=0 first_block=2048 peaks=0.129873,0.129873
+DISK_READER source_peak=0.0314536 remaining_buffer=0.742188 monitor_blocks=441,441 record_request_block=514 release_block=1030
+BUS INPUT ERROR 0
+MIDCHAIN TAP blocks=2048 misses=0 max_error_block=0 phases=0,0,0,0 delay_out=0,0 raw_send_error=0 automation_play=0
+RESULT {"passed":true,"backend":"None (Dummy)","normal_session_callback":true,"blocks":[128],"verified_bus_blocks":2048,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":3,"bridge_max_us":11154.2,"engine_mean_us":1471.42,"engine_max_us":66699,"peak":0.149884,"hardware_latency_measured":false}
+

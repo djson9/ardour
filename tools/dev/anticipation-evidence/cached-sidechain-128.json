@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "normal_session_callback": true,
+  "backend": "Dummy Realtime",
+  "blocks": [
+    128
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 3,
+  "engine_mean_us": 1513.87,
+  "engine_max_us": 68039,
+  "source_cutover": 587,
+  "bus_cutover": 587,
+  "peak": 0.258288,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 2666.6666666666665,
+  "observed_engine_max_us": 68039.0,
+  "measured_callback_budget_met": false,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [
+    "CACHED GRAPH source_cutover=587 bus_cutover=587 cached_return_blocks=2048 error=0 misses=0",
+    "SIDECHAIN blocks=2048 reference_blocks=2048 misses=0 peak=0.0223797 peak_gain_reduction_db=19.6553,19.6553"
+  ],
+  "source_commit": "2eaaa476d690a5e6bad9b0e67dc960432947c285",
+  "linked_source_commit": "2eaaa476d690a5e6bad9b0e67dc960432947c285",
+  "library_sha256": "9444a1c06bbc58a86e649860ccb6a07d8e40b94e3a0423e2921291f71ae61b7b",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "b0833cb68f200edd90ce6df3cb28589430bafc844de7fd61904a5b0cb6cdf0dd",
+    "anticipation_capacity_probe.cc": "3ab81353f88d8df634dccfb17e0a43e85ebe787fdf7b29a685420e079b729b56",
+    "anticipation_graph_probe.cc": "17664d10c6b7543480b20d914079e55cc82e1893682cb8c74feec853cddd6098",
+    "anticipation_probe.cc": "fec85d4085115489bac6de4029910a0c744cb00ab56ee7d1217b187a7db5d4cf",
+    "run-anticipation-probe.py": "bc921caacc18eac690742282b748b5b3a4aa348defd092d19be32b5e01b039eb"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_BLOCK": "128",
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_SIDECHAIN": "1",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-graph-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "compressor_plugin_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/run-anticipation-probe.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_graph_probe.cc"
+  ]
+}

@@ -1,0 +1,8 @@
+OUTPUT_DEVICE None
+OUTPUT_DEVICE BlackHole 2ch
+OUTPUT_DEVICE MacBook Pro Speakers
+OUTPUT_DEVICE ZoomAudioDevice
+: [ERROR]: CoreAudioBackend: failed to start.
+: [ERROR]: CoreAudioBackend: failed to start coreaudio.
+FAIL engine
+

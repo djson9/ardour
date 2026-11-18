@@ -1,0 +1,15 @@
+{
+  "case": "gain-automation-64",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "original_registered_route_dsp": true,
+    "cached_bus": true,
+    "automatic_arm_handoffs": 0,
+    "block": 64,
+    "max_sample_error": 0,
+    "cache_underruns": 0
+  },
+  "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+}

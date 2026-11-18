@@ -1,0 +1,15 @@
+{
+  "case": "queue-contracts",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "contract_checks": 14,
+    "audio_midi_partial_loop": true,
+    "exclusive_handoff": true,
+    "generation_reuse": true,
+    "nonblocking_stalled_producer": true,
+    "joined_before_mutation": true
+  },
+  "probe_sha256": "ce081afd74592a3d75851d4da44c47c371f87444852ab1cecd3536a1388f6597"
+}

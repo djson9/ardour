@@ -1,0 +1,20 @@
+"""Prepare an isolated native GUI fixture; no installed application or preferences change."""
+import pathlib, shutil, xml.etree.ElementTree as ET, plistlib, os, shlex, hashlib, subprocess
+root=pathlib.Path(__file__).resolve().parents[2];out=root/'artifacts/anticipation-gui';out.mkdir(exist_ok=True)
+home=out/'private-home';prefs=home/'Library/Preferences/Ardour9';prefs.mkdir(parents=True,exist_ok=True)
+config=ET.Element('Ardour');options=ET.SubElement(config,'Config')
+for name,value in {'check-announcements':'0','show-splash':'0','discover-plugins-on-start':'0','default-session-parent-dir':str(out),'anticipative-processing':'0','anticipation-milliseconds':'200'}.items():ET.SubElement(options,'Option',name=name,value=value)
+protocols=ET.SubElement(config,'ControlProtocols');ET.SubElement(protocols,'Protocol',name='MCP HTTP Server (Experimental)',active='1',port='4837',config='')
+extra=ET.SubElement(config,'Extra');setup=ET.SubElement(extra,'AudioMIDISetup');states=ET.SubElement(setup,'EngineStates')
+ET.SubElement(states,'State',{'backend':'None (Dummy)','driver':'Realtime','device':'Silence','input-device':'Silence','output-device':'Silence','sample-rate':'48000','buffer-size':'64','n-periods':'2','input-latency':'0','output-latency':'0','active':'1','use-buffered-io':'0','midi-option':'None','lru':'1'})
+ET.ElementTree(config).write(prefs/'config',encoding='UTF-8',xml_declaration=True);(prefs/'.a9').touch()
+fixture=out/'Anticipation UI';fixture.mkdir(exist_ok=True)
+source=next((root/'artifacts/anticipation-native-route-probe').glob('run-*/session/native-anticipation.ardour'))
+tree=ET.parse(source);tree.getroot().set('name','Anticipation UI');protocols=tree.find('ControlProtocols');protocols.clear();ET.SubElement(protocols,'Protocol',name='MCP HTTP Server (Experimental)',active='1',port='4837',config='')
+tree.write(fixture/'Anticipation UI.ardour',encoding='UTF-8',xml_declaration=True)
+label='dev.ardour.anticipation-gui';interpose=root/'artifacts/anticipation-native-route-probe/private-home.dylib'
+script='TOP='+shlex.quote(str(root))+'\n. "$TOP/build/gtk2_ardour/ardev_common_waf.sh"\nexport DYLD_INSERT_LIBRARIES='+shlex.quote(str(interpose))+'\nexec '+shlex.join([str(root/'build/gtk2_ardour/ardour-9.10.18'),'-a','-n',str(fixture)])
+job=dict(Label=label,ProgramArguments=['/bin/bash','-c',script],RunAtLoad=True,EnvironmentVariables={'ARDOUR_PROBE_HOME':str(home),'LV2_PATH':str(root/'build/libs/LV2')},StandardOutPath=str(out/'run.log'),StandardErrorPath=str(out/'run.log'))
+(out/'gui.plist').write_bytes(plistlib.dumps(job))
+user=pathlib.Path.home()/'Library/Preferences/Ardour9/config';(out/'user-config-before.sha256').write_text(hashlib.sha256(user.read_bytes()).hexdigest() if user.exists() else 'absent')
+print(out)

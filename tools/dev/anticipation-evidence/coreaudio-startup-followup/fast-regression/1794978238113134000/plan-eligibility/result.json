@@ -1,0 +1,15 @@
+{
+  "case": "plan-eligibility",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "session_owned_engine_plan": true,
+    "eligibility_cases": 6,
+    "existing_graph_reused": true,
+    "actual_record_and_monitor_controls": true,
+    "sidechain_graph_revision_checked": true,
+    "hardware_latency_measured": false
+  },
+  "probe_sha256": "48493a6431ec476d96db79fb06323488473caceffc37b22535af00627401e89b"
+}

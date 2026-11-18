@@ -250,6 +250,7 @@ IO::remove_port (std::shared_ptr<Port> port)
 
 	{
 		BLOCK_PROCESS_CALLBACK ();
+		_session.retire_anticipation_for_edit ();
 
 		{
 			RCUWriter<PortSet> writer (_ports);
@@ -323,6 +324,7 @@ IO::add_port (string destination, DataType type)
 
 	{
 		BLOCK_PROCESS_CALLBACK ();
+		_session.retire_anticipation_for_edit ();
 
 		/* Create a new port */
 		{
@@ -492,6 +494,8 @@ IO::ensure_ports (ChanCount count, bool clear)
 	if (count == n_ports() && !clear) {
 		return 0;
 	}
+
+	_session.retire_anticipation_for_edit ();
 
 	bool changed = false;
 	IOChange change;
@@ -884,6 +888,7 @@ IO::create_ports (const XMLNode& node, int version)
 
 	{
 		BLOCK_PROCESS_CALLBACK ();
+		_session.retire_anticipation_for_edit ();
 
 		if (ensure_ports (n, !_session.inital_connect_or_deletion_in_progress ())) {
 			error << string_compose(_("%1: cannot create I/O ports"), _name) << endmsg;
@@ -1055,6 +1060,7 @@ IO::set_ports (const string& str)
 
 	{
 		BLOCK_PROCESS_CALLBACK ();
+		_session.retire_anticipation_for_edit ();
 
 		// FIXME: audio-only
 		if (ensure_ports (ChanCount(DataType::AUDIO, nports), true)) {

@@ -1,0 +1,42 @@
+diff --git a/libs/backends/coreaudio/coreaudio_pcmio.cc b/libs/backends/coreaudio/coreaudio_pcmio.cc
+index a794540578..0949785775 100644
+--- a/libs/backends/coreaudio/coreaudio_pcmio.cc
++++ b/libs/backends/coreaudio/coreaudio_pcmio.cc
+@@ -743,8 +743,16 @@ CoreAudioPCM::pcm_start (
+ 	_capture_channels = 0;
+ 	_playback_channels = 0;
+ 
+-	const uint32_t chn_in = (device_id_in < _n_devices ? _device_ins[device_id_in] : 0) + ((device_id_out != device_id_in && device_id_out < _n_devices) ? _device_ins[device_id_out] : 0);
+-	const uint32_t chn_out =(device_id_out < _n_devices ? _device_outs[device_id_out] : 0) + ((device_id_out != device_id_in && device_id_in < _n_devices) ? _device_outs[device_id_in] : 0);
++	/* A duplex output device may have capture channels even when the user
++	 * selected no input (and vice versa). Do not enable an unselected direction:
++	 * opening it can request capture permission before the backend can start.
++	 * Aggregates still expose both selected devices' channels in each direction. */
++	const uint32_t chn_in = device_id_in < _n_devices
++	    ? _device_ins[device_id_in] + ((device_id_out != device_id_in && device_id_out < _n_devices) ? _device_ins[device_id_out] : 0)
++	    : 0;
++	const uint32_t chn_out = device_id_out < _n_devices
++	    ? _device_outs[device_id_out] + ((device_id_out != device_id_in && device_id_in < _n_devices) ? _device_outs[device_id_in] : 0)
++	    : 0;
+ 
+ 	assert (chn_in > 0 || chn_out > 0);
+ 
+@@ -761,8 +769,6 @@ CoreAudioPCM::pcm_start (
+ 	err = AudioComponentInstanceNew(HALOutput, &_auhal);
+ 	if (err != noErr) { errorMsg="AudioComponentInstanceNew"; _state = -2; goto error; }
+ 
+-	err = AudioUnitInitialize(_auhal);
+-	if (err != noErr) { errorMsg="AudioUnitInitialize"; _state = -3; goto error; }
+ 
+ 	// explicitly change samplerate of the devices, TODO allow separate rates with aggregates
+ 	if (set_device_sample_rate(device_id_in, sample_rate, true)) {
+@@ -914,6 +920,9 @@ CoreAudioPCM::pcm_start (
+ 
+ 	if (err != noErr) { errorMsg="kAudioUnitProperty_SetRenderCallback"; _state = -10; goto error; }
+ 
++	err = AudioUnitInitialize(_auhal);
++	if (err != noErr) { errorMsg="AudioUnitInitialize"; _state = -3; goto error; }
++
+ 	/* setup complete, now get going.. */
+ 	if (AudioOutputUnitStart(_auhal) == noErr) {
+ 		_input_names.clear();

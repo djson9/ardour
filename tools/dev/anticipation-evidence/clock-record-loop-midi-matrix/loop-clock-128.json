@@ -1,0 +1,61 @@
+{
+  "passed": true,
+  "normal_session_callback": true,
+  "blocks": [
+    128
+  ],
+  "loop_length": 9975,
+  "loop_wraps": 25,
+  "verified_frames": 258944,
+  "monitor_cutover": 587,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "engine_mean_us": 170.574,
+  "engine_max_us": 3137,
+  "hardware_latency_measured": false,
+  "correctness_passed": true,
+  "nominal_callback_period_us": 2666.6666666666665,
+  "observed_engine_max_us": 3137,
+  "measured_callback_budget_met": false,
+  "timing_limitation": "Dummy backend pacing does not establish hardware deadlines or input/output latency.",
+  "routing_and_input_evidence": [],
+  "source_commit": "5f4b5bd4e3026ebfcb75dd37b4fbe98f2611ed8d",
+  "linked_source_commit": "5f4b5bd4e3026ebfcb75dd37b4fbe98f2611ed8d",
+  "library_sha256": "94514f2d065ae893379c971252d49c82f7f4cd4ba6aec24af64adb3c70b91850",
+  "user_config_unchanged": true,
+  "source_sha256": {
+    "anticipation_callback_probe.cc": "c9b3e722c2261f126b1447e2dde2dfaf08777e36c70236c08311dacad0d471d6",
+    "anticipation_capacity_probe.cc": "a8233c59782cc8c22b172d95914e89673ca694644bffba8fd4095f8f6486996c",
+    "anticipation_eligibility_probe.cc": "103a8a5c7f3bacafc5aa563dbf9f3fbd0f37e565b9033fb6f5ead193f76c45e3",
+    "anticipation_graph_probe.cc": "af44ad61643168cb0e7f50dc64fb9c72babc27bf571de923b8837b571ce6376c",
+    "anticipation_loop_probe.cc": "377c74aa2df3ed53f132b0913992fba2381fdbca6f3c620a97701b55929b0010",
+    "anticipation_midi_boundary_probe.cc": "1378a4b5348aa06a200ab415e0515e3032b1633d746ad06d2d32040eaea041f2",
+    "anticipation_pdc_probe.cc": "d0b56a32d43c72c0a66e23d42fe79cf34f803f2531f547cf9757857cee3c2fdc",
+    "anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+    "anticipation_record_probe.cc": "3c83958a66ed74a4d736345950797050e9aa47dd06638fbb495ae0b1cf18a56c",
+    "anticipation_seek_probe.cc": "75fa4afe8b2c04498d6aea780e2123d9e566c809804fb6d174e95dfdc51d767c",
+    "run-anticipation-probe.py": "0c15e4c1885b84059c1461fd1420b432bbeec8abb49db9558f64cd44e524fb31"
+  },
+  "probe_settings": {
+    "ARDOUR_PROBE_AUTOMATION": "1",
+    "ARDOUR_PROBE_BLOCK": "128",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-loop-probe/private-home"
+  },
+  "delay_plugin_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+  "synth_plugin_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+  "compressor_plugin_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+  "working_tree_status": [
+    " M tools/dev/anticipation_callback_probe.cc",
+    " M tools/dev/anticipation_capacity_probe.cc",
+    " M tools/dev/anticipation_pdc_probe.cc",
+    " M tools/dev/package-probe.py",
+    " M tools/dev/run-anticipation-probe.py",
+    " M tools/dev/validate-anticipation.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation_loop_probe.cc",
+    "?? tools/dev/anticipation_midi_boundary_probe.cc",
+    "?? tools/dev/anticipation_record_probe.cc",
+    "?? tools/dev/run-portable-probe.py"
+  ]
+}

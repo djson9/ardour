@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "elapsed_seconds": 7.45197454188019,
+  "execution_deadline_seconds": 9,
+  "case_count": 2,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "library_unchanged": true,
+  "validation_runner_sha256": "323707f8c047967191ba5e078d5b2157737246ad0616acd28c073c586e68128e",
+  "hardware_deadlines_proven": false,
+  "max_parallel_engines": 8,
+  "dummy_driver": "Realtime",
+  "compact_sequences": false,
+  "source_commit": "5c32c1715b0c831468ac90b76e152f5ca183bbde",
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "cases": [
+    {
+      "case": "midi-128",
+      "elapsed_seconds": 7.312483791261911,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_midi_track": true,
+        "held_notes": 4,
+        "immediate_events_delivered_once": 1,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a582f30d9db6e0ddf63edc2549dbbf034c3f077e09209f25f9d993f8c53ba28b"
+    },
+    {
+      "case": "midi-64",
+      "elapsed_seconds": 4.105688666924834,
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_midi_track": true,
+        "held_notes": 4,
+        "immediate_events_delivered_once": 1,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a582f30d9db6e0ddf63edc2549dbbf034c3f077e09209f25f9d993f8c53ba28b"
+    }
+  ]
+}

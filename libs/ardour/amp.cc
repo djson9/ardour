@@ -406,12 +406,12 @@ Amp::set_state (const XMLNode& node, int version)
  *  so make sure to call ::run() which invalidates the buffer again.
  */
 void
-Amp::setup_gain_automation (samplepos_t start_sample, samplepos_t end_sample, samplecnt_t nframes)
+Amp::setup_gain_automation (samplepos_t start_sample, samplepos_t end_sample, samplecnt_t nframes, bool moving_render)
 {
 	PBD::Mutex::Lock am (control_lock(), PBD::Mutex::TryLock);
 
 	if (am.locked()
-	    && (_session.transport_rolling() || _session.bounce_processing())
+	    && (moving_render || _session.transport_rolling() || _session.bounce_processing())
 	    && _gain_control->automation_playback())
 	{
 		assert (_gain_automation_buffer);
@@ -442,4 +442,8 @@ void
 Amp::set_gain_automation_buffer (gain_t* g)
 {
 	_gain_automation_buffer = g;
+	if (!g) {
+		_apply_gain_automation = false;
+		_current_automation_sample = INT64_MAX;
+	}
 }

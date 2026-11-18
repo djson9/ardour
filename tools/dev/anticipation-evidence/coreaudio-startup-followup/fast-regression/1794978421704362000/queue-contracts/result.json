@@ -1,0 +1,7 @@
+{
+  "case": "queue-contracts",
+  "exit_code": 1,
+  "passed": false,
+  "result": {},
+  "probe_sha256": "8b49240f96b6c43489ccb98f8a687a37f8240a1262fc34a5ec61d39b740b087f"
+}

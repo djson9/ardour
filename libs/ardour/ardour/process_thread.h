@@ -30,6 +30,7 @@ namespace ARDOUR {
 
 class ThreadBuffers;
 class BufferSet;
+class Route;
 
 class LIBARDOUR_API ProcessThread
 {
@@ -41,6 +42,45 @@ public:
 
 	void get_buffers ();
 	void drop_buffers ();
+
+	/** Bind preallocated private scratch storage for a non-engine DSP worker.
+	 * The caller owns its lifetime; it never enters BufferManager's RT pool. */
+	class BufferScope {
+	public:
+		explicit BufferScope (ThreadBuffers& buffers) : _previous (_private_thread_buffers.get ()) { _private_thread_buffers.set (&buffers); }
+		~BufferScope () { _private_thread_buffers.set (_previous); }
+		BufferScope (BufferScope const&) = delete;
+		BufferScope& operator= (BufferScope const&) = delete;
+	private:
+		ThreadBuffers* const _previous;
+	};
+
+	/* A moving render has a project cursor and an unwrapped cursor.  The latter
+	 * advances across loop boundaries and does not depend on the device clock.
+	 */
+	struct RenderTime {
+		samplepos_t project_start;
+		samplepos_t continuous_start;
+		Route const* monitoring_route;
+		MonitorState monitoring_override;
+		samplepos_t continuous_at (samplepos_t project) const {
+			return continuous_start + (project - project_start);
+		}
+	};
+
+	class RenderScope {
+	public:
+		RenderScope (samplepos_t project, samplepos_t continuous, Route const* route = nullptr, MonitorState monitoring = MonitoringSilence)
+			: _time { project, continuous, route, monitoring }, _previous (_render_time) { _render_time = &_time; }
+		~RenderScope () { _render_time = _previous; }
+		RenderScope (RenderScope const&) = delete;
+		RenderScope& operator= (RenderScope const&) = delete;
+	private:
+		RenderTime const _time;
+		RenderTime const* const _previous;
+	};
+
+	static RenderTime const* render_time () { return _render_time; }
 
 	static bool have_thread_buffers () {
 		return 0 != _private_thread_buffers.get ();
@@ -63,6 +103,7 @@ protected:
 	void session_going_away ();
 
 private:
+	static thread_local RenderTime const* _render_time;
 	static PBD::Private<ThreadBuffers> _private_thread_buffers;
 };
 

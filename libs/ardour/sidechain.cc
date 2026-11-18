@@ -36,6 +36,8 @@ using namespace PBD;
 
 SideChain::SideChain (Session& s, const std::string& name)
 	: IOProcessor (s, true, false, name)
+	, _cached_input_reader (nullptr)
+	, _cached_input_context (nullptr)
 {
 }
 
@@ -77,7 +79,11 @@ SideChain::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sampl
 		return;
 	}
 
-	_input->collect_input (bufs, nframes, _configured_input);
+	if (_cached_input_reader) {
+		_cached_input_reader (_cached_input_context, bufs, _configured_input, start_sample, nframes);
+	} else {
+		_input->collect_input (bufs, nframes, _configured_input);
+	}
 	bufs.set_count (_configured_output);
 }
 

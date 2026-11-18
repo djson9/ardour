@@ -359,7 +359,7 @@ InternalSend::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sa
 
 	/* apply fader gain automation */
 	_amp->set_gain_automation_buffer (_session.send_gain_automation_buffer ());
-	_amp->setup_gain_automation (start_sample + latency, end_sample + latency, nframes);
+	_amp->setup_gain_automation (start_sample + latency, end_sample + latency, nframes, speed != 0);
 	_amp->run (mixbufs, start_sample + latency, end_sample + latency, speed, nframes, true);
 
 	_send_delay->run (mixbufs, start_sample, end_sample, speed, nframes, true);
@@ -568,6 +568,15 @@ InternalSend::set_can_pan (bool yn)
 {
 	if (_panshell) {
 		_panshell->set_bypassed (!yn);
+	}
+}
+
+void
+InternalSend::set_manual_cycle_start (bool manual)
+{
+	cycle_connection.disconnect ();
+	if (!manual) {
+		CycleStart.connect_same_thread (cycle_connection, std::bind (&InternalSend::cycle_start, this, _1));
 	}
 }
 

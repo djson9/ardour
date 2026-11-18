@@ -51,7 +51,7 @@ public:
 
 	void set_gain_automation_buffer (gain_t *);
 
-	void setup_gain_automation (samplepos_t start_sample, samplepos_t end_sample, samplecnt_t nframes);
+	void setup_gain_automation (samplepos_t start_sample, samplepos_t end_sample, samplecnt_t nframes, bool moving_render = false);
 
 	XMLNode& state () const;
 	int set_state (const XMLNode&, int version);

@@ -1,0 +1,13 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+latcomp-Shared callback bus-0x13a952600 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Shared callback bus | Shared callback bus | 
+latcomp-Reference callback bus-0x10820ba00 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Reference callback bus | Reference callback bus | 
+CALLBACK wall_seconds=6.54022 sample_rate=48000 buffer=128 backend=None (Dummy)
+CALLBACK block=128 processed=2048 taps=2048 misses=0 cutover=587 error=0 peak=0.0872859 max_us=185.917
+ENGINE observed_max_us=1887 at_block=496
+ENGINE steady_max_us=1887 at_block=496
+PLAYLIST reads=1611 reference_reads=1611 monitor_blocks=437 monitor_peak=0.0643951
+BUS INPUT ERROR 0
+MIDCHAIN TAP blocks=2048 misses=0 max_error_block=0 phases=0,0,0,0 delay_out=0,0 raw_send_error=0 automation_play=0
+: [WARNING]: Pool AudioEngine 1 has no trash collector; a memory leak has therefore occurred
+RESULT {"passed":true,"backend":"None (Dummy)","normal_session_callback":true,"blocks":[128],"verified_bus_blocks":2048,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"bridge_max_us":185.917,"engine_mean_us":177.63,"engine_max_us":1887,"peak":0.0872859,"hardware_latency_measured":false}
+

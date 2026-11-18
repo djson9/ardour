@@ -1,0 +1,14 @@
+{
+  "case": "recording-128",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "original_disk_writer": true,
+    "live_capture_with_anticipated_playback": true,
+    "recorded_sample_error": 0,
+    "recorded_channels": 2,
+    "cache_underruns": 0
+  },
+  "probe_sha256": "0bd447680efe722eb486b8a21b103128dd13de7c7cdfa79a3adf7c75f1bb0ec8"
+}

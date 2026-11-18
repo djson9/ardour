@@ -1,0 +1,497 @@
+{
+  "source_commit": "2e57d0f82ceef21f97fad831b8296eb34496a520",
+  "files": [
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/LV2/a-delay.lv2/a-delay.dylib",
+      "path": "LV2/a-delay.lv2/a-delay.dylib",
+      "original_sha256": "ecb5b4c2aec490b06c2a0f6350f70c4720d08b7aa2e840ec86c5bbab700baa46",
+      "relocated_sha256": "eb55041e65b78ef1956b26ce5bdfef5cff73b9afca17cde49002f8a11eaa9118"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/cairo/1.18.6/lib/libcairo.2.dylib",
+      "path": "lib/libcairo.2.dylib",
+      "original_sha256": "374ae84ba3b155a3e855c504b045298203518488830093e4f1ccc9458443db08",
+      "relocated_sha256": "7b330d08c7ac9b03c82b55725ff8f8ddf7a7d9353dff2ceadc8e68a4d792bc23"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/pixman/0.46.4/lib/libpixman-1.0.dylib",
+      "path": "lib/libpixman-1.0.dylib",
+      "original_sha256": "b55aa7d543c2bcee744b175096e78691f009c69c82766bc652bc37dd680bdc72",
+      "relocated_sha256": "aeaac3e2d09497ad745bb54ba59f3b88713578a2050734891352e3f292524777"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxcb/1.17.0/lib/libxcb-shm.0.0.0.dylib",
+      "path": "lib/libxcb-shm.0.0.0.dylib",
+      "original_sha256": "caeb04d7d600c7096fb9cb4e882c6893ff2fa001cace09503e67c4ef6a394106",
+      "relocated_sha256": "1ebdb4be7e116e67ca61f2029c384f853637c601e328784e164b82e2217e55a9"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxdmcp/1.1.5/lib/libXdmcp.6.dylib",
+      "path": "lib/libXdmcp.6.dylib",
+      "original_sha256": "9c8ad4b360195dcc0630c9f8f7bd3da2fcd2819ff0bdb39f1c3611149c5cf93b",
+      "relocated_sha256": "bd555b9e489571011f649fe15f759fb611e2db34a680cd926752731bad4f6387"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxau/1.0.12/lib/libXau.6.dylib",
+      "path": "lib/libXau.6.dylib",
+      "original_sha256": "c0e08d2cd8dfb10ca5e36987eafaceeb6102bb9e3cba0000259e04adacba1764",
+      "relocated_sha256": "99fc719402348356a7cf651c207d4240ca1eb01e60fdbe9b8ad5d507e9283a38"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxcb/1.17.0/lib/libxcb-render.0.0.0.dylib",
+      "path": "lib/libxcb-render.0.0.0.dylib",
+      "original_sha256": "734d96510ecefbc52bdaf789e38facbc13fe24e43fc4b4ea5558efc6a5b22cf7",
+      "relocated_sha256": "d937402677de5873bd2be0399243c5af1da63901b6eaf6118ce9bebef06f4690"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxcb/1.17.0/lib/libxcb.1.1.0.dylib",
+      "path": "lib/libxcb.1.1.0.dylib",
+      "original_sha256": "ab6a56dd9967d120698146b45b69ef1ef979548c019df98bb9c7667071c749ee",
+      "relocated_sha256": "2c63bcec896af36c154da6339ba6f6cf9ac170956b5181a6ed8236ecabf7a234"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxrender/0.9.13/lib/libXrender.1.dylib",
+      "path": "lib/libXrender.1.dylib",
+      "original_sha256": "d9a16907f464a299c6cccabc45f365120767b700ab7e87b6fa89a205988b8dab",
+      "relocated_sha256": "aea5e95d258351f88ebcd3eb7895320685f7f7f2b02876491ec7d8cc92c9da1d"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libxext/1.3.7/lib/libXext.6.dylib",
+      "path": "lib/libXext.6.dylib",
+      "original_sha256": "c8881eef4eac9fe75de3dc87d9a4dcbcda951aef6e1c5cafca3a1fd9e3d786f0",
+      "relocated_sha256": "70bfd9a3cf03f8ed90d8f103f6f5a6b467db6e3d8a1903af39bfaa9a18b365a1"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libx11/1.8.14/lib/libX11.6.dylib",
+      "path": "lib/libX11.6.dylib",
+      "original_sha256": "c93d600d8a57e979c118357050e8117887e839aaba81ce8dd7267a9ecbe912b9",
+      "relocated_sha256": "ebf87a1a27cb220e4f97c7b762459636eb5cea073d10aac49717693f781f2a30"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/freetype/2.15.0/lib/libfreetype.6.dylib",
+      "path": "lib/libfreetype.6.dylib",
+      "original_sha256": "16f38dae0224ef1db2841cdbea4b2acd251816fd21ec7b6a124e307c3e9cf5a9",
+      "relocated_sha256": "fcdf6558538a750e5397598dd7ebdc7f20e0d4a2c792f09cf6c1d2ddb605ed38"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/brotli/1.2.1/lib/libbrotlidec.1.2.1.dylib",
+      "path": "lib/libbrotlidec.1.2.1.dylib",
+      "original_sha256": "fae34162867b9646622775f52d0384978bf0f1312ffdf12ee2836784c6a8de86",
+      "relocated_sha256": "2def05e4717af5a8d03ff7dcae8bb95aa8c3a3223dbf38894c6a4a4c1c246b0b"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/brotli/1.2.1/lib/libbrotlicommon.1.2.1.dylib",
+      "path": "lib/libbrotlicommon.1.2.1.dylib",
+      "original_sha256": "51b57b91c8b8cd832a3edf8c4fc3bdd513eda6d54a6a64c755f0a81cb9617ebb",
+      "relocated_sha256": "2f24402a25cb0d4990d06cd10e72946d997b272afbb73dcaa77dac3fb983d129"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/fontconfig/2.18.3/lib/libfontconfig.1.dylib",
+      "path": "lib/libfontconfig.1.dylib",
+      "original_sha256": "f8ea6bb5825f0777b25dde319c54228218f8bc3d92f1dba4965c8f2545804972",
+      "relocated_sha256": "3a8a1639e808a9e6a8949f29013a0e229edc11b9a5ae4ae9c4bb5559ee714c04"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/gettext/1.0/lib/libintl.8.dylib",
+      "path": "lib/libintl.8.dylib",
+      "original_sha256": "30ded805e7031579382ab18ef5ced9eea605207cd4a67654de4de12ecdb3f865",
+      "relocated_sha256": "c4ccc12dacd99bae7cf3e04f6a1a16909b9f6e096f203712a8241462f539785b"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libpng/1.6.59/lib/libpng16.16.dylib",
+      "path": "lib/libpng16.16.dylib",
+      "original_sha256": "8bbeb64b87a9af6dbff4ba01584c49c9ee26298ddfdcda763ded5384597ef6c2",
+      "relocated_sha256": "09d576ae0af9bed5bab3aa03017948281d66cf3251e52e1d3c8108eddcb72398"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/LV2/reasonablesynth.lv2/reasonablesynth.dylib",
+      "path": "LV2/reasonablesynth.lv2/reasonablesynth.dylib",
+      "original_sha256": "1961edf1609b36620c8998595354c88b0c5fbea60e29747e34f795156d4077d2",
+      "relocated_sha256": "0cd8c751dbb0a67e3c4215a880884550fc586dbb923719e2019deaebd5ad0274"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/LV2/a-comp.lv2/a-comp.dylib",
+      "path": "LV2/a-comp.lv2/a-comp.dylib",
+      "original_sha256": "80b8a21619f88724df09e324ef30990beac925e80432a8de16ed3741140dcadd",
+      "relocated_sha256": "98e72df3095a25ffcdc54836f534f95e0436935d0c021514ffc0e721d605ceae"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/panners/2in2out/libpan2in2out.dylib",
+      "path": "panners/libpan2in2out.dylib",
+      "original_sha256": "40d2f5444785977ddfebff52618277cdbe960df328ed5218b51c930141e09650",
+      "relocated_sha256": "69017e87f37e0849181fbd4cdcf3b15e21a1b64037ed79409995a0edc5381029"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glib/2.90.1/lib/libglib-2.0.0.dylib",
+      "path": "lib/libglib-2.0.0.dylib",
+      "original_sha256": "9b7fa6436bfb8b906eba284563f80bc7dfae7629ed4f8e03996d1040aa1e8317",
+      "relocated_sha256": "8d4f59f797e5bb262e0c604de18877107f0f3ba0079be87646389559a080517f"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/pcre2/10.49/lib/libpcre2-8.0.dylib",
+      "path": "lib/libpcre2-8.0.dylib",
+      "original_sha256": "8644eb7796fff4e92c1f173a61885b761124a7aad6e79af3409a528777a475fe",
+      "relocated_sha256": "b5ac849bd29f7121566224f5c4940d5ccc012fff4719dd8f5bcc952b1d927d03"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libsigc++@2/2.12.2/lib/libsigc-2.0.0.dylib",
+      "path": "lib/libsigc-2.0.0.dylib",
+      "original_sha256": "2faa3de523e5dfa55fb5408451b28d83baee7daccb1d03d047cbf2eb6e673e9b",
+      "relocated_sha256": "a5e25b403cdce0798efa662a54f74ac11732c6f4ce2954b36997e20696fdd98f"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glib/2.90.1/lib/libgobject-2.0.0.dylib",
+      "path": "lib/libgobject-2.0.0.dylib",
+      "original_sha256": "977d3440275e705240a4d3b9fbfe4b8555bf0b64e1a5ad465123400ebd43a7d5",
+      "relocated_sha256": "048f00e2b96ff40781c767404ee9001f89c81cfde1eccd0d7910856daa31c72c"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glibmm@2.66/2.66.10/lib/libglibmm-2.4.1.dylib",
+      "path": "lib/libglibmm-2.4.1.dylib",
+      "original_sha256": "bae81b808e8c35ce3c90adb084d78b55aae0ee49cc50dfaefcdfa9e725facda1",
+      "relocated_sha256": "9ff21442cb374f42410b2c08c0713367fa8b2f30728464ec31373f7210454884"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glib/2.90.1/lib/libgmodule-2.0.0.dylib",
+      "path": "lib/libgmodule-2.0.0.dylib",
+      "original_sha256": "f1882cb497aadea5533715a092c753e940b60e725a4841a9f6eddb2b3dd18d44",
+      "relocated_sha256": "620de5c78f0bc315b7f5bee7ef6e0e81838a9bd909eea87f7ef5be53a4b00c8d"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/appleutility/libappleutility.dylib",
+      "path": "lib/libappleutility.dylib",
+      "original_sha256": "55c88d8521a3b79d4705663a6c4a1d618cecb764ec633b29c5061f1b36c22b13",
+      "relocated_sha256": "a1b43b11d214ca01f58bf6baaa0e945c368c9d54e35c8c4945ed3145798cb5b9"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/tk/suil/libsuil.dylib",
+      "path": "lib/libsuil.dylib",
+      "original_sha256": "4dd7bd3279a1adda25619c2bf5187229b1d6569776a3362e8785e085af7ed848",
+      "relocated_sha256": "c16c1f9cc345095b037258a186f14144a6914635fbf5b83ba40c6be73a952800"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/pbd/libpbd.dylib",
+      "path": "lib/libpbd.dylib",
+      "original_sha256": "2a027d2a99cf069abd8b0407e0c0cb940cb7121d9242178a126377652c17490d",
+      "relocated_sha256": "464913bcf1f7bc199978de200c127e9daeb61092f6f5c813070bb69f867ff6b8"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libarchive/3.8.4/lib/libarchive.13.dylib",
+      "path": "lib/libarchive.13.dylib",
+      "original_sha256": "2043ddbd75c0208e42d807044a4403d82a248a470cd1924132b4ad7cf0348b9c",
+      "relocated_sha256": "ee121e6d4cf62adbe8805c6c51180119cccc0691a5d91c36a0247c2f9571ad74"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libb2/0.98.1/lib/libb2.1.dylib",
+      "path": "lib/libb2.1.dylib",
+      "original_sha256": "6dd3ad884f40a9137030cbf00666129d551cb6bebb17aa3c13ba7ff992615285",
+      "relocated_sha256": "6dd3ad884f40a9137030cbf00666129d551cb6bebb17aa3c13ba7ff992615285"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/lz4/1.10.0/lib/liblz4.1.10.0.dylib",
+      "path": "lib/liblz4.1.10.0.dylib",
+      "original_sha256": "3ce8bec34557e6a5c76129cef6588dc59959caa51e1e54321f45ea7c6e528e07",
+      "relocated_sha256": "3ce8bec34557e6a5c76129cef6588dc59959caa51e1e54321f45ea7c6e528e07"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/zstd/1.5.7_1/lib/libzstd.1.5.7.dylib",
+      "path": "lib/libzstd.1.5.7.dylib",
+      "original_sha256": "69d8dee81bccdee425d167300d11431f3c5ecc34a3011400e536aa89f7756189",
+      "relocated_sha256": "69d8dee81bccdee425d167300d11431f3c5ecc34a3011400e536aa89f7756189"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/xz/5.8.4/lib/liblzma.5.dylib",
+      "path": "lib/liblzma.5.dylib",
+      "original_sha256": "fc4cae4e7c25f76aa374d957dfdec687a944677f9add784c196b20b5484636cc",
+      "relocated_sha256": "f08d9f062ff711e70f7aa319ecb2bd4f8262a1f57e5a28284c63b134ccb2306f"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glib/2.90.1/lib/libgio-2.0.0.dylib",
+      "path": "lib/libgio-2.0.0.dylib",
+      "original_sha256": "3a0a7c33093a1f372d56932a79f4e64c536096b57cf89abb0107027a11079c8e",
+      "relocated_sha256": "963f695bb75f5bdac092dc36ad4f04454cab38716e7aa86bbe442680ecd4e3b4"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glibmm@2.66/2.66.10/lib/libgiomm-2.4.1.dylib",
+      "path": "lib/libgiomm-2.4.1.dylib",
+      "original_sha256": "275b01ea4fd9b16c9a340beb58c0efb065bfeea1e47a024baf66e4f6be27d418",
+      "relocated_sha256": "9c4cd898831958012a5b453604167a63f7dbea431ba1f337ae9af573beb08acc"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libsndfile/1.2.2_1/lib/libsndfile.1.0.37.dylib",
+      "path": "lib/libsndfile.1.0.37.dylib",
+      "original_sha256": "4295438e0bc9b6a8ee01a357334ec885b4d76f8dad1e9cbd880f8737d509ff8d",
+      "relocated_sha256": "dd79906a1b4c6328b66415b3f8ffdf8ad96383ac74def681e93c1e0847b05650"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libvorbis/1.3.7/lib/libvorbis.0.dylib",
+      "path": "lib/libvorbis.0.dylib",
+      "original_sha256": "7c23245cb2f76e92c9b68ae1894b3d6977ee9c41f9b4e3ac1f23d6ef9d766ded",
+      "relocated_sha256": "06df714d74aaabaea2fb9053e0a3b17eeed0d845bb81aa746a451ad9b08365d1"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/lame/4.0/lib/libmp3lame.0.dylib",
+      "path": "lib/libmp3lame.0.dylib",
+      "original_sha256": "a3881f1f0a3620f03e63e086abeb0af1fe7adcd9c7ce77fc5801309b96f60ba3",
+      "relocated_sha256": "d1522f617eb8862b1b11db54651215ed1de5b36e3fe3c6e6ebfd5c57b52418b1"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/mpg123/1.33.7/lib/libmpg123.0.dylib",
+      "path": "lib/libmpg123.0.dylib",
+      "original_sha256": "d72d9a0a4cd6e2007d9f0b8c357444fe198b349ea1153ccafc91e31b47e774fc",
+      "relocated_sha256": "6b5386f71d51ab8af879be452a70311a42dd03d713cb0288a21e57b645b194fa"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/opus/1.6.1/lib/libopus.0.dylib",
+      "path": "lib/libopus.0.dylib",
+      "original_sha256": "d67df1a91ad4c8b9bc5b0490930d074231587bae46063165ceb8b86d7e13f5e6",
+      "relocated_sha256": "d67df1a91ad4c8b9bc5b0490930d074231587bae46063165ceb8b86d7e13f5e6"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/flac/1.5.0/lib/libFLAC.14.dylib",
+      "path": "lib/libFLAC.14.dylib",
+      "original_sha256": "43e9f5c4af2d64a866ffaefb756e8978e7b6c90e6bdc3fe2403737103f7890cc",
+      "relocated_sha256": "489a9d2fce3ca5904c7a57dbef03f6014d95a7ec9bb03c51345f7111947acf41"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libvorbis/1.3.7/lib/libvorbisenc.2.dylib",
+      "path": "lib/libvorbisenc.2.dylib",
+      "original_sha256": "1652256c3c6e70d5e3fa6f7c8cb6e40ff54806c0fcb528a65e81bb1cd0d42cc4",
+      "relocated_sha256": "c77bfec7ddf5723893763839a59a464687d411eeaef3e135d56bd9d756364948"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libogg/1.3.6/lib/libogg.0.8.6.dylib",
+      "path": "lib/libogg.0.8.6.dylib",
+      "original_sha256": "5c34fd5e4637d0f5d2997f333e3b19d3f9583243673499f81ee7be7d0067b62c",
+      "relocated_sha256": "5c34fd5e4637d0f5d2997f333e3b19d3f9583243673499f81ee7be7d0067b62c"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/ptformat/libptformat.dylib",
+      "path": "lib/libptformat.dylib",
+      "original_sha256": "9eb12260af0bc31e2bd5f48a7e4c3b424940acd276ba03a7640e001d5b9de15b",
+      "relocated_sha256": "a55059d89c7eb595455039e081065c66e27122537ed93ceb4774fd71f0141966"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/audiographer/libaudiographer.dylib",
+      "path": "lib/libaudiographer.dylib",
+      "original_sha256": "d339f2af0ac819b2ee7b14305144bc0c8cc87216138d9cd81b6e098fabae9ec8",
+      "relocated_sha256": "943649871c6f82609096742dceacf526ad20f690a10f0fb4bd85de8612596249"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/vamp-plugin-sdk/2.10.0_1/lib/libvamp-hostsdk.3.10.0.dylib",
+      "path": "lib/libvamp-hostsdk.3.10.0.dylib",
+      "original_sha256": "e96e1427c3a81cd0b403d98db21a5d8dbfc38fdf212afcaad6d68f122f95c5a5",
+      "relocated_sha256": "29c67c7dc8a6978259df29533baefafa6956319cf91244c5e921e72d133455a4"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/vamp-plugin-sdk/2.10.0_1/lib/libvamp-sdk-dynamic.2.10.0.dylib",
+      "path": "lib/libvamp-sdk-dynamic.2.10.0.dylib",
+      "original_sha256": "3c926c7a43b121ac3428e478eae24244ba1639648b2b5f275fa771f73678df59",
+      "relocated_sha256": "0fc8cf5a52fd299b19a881fe29d615a48c3f1d591214f47c97727f34e6e515fe"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/fftw/3.3.11/lib/libfftw3f_threads.3.dylib",
+      "path": "lib/libfftw3f_threads.3.dylib",
+      "original_sha256": "065a82b99e2f5e540bcfaa34477f63dbfac7dc08b923b8ec5c8b2083de686309",
+      "relocated_sha256": "d6d152a5ead6aed213467f7b6cfe7726029c91576cbe21619c5b4044df1e0f39"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/fftw/3.3.11/lib/libfftw3f.3.dylib",
+      "path": "lib/libfftw3f.3.dylib",
+      "original_sha256": "35c9bacfc8d3004344ee77b3bc8c978529ccfca672a6a5b46541fb36b635d24b",
+      "relocated_sha256": "05a1c7fa799fb02bc82776c8a547b60a778d1312330afe42771a327a39f82478"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libsamplerate/0.2.2/lib/libsamplerate.0.2.2.dylib",
+      "path": "lib/libsamplerate.0.2.2.dylib",
+      "original_sha256": "5d6c1666b4d593f89b4a4d9f3ba316a58cee42984e97e801a552a92a240886bf",
+      "relocated_sha256": "ea7c0198edd2475cd31b94f93091917364f9ecd25b7d913d0a0c52a195692a3d"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/glib/2.90.1/lib/libgthread-2.0.0.dylib",
+      "path": "lib/libgthread-2.0.0.dylib",
+      "original_sha256": "127e92f9ede144a2cd5cc2fecfea32dd687ecbefd065ee7e78d295d9d640b353",
+      "relocated_sha256": "46d6d6f1fcf4755e2eb23ff84d8a79d6207625d440521f0d113bdbc2dd732e38"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/temporal/libtemporal.dylib",
+      "path": "lib/libtemporal.dylib",
+      "original_sha256": "cab429558551b711fd05c8b3df34ffaf51e28e3b04b0042f4230a7fa4951368f",
+      "relocated_sha256": "93fb691ce7e7a1b654bdc9093fe795dfc3415b13ddcca8746046c8a2729e170e"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/evoral/libevoral.dylib",
+      "path": "lib/libevoral.dylib",
+      "original_sha256": "55edd1c42fd7a363f83e89cdffd4783403f1c633cd0848c090062edcfabc9f56",
+      "relocated_sha256": "671339d584763844c4a04bbbb7bc3aa6ffa59f9e27d2f1303dc5357b036b4b61"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/midi++2/libmidipp.dylib",
+      "path": "lib/libmidipp.dylib",
+      "original_sha256": "7e55b7fb53d78af57ab26f45b147a0c2ecb11b8e1822b7ba22360fdc6e4fcac6",
+      "relocated_sha256": "a4ce5bdfda8615d476c75beb42399a5bda69870d18ea7153339abbbd9a2d0a9d"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/ardour/libardour.dylib",
+      "path": "lib/libardour.dylib",
+      "original_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+      "relocated_sha256": "a00f3f9e1295d5bda90cafdfa470b04b30740f2aef10a6118740d6af48d8bdb8"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/rubberband/4.0.0/lib/librubberband.3.dylib",
+      "path": "lib/librubberband.3.dylib",
+      "original_sha256": "0633be424a57382843fb080fb319f7da3ecfdcff5c7e75bfd3dec5155ff6bdba",
+      "relocated_sha256": "20348c962ebc33fe87e4e70f384ff954e7e31599b4494292992206197cf945ea"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/taglib/2.3.2/lib/libtag.2.3.2.dylib",
+      "path": "lib/libtag.2.3.2.dylib",
+      "original_sha256": "afdb17dc888f21b55b7d6a216bf73e92657b9f7cad12b4498899e200c430c8fd",
+      "relocated_sha256": "c5b5fb15ae4efee0a4603beedddac1a207c836dd9267799d54416ffa00aaa3df"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/sratom/0.6.22/lib/libsratom-0.0.dylib",
+      "path": "lib/libsratom-0.0.dylib",
+      "original_sha256": "8fdb4a5d6838ec9c19e0ae73de17caed44594cde872b825b0a732fdff74af1d5",
+      "relocated_sha256": "081f45e0bee1ee8672925ddadc642e0a1ca04141bee351afd3cc13eb8a46b621"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/sord/0.16.22/lib/libsord-0.0.dylib",
+      "path": "lib/libsord-0.0.dylib",
+      "original_sha256": "18402b69aeb87bbbb232be69702137dd4e69378a5e637d8ebca7d5fbbb4599b7",
+      "relocated_sha256": "548dbe4ed43ece61a884de00793c23533a506c4b30b89db0d3c711ae0d48c306"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/zix/0.8.2/lib/libzix-0.0.dylib",
+      "path": "lib/libzix-0.0.dylib",
+      "original_sha256": "8cec7ca94f0916940522e8835ffb8a5d984ddc30f6d67a3cd8b7e9ca19b9fef1",
+      "relocated_sha256": "3b08ff4e9a2f98a3f6aa40904dc8cb3fc45af2e445e33e13e3986340e5b35439"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/serd/0.32.10/lib/libserd-0.0.dylib",
+      "path": "lib/libserd-0.0.dylib",
+      "original_sha256": "2912da40c9bc3bdd214d7ab9a0705ade53babaaae975e3fc48d9cee1cf646eab",
+      "relocated_sha256": "91a5233ef64e12706ae480d7095402ccd3a3e462376b5620caa3d44a4d2cbe5d"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/lilv/0.28.0/lib/liblilv-0.0.dylib",
+      "path": "lib/liblilv-0.0.dylib",
+      "original_sha256": "986ad999016bbd12f529f0ec73eb7c36d4edec25b6e52519bef80ac85832fa69",
+      "relocated_sha256": "383d98a6ee6ff50e4c5283ea947b934cf28ddbb7dbeb6deb9edd0b4405e3bb09"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/libusb/1.0.30/lib/libusb-1.0.0.dylib",
+      "path": "lib/libusb-1.0.0.dylib",
+      "original_sha256": "8f6ad6c17c16f1e7769ad2f780ed2ddf98234ae6580cf5d87d9648cee1769201",
+      "relocated_sha256": "7d4edf54d6552ae74a4e6f63c42221d796d22e275cd7cc723d3589673047d1ea"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/liblo/0.36/lib/liblo.7.dylib",
+      "path": "lib/liblo.7.dylib",
+      "original_sha256": "b79c5e4e6a2490daafa619226d1b0a35429e79115b33afff593437b63285f61a",
+      "relocated_sha256": "49105170ed095ce7287f2a2e4e5bb1238d89c538a71a7f9c45b67ebf209dceb5"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/aubio/0.4.9_4/lib/libaubio.5.4.8.dylib",
+      "path": "lib/libaubio.5.4.8.dylib",
+      "original_sha256": "c4de660b6f7e9baed642eab5f79fabedaf40c1ac745352ae33594ac0fd1661ef",
+      "relocated_sha256": "be0ceca2c61224270147e980a3695511487a70cec9a2cf6a1c607d95b9fc434e"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/ctrl-interface/control_protocol/libardourcp.dylib",
+      "path": "lib/libardourcp.dylib",
+      "original_sha256": "786a7e8b048557041fd5b84240c84c3cb2d4e68e39f6a3bcfb057627e7534a55",
+      "relocated_sha256": "6ca9dccdb5cd67c2dff8fc3c2e822e8c2635d562c55d9ced8e47e41e9d222592"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/panners/stereobalance/libpanbalance.dylib",
+      "path": "panners/libpanbalance.dylib",
+      "original_sha256": "68570a13f58eb6133d3309347b2616ae239daea9c2a0a985159fa99d1fa5c214",
+      "relocated_sha256": "1c7925c41218aa9e5efaea5d2087a2fd5adba474eb32d8f6c3bfe5026b9bd47d"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/panners/1in2out/libpan1in2out.dylib",
+      "path": "panners/libpan1in2out.dylib",
+      "original_sha256": "9961176a4e9338ec73d3c55b862c9ed4f6b6ec9796494851bcfa85fe792602a3",
+      "relocated_sha256": "d42dadadbdb6c5714656adaca5751575f1d5d59a4fc2d34795c9e1846b17afa5"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/panners/vbap/libpanvbap.dylib",
+      "path": "panners/libpanvbap.dylib",
+      "original_sha256": "126bac90bc5036459639d29a4a8e5fe805bb69e5f5a837ef7fdba86a2044c996",
+      "relocated_sha256": "0be1284efaf4e9363067922ea3486af5a6f4cb4cca506d344ec30cc765192d7d"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/backends/dummy/libdummy_audiobackend.dylib",
+      "path": "backends/libdummy_audiobackend.dylib",
+      "original_sha256": "09e79be79d1ed67f7a7de4bb2ac1d4e3a74807c14124c5c05920b09995ecc4c0",
+      "relocated_sha256": "fc962ee8fc97c2e24cc3e8d02580acb3722caf681c71607d037217f7905ed643"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/build/libs/backends/coreaudio/libcoreaudio_backend.dylib",
+      "path": "backends/libcoreaudio_backend.dylib",
+      "original_sha256": "fb444248b8e2b20a39dc45469b55a24994068dabc421c828c7b70bf2d250799b",
+      "relocated_sha256": "d660321d212a233d99467f23f17d503069295a0a5e6a58fc66715c27936050e7"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-native-capacity-probe/private-home.dylib",
+      "path": "private-home.dylib",
+      "original_sha256": "58595fbcf7b9cea3b8bb4a2829c4701d9878f5b4188cccf7cbf6fb989d084af6",
+      "relocated_sha256": "87a2e25c4c26b6313101d73c19893a3e0f9370b04b2a7c8f718d5b9c062f7d24"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-native-capacity-probe/probe",
+      "path": "probe",
+      "original_sha256": "3660e61afd66bbc21d960f4273392b83be560b34ce173f22cc2cf5aa198686ba",
+      "relocated_sha256": "e5741112852b6d1830eac344176cb682a0d26b59d312cfa82c50c963ffaf0628"
+    },
+    {
+      "source": "/opt/homebrew/Cellar/cppunit/1.15.1/lib/libcppunit-1.15.1.dylib",
+      "path": "lib/libcppunit-1.15.1.dylib",
+      "original_sha256": "755c401231d5a2e35919fe2bcea0949ec44b96d3bc16cfa7d3a77d5a648cdd8d",
+      "relocated_sha256": "73829c737f69bd87a7e815ab281dd140ea122e20c45d61b9266259ef643b1937"
+    },
+    {
+      "source": "/Users/davidson/workspace/ardour-anticipation-spike/artifacts/native-probe-activity.dylib",
+      "path": "native-probe-activity.dylib",
+      "original_sha256": "60967b4a030d91a396003a69f0bb0c806006865db840faf2dd8c00adb658a89b",
+      "relocated_sha256": "2375a78c219a28cdddb122048128c2ad039826bc12f96b81be88e1d645af2cfb"
+    }
+  ],
+  "source_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "working_tree_status": [
+    " M tools/dev/ANTICIPATION-PROBE.md",
+    " M tools/dev/anticipation_native_capacity_probe.cc",
+    " M tools/dev/compare-native-capacity.py",
+    " M tools/dev/package-native-capacity.py",
+    " M tools/dev/run-native-portable.py",
+    "?? artifacts/",
+    "?? tools/dev/anticipation-evidence/coreaudio-startup-followup/",
+    "?? tools/dev/native-probe-activity.mm"
+  ],
+  "probe_sources": {
+    "anticipation_capacity_probe.cc": "c0637dcea67ec316e4857ce1e89ef4894952cadd45f90c12b1ae12061ee5a11c",
+    "anticipation_native_record_probe.cc": "b226c827f6823b3920453f24a0ac79c46996f5b80d608a1fcebdd03b5048c7e2",
+    "anticipation_record_probe.cc": "3c83958a66ed74a4d736345950797050e9aa47dd06638fbb495ae0b1cf18a56c",
+    "anticipation_seek_probe.cc": "75fa4afe8b2c04498d6aea780e2123d9e566c809804fb6d174e95dfdc51d767c",
+    "anticipation_engine_graph_probe.cc": "fab779463e578da739165b735134132d338817fbb8447e96451a6f869d56bfca",
+    "anticipation_midi_boundary_probe.cc": "1378a4b5348aa06a200ab415e0515e3032b1633d746ad06d2d32040eaea041f2",
+    "anticipation_probe.cc": "caae056f811b74ba0152ae3ca9c3682e369efeb44bb88d3e2b9c62978cf1c36f",
+    "anticipation_callback_probe.cc": "c9b3e722c2261f126b1447e2dde2dfaf08777e36c70236c08311dacad0d471d6",
+    "anticipation_engine_queue_probe.cc": "8a51fa952089a65fdf7ad514deb31a9ac0683737b9644d1a8c4bcaff82291195",
+    "anticipation_pdc_probe.cc": "d0b56a32d43c72c0a66e23d42fe79cf34f803f2531f547cf9757857cee3c2fdc",
+    "anticipation_queue_contract_probe.cc": "c19438b34d40de1b020b51e756980c048b6449f18987120e1e5c28541105bc3e",
+    "anticipation_graph_probe.cc": "af44ad61643168cb0e7f50dc64fb9c72babc27bf571de923b8837b571ce6376c",
+    "anticipation_plan_probe.cc": "af992cc1c825d40b80a2beeb94f0862caab2ef05a7781971f4bac2715a4c8afc",
+    "anticipation_native_midi_probe.cc": "5f75422ed7ec21dd7bbf13a88146882754c8043de447759f93fedd959568f9f5",
+    "anticipation_native_route_probe.cc": "81af507da7e298a14e7faee697c5faaeef03382941ef8375b363752283d7bfdf",
+    "anticipation_native_monitor_probe.cc": "36e5f69e98bbe015c053402fde68bb4d9fd893a1b4f5e0da1b200fc2ae0da740",
+    "anticipation_native_capacity_probe.cc": "bf3371d1f49c731faf98f90baf78480a167f67aec32b4a72b2cfc85b7c3381cd",
+    "anticipation_native_transport_probe.cc": "1794662e0d22a9507c0425bc35f52ffbe616b7263a6e6dc9e03886e0e92b216e",
+    "anticipation_eligibility_probe.cc": "103a8a5c7f3bacafc5aa563dbf9f3fbd0f37e565b9033fb6f5ead193f76c45e3",
+    "anticipation_loop_probe.cc": "377c74aa2df3ed53f132b0913992fba2381fdbca6f3c620a97701b55929b0010",
+    "native-probe-activity.mm": "00bc257664295443e328d9f47e7109fc193e4a08cd6d1eb2f2da51c9b79ac945",
+    "run-native-portable.py": "c7be29c72989a88739c9811d5fd6ccd9cbcd92c861d1b63f14b2b324d73c070d",
+    "package-native-capacity.py": "530624b9c405fe1ec16cedced58a1baeaacfe341d35c80b894dcec3b76810ab9"
+  }
+}

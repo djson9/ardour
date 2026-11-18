@@ -1,0 +1,4 @@
+/Users/davidson/.bashrc: line 3: atuin: command not found
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+NATIVE MIDI error=3.80711e-05 notes=4,4 immediate=1 handoffs=2 misses=1 faults=0
+FAIL native MIDI equivalence

@@ -1,0 +1,28 @@
+BEGIN runloop
+END runloop 0
+BEGIN device size
+END device size 0
+BEGIN devices
+END devices 0
+DEVICE 179 MacBook Pro Speakers
+BEGIN new
+END new 0
+BEGIN input off
+END input off 0
+BEGIN output on
+END output on 0
+BEGIN select device
+END select device 0
+BEGIN callback
+END callback 0
+BEGIN initialize
+END initialize 0
+BEGIN start
+END start 0
+BEGIN stop
+END stop 0
+BEGIN uninitialize
+END uninitialize 0
+BEGIN dispose
+END dispose 0
+RESULT callbacks=189

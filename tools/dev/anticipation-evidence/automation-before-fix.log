@@ -1,0 +1,13 @@
+: [WARNING]: No synth for midi-audition found.
+latcomp-Shared callback bus-0x104695200 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Shared callback bus | Shared callback bus | 
+latcomp-Reference callback bus-0x11b1ed400 | Return | Polarity | Amp | ACE Delay | ACE Delay | ACE Delay | ACE Delay | Amp | meter-Reference callback bus | Reference callback bus | 
+CALLBACK wall_seconds=3.48228 sample_rate=48000 buffer=64 backend=None (Dummy)
+CALLBACK block=64 processed=2048 taps=2048 misses=0 cutover=662 error=9.49912e-05 peak=0.424612 max_us=81.458
+ENGINE observed_max_us=43741 at_block=1808
+ENGINE steady_max_us=43741 at_block=1808
+PLAYLIST reads=1686 reference_reads=1686 monitor_blocks=362 monitor_peak=0.064395
+BUS INPUT ERROR 5.33862e-05
+MIDCHAIN TAP blocks=2048 misses=0 max_error_block=211 phases=9.49912e-05,2.20793e-06,1.49012e-08,0 delay_out=0,0 raw_send_error=2.21068e-05 automation_play=0
+: [WARNING]: Pool AudioEngine 1 has no trash collector; a memory leak has therefore occurred
+FAIL callback output failed
+

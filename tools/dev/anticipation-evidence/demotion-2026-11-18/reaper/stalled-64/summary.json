@@ -1,0 +1,27 @@
+{
+  "host": "7.81/macOS-arm64",
+  "fault": {
+    "start": 1794980816.493476,
+    "end": 1794980816.521968,
+    "position": 1.973333333,
+    "live_position": 1.972
+  },
+  "actual_stall_ms": 28.491973876953125,
+  "nominal_block_frames": [
+    64.0
+  ],
+  "max_gap_near_disarm_ms": [
+    28.664827346801758,
+    28.8541316986084
+  ],
+  "timeline_discontinuities": [
+    0,
+    0
+  ],
+  "state_discontinuities": [
+    0,
+    0
+  ],
+  "physical_audio_measured": false,
+  "restored_ahead_lead_ms": 200.00000000000017
+}

@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "backend": "Dummy",
+  "normal_session_callback": true,
+  "blocks": [
+    64
+  ],
+  "verified_bus_blocks": 2048,
+  "max_sample_error": 0,
+  "cache_underruns": 0,
+  "bridge_deadline_overruns": 0,
+  "bridge_max_us": 361.542,
+  "peak": 0.348644,
+  "hardware_latency_measured": false,
+  "source_commit": "2fedcea6e91664c3bae2e8b1dfb84494d4411884",
+  "linked_source_commit": "3fdf7bffdde09529ce193392d4ee55147e0e38c9",
+  "library_sha256": "37a6ca220855b3b519f74b1ffef8756c95301b54fba4f1b6395c95d6e253836a",
+  "user_config_unchanged": true
+}

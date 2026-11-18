@@ -91,6 +91,7 @@
 #include "ardour/profile.h"
 #include "ardour/revision.h"
 #include "ardour/route.h"
+#include "ardour/anticipative_process.h"
 #include "ardour/route_group.h"
 #include "ardour/scale.h"
 #include "ardour/send.h"
@@ -325,6 +326,7 @@ Route::init ()
 	/* now set up processor chain and invisible processors */
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		{
 			PBD::RWLock::WriterLock lm (_processor_lock);
 			_processors.push_back (_amp);
@@ -390,17 +392,20 @@ Route::ensure_track_or_route_name (string newname) const
 void
 Route::process_output_buffers (BufferSet& bufs,
 			       samplepos_t start_sample, samplepos_t end_sample, pframes_t nframes,
-			       bool gain_automation_ok, bool run_disk_reader)
+			       bool gain_automation_ok, bool run_disk_reader, bool owned_render, bool include_oob)
 {
 	/* Caller must hold process lock */
-	assert (!AudioEngine::instance()->process_lock().trylock());
+	assert (owned_render || !AudioEngine::instance()->process_lock().trylock());
 
 	PBD::RWLock::ReaderLock lm (_processor_lock, PBD::RWLock::TryLock);
 	if (!lm.locked()) {
+		if (owned_render) {
+			throw std::logic_error ("Anticipative route changed before its owner retired");
+		}
 		// can this actually happen?
 		// Places that need a WriterLock on (_processor_lock) must also take the process-lock.
 		bufs.silence (nframes, 0);
-		assert (0); // ...one way to find out.
+		assert (owned_render); // Normal callers hold the process lock.
 		return;
 	}
 
@@ -414,7 +419,7 @@ Route::process_output_buffers (BufferSet& bufs,
 		_pannable->automation_run (start_sample, nframes);
 	}
 
-	const int speed = (is_auditioner() ? 1 : _session.transport_speed (true));
+	const int speed = ((owned_render || is_auditioner()) ? 1 : _session.transport_speed (true));
 	assert (speed == -1 || speed == 0 || speed == 1);
 
 	const samplecnt_t output_latency = speed * _output_latency;
@@ -436,17 +441,31 @@ Route::process_output_buffers (BufferSet& bufs,
 
 	/* figure out if we're going to use gain automation */
 	if (gain_automation_ok) {
-		_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
-		_amp->setup_gain_automation (
+		bool suffix = false;
+		bool own_amp = true, own_trim = true;
+		if (owned_render && _disk_reader) {
+			own_amp = own_trim = false;
+			for (auto const& proc : _processors) {
+				if (proc == _disk_reader) { suffix = true; }
+				if (suffix && proc == _amp) { own_amp = true; }
+				if (suffix && proc == _trim) { own_trim = true; }
+			}
+		}
+		if (own_amp) {
+			_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
+			_amp->setup_gain_automation (
 				start_sample + _amp->output_latency () + output_latency,
 				end_sample + _amp->output_latency () + output_latency,
-				nframes);
+				nframes, owned_render);
+		}
 
-		_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
-		_trim->setup_gain_automation (
+		if (own_trim) {
+			_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
+			_trim->setup_gain_automation (
 				start_sample + _trim->output_latency () + output_latency,
 				end_sample + _trim->output_latency () + output_latency,
-				nframes);
+				nframes, owned_render);
+		}
 	}
 
 	/* We align the playhead to output. The user hears what the clock says:
@@ -531,11 +550,25 @@ Route::process_output_buffers (BufferSet& bufs,
 	   ----------------------------------------------------------------------------------------- */
 
 	samplecnt_t latency = 0;
+	bool suffix = !owned_render || !_disk_reader;
 
 	for (auto const & proc : _processors) {
+		if (proc == _disk_reader) { suffix = true; }
+		if (!suffix || (owned_render && proc == _disk_writer)) {
+			if (proc->active ()) { latency += proc->effective_latency (); }
+			continue;
+		}
 
 		if (_midi_freeze_processors.count (proc.get())) {
 			continue;
+		}
+		if (owned_render && proc == _meter) {
+			if (_render_observer) { _render_observer (_render_observer_context, proc.get (), bufs, nframes); }
+			continue;
+		}
+		if (owned_render) {
+			auto send = std::dynamic_pointer_cast<InternalSend> (proc);
+			if (send) { send->cycle_start (nframes); }
 		}
 
 		bool re_inject_oob_data = false;
@@ -596,9 +629,10 @@ Route::process_output_buffers (BufferSet& bufs,
 			proc->run (bufs, start_sample - latency, end_sample - latency, pspeed, nframes, proc != _processors.back());
 		}
 
+		if (owned_render && _render_observer) { _render_observer (_render_observer_context, proc.get (), bufs, nframes); }
 		bufs.set_count (proc->output_streams());
 
-		if (re_inject_oob_data) {
+		if (re_inject_oob_data && include_oob) {
 			write_out_of_band_data (bufs, nframes);
 		}
 
@@ -611,9 +645,106 @@ Route::process_output_buffers (BufferSet& bufs,
 }
 
 void
+Route::set_anticipative_processing_disabled (bool disabled)
+{
+	if (_anticipation_disabled.exchange (disabled) == disabled) { return; }
+	_session.set_dirty ();
+	if (!disabled && !has_anticipative_owner ()) { _session.request_anticipative_refresh (); }
+}
+
+std::string
+Route::anticipative_status () const
+{
+	uint32_t reason = _anticipation_reason.load ();
+	if (reason & AnticipativeProcess::Unbound) { return _("Direct processing"); }
+	if (reason & AnticipativeProcess::RenderFault) { return _("Anticipation render error"); }
+	if (reason & AnticipativeProcess::Forced) { return _("Realtime: track override"); }
+	if (reason & AnticipativeProcess::Recording) { return _("Realtime: record armed"); }
+	if (reason & AnticipativeProcess::Monitoring) { return _("Realtime: input monitoring"); }
+	if (reason & AnticipativeProcess::ImmediateMidi) { return _("Realtime: immediate MIDI"); }
+	if (reason & AnticipativeProcess::OutputRoute) { return _("Realtime: output route"); }
+	if (reason & AnticipativeProcess::RequiredLive) { return _("Realtime: external or interactive processor"); }
+	if (reason & (AnticipativeProcess::UpstreamLive | AnticipativeProcess::UnmanagedUpstream)) { return _("Realtime: live upstream input"); }
+	return _("Rendering ahead");
+}
+
+void
+Route::render_anticipative (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool live_input, bool run_disk_reader, bool include_oob, bool gain_automation)
+{
+	auto const* time = ProcessThread::render_time ();
+	samplepos_t continuous = time ? time->continuous_at (start) : start;
+	MonitorState monitoring = live_input ? monitoring_state () : (_disk_reader ? MonitoringDisk : MonitoringInput);
+	ProcessThread::RenderScope scope (start, continuous, this, monitoring);
+	gain_automation &= !live_input || !_disk_writer || !_disk_writer->record_enabled ();
+	process_output_buffers (buffers, start, end, nframes, gain_automation, run_disk_reader, true, include_oob);
+	if (_disk_reader) { _render_declick.store (_disk_reader->declick_in_progress (), std::memory_order_release); }
+}
+
+void
+Route::capture_anticipative_input (BufferSet& buffers, samplepos_t start, samplepos_t end, pframes_t nframes, bool include_oob)
+{
+	if (include_oob) {
+		snapshot_out_of_band_data (nframes);
+		write_out_of_band_data (buffers, nframes);
+	}
+	if (!_disk_writer) { return; }
+	/* This prefix always belongs to the audible callback, including any custom
+	 * processors before DiskWriter. The producer begins at DiskReader. */
+	PBD::RWLock::ReaderLock lock (_processor_lock, PBD::RWLock::TryLock);
+	if (!lock.locked ()) { buffers.silence (nframes, 0); return; }
+	samplecnt_t offset = _signal_latency + _output_latency;
+	samplecnt_t latency = 0;
+	for (auto const& proc : _processors) {
+		if (proc == _disk_reader) { break; }
+		if (_midi_freeze_processors.count (proc.get ())) { continue; }
+		if ((proc == _amp || proc == _trim) && !_disk_writer->record_enabled () && _session.transport_rolling ()) {
+			auto amp = std::static_pointer_cast<Amp> (proc);
+			amp->set_gain_automation_buffer (proc == _amp ? _session.gain_automation_buffer () : _session.trim_automation_buffer ());
+			amp->setup_gain_automation (start + amp->output_latency () + _output_latency,
+			                           end + amp->output_latency () + _output_latency, nframes);
+		}
+		if (proc->active ()) { latency += proc->effective_latency (); }
+		auto send = std::dynamic_pointer_cast<InternalSend> (proc);
+		if (send) { send->cycle_start (nframes); }
+		double speed = 1;
+		if (proc == _disk_writer && _session.remaining_latency_preroll () > nframes + offset &&
+		    end + offset - _disk_writer->input_latency () >= _session.transport_sample ()) { speed = 0; }
+		proc->run (buffers, start + offset - latency, end + offset - latency, speed, nframes, proc != _processors.back ());
+		if (_render_observer) { _render_observer (_render_observer_context, proc.get (), buffers, nframes); }
+		buffers.set_count (proc->output_streams ());
+	}
+}
+
+void
+Route::deliver_anticipative (BufferSet& buffers, pframes_t nframes)
+{
+	update_controls (buffers);
+	for (DataType::iterator type = DataType::begin (); type != DataType::end (); ++type) {
+		if (buffers.count ().get (*type)) { _output->copy_to_outputs (buffers, *type, nframes, 0); }
+	}
+	_output->flush_buffers (nframes);
+}
+
+void
 Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframes,
 		std::shared_ptr<Processor> endpoint,
 		bool include_endpoint, bool for_export, bool for_freeze)
+{
+	bounce_process_impl (buffers, start, nframes, endpoint, include_endpoint, for_export, for_freeze, false);
+}
+
+void
+Route::render_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframes,
+		std::shared_ptr<Processor> endpoint,
+		bool include_endpoint, bool for_export, bool for_freeze)
+{
+	bounce_process_impl (buffers, start, nframes, endpoint, include_endpoint, for_export, for_freeze, true);
+}
+
+void
+Route::bounce_process_impl (BufferSet& buffers, samplepos_t start, samplecnt_t nframes,
+		std::shared_ptr<Processor> endpoint,
+		bool include_endpoint, bool for_export, bool for_freeze, bool playback_timestamps)
 {
 	/* If no processing is required, there's no need to go any further. */
 	if (!endpoint && !include_endpoint) {
@@ -622,11 +753,11 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 
 	samplecnt_t latency = bounce_get_latency(_amp, false, for_export, for_freeze);
 	_amp->set_gain_automation_buffer (_session.gain_automation_buffer ());
-	_amp->setup_gain_automation (start - latency, start - latency + nframes, nframes);
+	_amp->setup_gain_automation (start - latency, start - latency + nframes, nframes, true);
 
 	/* trim is always at the top, for bounce no latency compensation is needed */
 	_trim->set_gain_automation_buffer (_session.trim_automation_buffer ());
-	_trim->setup_gain_automation (start, start + nframes, nframes);
+	_trim->setup_gain_automation (start, start + nframes, nframes, true);
 
 	latency = 0;
 	bool seen_disk_io = false;
@@ -669,9 +800,14 @@ Route::bounce_process (BufferSet& buffers, samplepos_t start, samplecnt_t nframe
 		 * Also don't bother with metering.
 		 */
 		if (!proc->does_routing() && !std::dynamic_pointer_cast<PeakMeter>(proc)) {
+			if (playback_timestamps && proc->active()) {
+				latency += proc->effective_latency ();
+			}
 			proc->run (buffers, start - latency, start - latency + nframes, 1.0, nframes, true);
 			buffers.set_count (proc->output_streams());
-			latency += proc->effective_latency ();
+			if (!playback_timestamps) {
+				latency += proc->effective_latency ();
+			}
 		}
 
 		if (proc == endpoint) {
@@ -779,6 +915,10 @@ Route::run_route (samplepos_t start_sample, samplepos_t end_sample, pframes_t nf
 
 	/* filter captured data before meter sees it */
 	filter_input (bufs);
+
+	if (_render_consumer && _render_consumer (_render_consumer_context, bufs, start_sample, end_sample, nframes, run_disk_reader)) {
+		return;
+	}
 
 	if (is_monitor()) {
 		/* control/monitor bus ignores input ports when something is
@@ -1091,6 +1231,7 @@ Route::add_processors (const ProcessorList& others, std::shared_ptr<Processor> b
 	if (_pending_process_reorder.load () || _pending_listen_change.load ()) {
 		/* we need to flush any pending re-order changes */
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		apply_processor_changes_rt ();
 	}
 
@@ -1180,6 +1321,7 @@ Route::add_processors (const ProcessorList& others, std::shared_ptr<Processor> b
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorState pstate (this);
 
@@ -1439,6 +1581,7 @@ Route::clear_processors (Placement p)
 	ProcessorList old_list = _processors;
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorList new_list;
 		ProcessorStreams err;
@@ -1552,6 +1695,7 @@ Route::remove_processor (std::shared_ptr<Processor> processor, ProcessorStreams*
 
 		/* Caller must hold process lock */
 		assert (!AudioEngine::instance()->process_lock().trylock());
+		_session.retire_anticipation_for_edit ();
 
 		PBD::RWLock::WriterLock lm (_processor_lock); // XXX deadlock after export
 
@@ -1656,6 +1800,7 @@ Route::replace_processor (std::shared_ptr<Processor> old, std::shared_ptr<Proces
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorState pstate (this);
 
@@ -1739,6 +1884,7 @@ Route::remove_processors (const ProcessorList& to_be_deleted, ProcessorStreams* 
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorState pstate (this);
 
@@ -1853,6 +1999,7 @@ Route::reset_instrument_info ()
 int
 Route::configure_processors (ProcessorStreams* err)
 {
+	_session.retire_anticipation_for_edit ();
 #ifndef PLATFORM_WINDOWS
 	assert (!AudioEngine::instance()->process_lock().trylock());
 #endif
@@ -2371,6 +2518,7 @@ Route::reorder_processors (const ProcessorList& new_order, ProcessorStreams* err
 	if (processors_reorder_needs_configure (new_order) || !AudioEngine::instance()->running()) {
 
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorState pstate (this);
 
@@ -2447,6 +2595,7 @@ Route::add_remove_sidechain (std::shared_ptr<Processor> proc, bool add)
 		}
 
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ()); // take before Writerlock to avoid deadlock
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 
 		list<pair<ChanCount, ChanCount> > c = try_configure_processors_unlocked (n_inputs (), 0);
@@ -2499,6 +2648,7 @@ Route::plugin_preset_output (std::shared_ptr<Processor> proc, ChanCount outs)
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 
 		const ChanCount& old (pi->preset_out ());
@@ -2548,6 +2698,7 @@ Route::customize_plugin_insert (std::shared_ptr<Processor> proc, uint32_t count,
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 
 		bool      old_cust  = pi->custom_cfg ();
@@ -2587,6 +2738,7 @@ bool
 Route::set_strict_io (const bool enable)
 {
 	PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+	_session.retire_anticipation_for_edit ();
 
 	if (_strict_io != enable) {
 		_strict_io = enable;
@@ -2671,6 +2823,7 @@ Route::state (bool save_template) const
 
 	node->set_property (X_("active"), _active);
 	node->set_property (X_("denormal-protection"), _denormal_protection);
+	node->set_property (X_("anticipation-disabled"), anticipative_processing_disabled ());
 	node->set_property (X_("meter-point"), _meter_point);
 	node->set_property (X_("disk-io-point"), _disk_io_point);
 
@@ -2902,6 +3055,9 @@ Route::set_state (const XMLNode& node, int version)
 	}
 
 	bool denormal_protection;
+	bool anticipation_disabled = false;
+	node.get_property (X_("anticipation-disabled"), anticipation_disabled);
+	_anticipation_disabled.store (anticipation_disabled);
 	if (node.get_property (X_("denormal-protection"), denormal_protection)) {
 		set_denormal_protection (denormal_protection);
 	}
@@ -3595,6 +3751,7 @@ Route::set_processor_state (const XMLNode& node, int version)
 	ProcessorList old_list = _processors; // keep a copy
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		/* re-assign _processors w/o process-lock.
 		 * if there's an IO-processor present in _processors but
@@ -3771,6 +3928,7 @@ void
 Route::silence_unlocked (pframes_t nframes)
 {
 	/* Must be called with the processor lock held */
+	if (_render_consumer) { _output->silence (nframes); return; }
 
 	const samplepos_t now = _session.transport_sample ();
 
@@ -4499,6 +4657,9 @@ __attribute__((annotate("realtime")))
 bool
 Route::apply_processor_changes_rt ()
 {
+	if ((_pending_meter_point != _meter_point || _pending_process_reorder.load () ||
+	     _pending_listen_change.load () || _pending_surround_send.load ()) &&
+	    !_session.anticipation_edit_ready ()) { return false; }
 	int emissions = EmitNone;
 
 	if (_pending_meter_point != _meter_point) {
@@ -4617,6 +4778,7 @@ Route::set_meter_point (MeterPoint p)
 		bool meter_visibly_changed = false;
 		{
 			PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+			_session.retire_anticipation_for_edit ();
 			PBD::RWLock::WriterLock lm (_processor_lock);
 			_pending_meter_point = p;
 			if (set_meter_point_unlocked ()) {
@@ -4746,6 +4908,7 @@ Route::listen_position_changed ()
 
 	{
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		PBD::RWLock::WriterLock lm (_processor_lock);
 		ProcessorState pstate (this);
 
@@ -4767,6 +4930,7 @@ Route::add_export_point()
 	assert (!_capturing_processor);
 
 	PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+	_session.retire_anticipation_for_edit ();
 	PBD::RWLock::WriterLock lw (_processor_lock);
 
 	/* Align all tracks for stem-export w/o processing.
@@ -5390,6 +5554,7 @@ Route::set_volume_applies_to_output (bool en)
 		{
 			/* remove hidden processor */
 			PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+			_session.retire_anticipation_for_edit ();
 			configure_processors (NULL);
 		}
 		processors_changed (RouteProcessorChange ()); /* EMIT SIGNAL */
@@ -6605,6 +6770,7 @@ Route::set_disk_io_point (DiskIOPoint diop)
 
 	if (changed) {
 		PBD::Mutex::Lock lx (AudioEngine::instance()->process_lock ());
+		_session.retire_anticipation_for_edit ();
 		configure_processors (0);
 	}
 
@@ -6636,6 +6802,8 @@ operator& (const MonitorState& a, const MonitorState& b) {
 MonitorState
 Route::monitoring_state () const
 {
+	auto const* render = ProcessThread::render_time ();
+	if (render && render->monitoring_route == this) { return render->monitoring_override; }
 	if (!_disk_reader || !_monitoring_control) {
 		return MonitoringInput;
 	}

@@ -77,12 +77,24 @@ using namespace Temporal;
 #define TFSM_EVENT(evtype) { _transport_fsm->enqueue (new TransportFSM::Event (evtype)); }
 #define TFSM_ROLL() { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::StartTransport)); }
 #define TFSM_STOP(abort,clear) { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::StopTransport,abort,clear)); }
+#include "ardour/anticipative_process.h"
+
 #define TFSM_LOCATE(target,ltd,loop,force) { _transport_fsm->enqueue (new TransportFSM::Event (TransportFSM::Locate,target,ltd,loop,force)); }
 #define TFSM_SPEED(speed) { _transport_fsm->enqueue (new TransportFSM::Event (speed)); }
 
 /* *****************************************************************************
  * REALTIME ACTIONS (to be called on state transitions)
  * ****************************************************************************/
+
+bool
+Session::transport_change_ready ()
+{
+	_anticipation_priming = false;
+	_anticipation_prepare_requested = false;
+	if (!_anticipative_process || !_anticipative_process->size ()) { return true; }
+	_anticipative_process->suspend ();
+	return _anticipative_process->quiescent ();
+}
 
 void
 Session::realtime_stop (bool abort, bool clear_state)
@@ -212,7 +224,11 @@ Session::locate (samplepos_t target_sample, bool for_loop_end, bool force, bool 
 
 	std::shared_ptr<RouteList const> r = routes.reader ();
 	for (auto const& i : *r) {
-		i->realtime_locate (for_loop_end);
+		/* A predictable loop belongs to the route's DSP owner. Its future
+		 * MidiTrack/DiskReader has already crossed this boundary. */
+		if (!for_loop_end || !_anticipative_process || !_anticipative_process->owns (i.get ())) {
+			i->realtime_locate (for_loop_end);
+		}
 	}
 
 	if (force || !for_loop_end) {
@@ -351,6 +367,15 @@ void
 Session::set_transport_speed (double speed)
 {
 	ENSURE_PROCESS_THREAD;
+	/* A speed change need not schedule a stop or locate in the ordinary FSM.
+	 * Its guard has cancelled the future owner, so explicitly reclaim that
+	 * generation before using a different resampled callback size. */
+	if (_anticipative_process->bound () && (!_anticipative_process->running () || speed != 1.0)) {
+		anticipation_edit_ready ();
+	}
+	if (_anticipation_enabled.load () && speed == 1.0 && _engine_speed != 1.0) {
+		request_anticipative_refresh ();
+	}
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("@ %1 Set transport speed to %2 from %3 (es = %4)\n", _transport_sample, speed, _transport_fsm->transport_speed(), _engine_speed));
 
 	if (synced_to_engine() && speed != 1.0) {
@@ -607,6 +632,16 @@ Session::start_transport (bool after_loop)
 		}
 	}
 
+	if (!after_loop && _anticipation_enabled.load () &&
+	    (!_anticipative_process || !_anticipative_process->size ()) &&
+	    _transport_fsm->transport_speed () == 1.0 && _engine_speed == 1.0 && !_count_in_samples && !_exporting && !transport_master_is_external ()) {
+		_anticipation_priming = true;
+		_anticipation_prepare_failed.store (false);
+		_anticipation_preparing.store (true);
+		/* A roll-after-locate can be nested inside Butler completion, which
+		 * clears the old work flags. Schedule new work at this cycle's end. */
+		_anticipation_prepare_requested = true;
+	}
 	DEBUG_TRACE (DEBUG::Transport, string_compose ("send TSC4 with speed = %1\n", transport_speed()));
 
 	if (!after_loop) {
@@ -697,6 +732,7 @@ Session::butler_completed_transport_work ()
 
 	if (ptw & PostTransportLocate) {
 		post_locate ();
+		_anticipation_edit_pending.store (false);
 		ptw = PostTransportWork (ptw & ~PostTransportLocate);
 		set_post_transport_work (ptw);
 		TFSM_EVENT (TransportFSM::LocateDone);
@@ -1194,6 +1230,21 @@ Session::butler_transport_work (bool have_process_lock)
 	int on_entry = _butler->should_do_transport_work.load();
 	bool finished = true;
 	PostTransportWork ptw = post_transport_work();
+	if (ptw & PostTransportRetireAnticipation) {
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		retire_anticipation_for_edit ();
+		_anticipation_retirement_scheduled = false;
+	}
+	if (_anticipative_process && _anticipative_process->size () &&
+	    (ptw & (PostTransportStop | PostTransportLocate | PostTransportReverse))) {
+		/* The callback cancels producers and waits for acknowledgement through
+		 * the FSM guard. Reclaim bindings here, before existing disk/plugin reset.
+		 * The backend only try-locks this mutex; it never joins a producer. */
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		_anticipative_process->clear ();
+	}
 #ifndef NDEBUG
 	uint64_t before = g_get_monotonic_time();
 #endif
@@ -1207,6 +1258,7 @@ Session::butler_transport_work (bool have_process_lock)
 		if (!have_process_lock) {
 			lx.acquire ();
 		}
+		retire_anticipation_for_edit ();
 		std::shared_ptr<IOTaskList> tl = io_tasklist ();
 		for (auto const& i : *r) {
 			std::shared_ptr<Track> tr = std::dynamic_pointer_cast<Track> (i);
@@ -1269,6 +1321,20 @@ Session::butler_transport_work (bool have_process_lock)
 
 	if (ptw & PostTransportAudition) {
 		non_realtime_set_audition ();
+	}
+
+	if (ptw & PostTransportPrepareAnticipation) {
+		PBD::Mutex::Lock lock (_engine.process_lock (), PBD::Mutex::NotLock);
+		if (!have_process_lock) { lock.acquire (); }
+		try {
+			if (_anticipation_priming && _anticipation_enabled.load () && !_exporting) {
+				anticipative_process ().prepare (_transport_sample, _anticipation_horizon.load (), ++_anticipation_generation);
+			}
+		} catch (std::exception const& e) {
+			error << string_compose (_("Cannot prepare anticipative processing: %1"), e.what ()) << endmsg;
+			_anticipation_prepare_failed.store (true);
+		}
+		_anticipation_preparing.store (false);
 	}
 
 	(void) PBD::atomic_dec_and_test (_butler->should_do_transport_work);
@@ -1903,6 +1969,10 @@ Session::request_roll_at_and_return (samplepos_t start, samplepos_t return_to)
 void
 Session::engine_halted ()
 {
+	/* The backend has stopped callbacks. Retire future owners before the normal
+	 * synchronous stop touches DiskReaders, instruments or loop buffers. */
+	if (_anticipative_process) { _anticipative_process->clear (); }
+	_anticipation_priming = false;
 	/* there will be no more calls to process(), so
 	   we'd better clean up for ourselves, right now.
 

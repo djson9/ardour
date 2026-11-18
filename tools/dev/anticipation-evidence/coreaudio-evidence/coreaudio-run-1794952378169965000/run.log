@@ -1,0 +1,12 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+DSP threads=9 graph_present=1
+Source processed on 
+Source processed on 
+Source processed on 
+Source processed on 
+Source processed on 
+Source processed on 
+Source processed on 
+Source processed on 
+ENGINE observed_max_us=403 backend_xruns=1
+RESULT {"passed":true,"mode":"anticipated","backend":"CoreAudio","block":64,"chains":8,"inserts_per_chain":32,"verified_blocks":2048,"cache_underruns":0,"bridge_overruns":0,"bridge_max_us":13.5,"engine_mean_us":86.244,"engine_max_us":403,"observed_engine_max_us":403,"backend_xruns":1,"period_us":1333.33,"wall_seconds":2.74323,"peak":0.161474,"capture":"/Users/davidson/workspace/artifacts/ardour-anticipation-spike/coreaudio-run-1794952378169965000/session/capacity-output.f32","hardware_deadlines_measured":true}

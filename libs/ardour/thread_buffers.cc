@@ -43,6 +43,21 @@ ThreadBuffers::ThreadBuffers ()
 {
 }
 
+ThreadBuffers::~ThreadBuffers ()
+{
+	delete silent_buffers;
+	delete scratch_buffers;
+	delete noinplace_buffers;
+	delete route_buffers;
+	delete mix_buffers;
+	delete[] gain_automation_buffer;
+	delete[] trim_automation_buffer;
+	delete[] send_gain_automation_buffer;
+	delete[] scratch_automation_buffer;
+	for (uint32_t i = 0; i < npan_buffers; ++i) { delete[] pan_automation_buffer[i]; }
+	delete[] pan_automation_buffer;
+}
+
 void
 ThreadBuffers::ensure_buffers (ChanCount howmany, size_t custom)
 {

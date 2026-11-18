@@ -42,6 +42,15 @@ public:
 	void add_send (InternalSend *);
 	void remove_send (InternalSend *);
 
+	/** Optional reader for rendered send data. Return true when this reader
+	 * owns the send, including an unavailable range (silence); false uses the
+	 * ordinary current send buffer. Called under the existing sends lock and
+	 * must not allocate, block, or mutate routing.
+	 */
+	typedef bool (*CachedInputReader) (void*, InternalSend const*, BufferSet&, samplepos_t, pframes_t);
+	/** Non-RT setup/removal. Keep context alive until removal returns. */
+	void set_cached_input_reader (CachedInputReader, void* context);
+
 	void set_playback_offset (samplecnt_t cnt);
 
 protected:
@@ -52,6 +61,8 @@ private:
 	std::list<InternalSend*> _sends;
 	/** mutex to protect _sends */
 	PBD::Mutex _sends_mutex;
+	CachedInputReader _cached_input_reader;
+	void* _cached_input_context;
 };
 
 } // namespace ARDOUR

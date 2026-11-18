@@ -1,0 +1,5 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+NATIVE TIMELINE preroll=384 source=47616,0,127 bus=47616,0,127
+NATIVE ROUTES error=0 first=524288 peak=0.0127608 handoffs=0 misses=0 faults=0,0
+RESULT {"passed":true,"original_registered_route_dsp":true,"cached_bus":true,"automatic_arm_handoffs":0,"block":128,"max_sample_error":0,"cache_underruns":0}
+

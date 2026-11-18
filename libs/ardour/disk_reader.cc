@@ -30,6 +30,7 @@
 #include "ardour/butler.h"
 #include "ardour/debug.h"
 #include "ardour/disk_reader.h"
+#include "ardour/process_thread.h"
 #include "ardour/midi_playlist.h"
 #include "ardour/midi_ring_buffer.h"
 #include "ardour/midi_track.h"
@@ -335,6 +336,7 @@ DiskReader::use_playlist (DataType dt, std::shared_ptr<Playlist> playlist)
 void
 DiskReader::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_sample, double speed, pframes_t nframes, bool result_required)
 {
+	if (_pending_tracker_reset.exchange (false)) { _tracker.reset (); }
 	uint32_t                           n;
 	std::shared_ptr<ChannelList const> c = channels.reader ();
 	ChannelList::const_iterator        chan;
@@ -388,7 +390,9 @@ DiskReader::run (BufferSet& bufs, samplepos_t start_sample, samplepos_t end_samp
 	}
 
 	BufferSet& scratch_bufs (_session.get_scratch_buffers (bufs.count ()));
-	const bool still_locating = _session.global_locate_pending ();
+	/* An owned render starts only after its generation's non-RT locate completed.
+	 * The audible FSM may still be completing that locate while we prefill. */
+	const bool still_locating = !ProcessThread::render_time () && _session.global_locate_pending ();
 
 	assert (speed == -1 || speed == 0 || speed == 1);
 
@@ -539,7 +543,8 @@ midi:
 	if (bufs.count ().n_midi ()) {
 		MidiBuffer& dst (bufs.get_midi (0));
 
-		if (run_must_resolve) {
+		const bool pending_resolve = _pending_tracker_resolve.exchange (false);
+		if (run_must_resolve || pending_resolve) {
 			resolve_tracker (dst, 0);
 			run_must_resolve = false;
 		}

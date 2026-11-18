@@ -1,0 +1,9 @@
+{
+  "source_commit": "2e57d0f82ceef21f97fad831b8296eb34496a520",
+  "production_diff_empty": true,
+  "full_gui_build_passed": true,
+  "native_matrix_passed": true,
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "build_log_sha256": "914809bbb11f6d9c5629490f79fd82ad89d61ea839b9d7f759a8959ccd5899e5",
+  "build_command": "PATH=/opt/homebrew/bin:/usr/bin:/bin python3 waf build -j4 --targets=libardour-tests,ardour-9.10.18,dummy_audiobackend,coreaudio_backend"
+}

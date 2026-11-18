@@ -1147,7 +1147,8 @@ MidiTrack::act_on_mute ()
 		/* Resolve active notes. */
 
 		if (!the_instrument()) {
-			_disk_reader->resolve_tracker (_immediate_events, 0);
+			if (has_anticipative_owner ()) { _disk_reader->request_tracker_resolve (); }
+			else { _disk_reader->resolve_tracker (_immediate_events, 0); }
 		}
 	}
 }
@@ -1168,7 +1169,8 @@ MidiTrack::monitoring_changed (bool self, Controllable::GroupControlDisposition 
 		}
 	}
 
-	_disk_reader->reset_tracker ();
+	if (has_anticipative_owner ()) { _disk_reader->request_tracker_reset (); }
+	else { _disk_reader->reset_tracker (); }
 }
 
 MonitorState

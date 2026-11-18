@@ -111,6 +111,8 @@ public:
 
 	LIBARDOUR_API void playlist_modified ();
 	LIBARDOUR_API void reset_tracker ();
+	void request_tracker_reset () { _pending_tracker_reset.store (true); }
+	void request_tracker_resolve () { _pending_tracker_resolve.store (true); }
 
 	LIBARDOUR_API bool declick_in_progress () const;
 
@@ -167,6 +169,9 @@ protected:
 	LIBARDOUR_API void playlist_ranges_moved (std::list<Temporal::RangeMove> const&, bool);
 
 	LIBARDOUR_API int add_channel_to (std::shared_ptr<ChannelList>, uint32_t how_many);
+
+	std::atomic<bool> _pending_tracker_reset {false};
+	std::atomic<bool> _pending_tracker_resolve {false};
 
 	class DeclickAmp
 	{

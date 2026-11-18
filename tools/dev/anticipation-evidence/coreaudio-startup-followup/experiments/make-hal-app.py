@@ -1,0 +1,4 @@
+import pathlib,plistlib,shutil,subprocess
+root=pathlib.Path(__file__).resolve().parent;app=root/'HAL Startup Test.app';mac=app/'Contents/MacOS';mac.mkdir(parents=True,exist_ok=True);shutil.copy2(root/'hal-startup',mac/'hal-startup')
+(app/'Contents/Info.plist').write_bytes(plistlib.dumps(dict(CFBundleExecutable='hal-startup',CFBundleIdentifier='dev.ardour.hal-startup-test',CFBundleName='HAL Startup Test',CFBundlePackageType='APPL',CFBundleVersion='1',LSUIElement=True,NSMicrophoneUsageDescription='Test initialization of the selected audio device. This probe does not record or save microphone audio.',NSAudioCaptureUsageDescription='Test initialization of the selected loopback audio device. This probe does not save captured system audio.')))
+subprocess.run(['codesign','--force','--sign','-',str(app)],check=True)

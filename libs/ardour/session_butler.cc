@@ -98,6 +98,9 @@ Session::overwrite_some_buffers (std::shared_ptr<Route> r, OverwriteReason why)
 	if (actively_recording()) {
 		return;
 	}
+	/* A full generation reset also rereads the edited playlist. Do not rewrite
+	 * a DiskReader ring while its future DSP owner is consuming that ring. */
+	if (!anticipation_edit_ready ()) { return; }
 
 
 	if (r) {

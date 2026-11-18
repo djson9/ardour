@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/davidson/workspace/ardour-anticipation-spike/tools/dev/run-anticipation-probe.py", line 73, in <module>
+    if not status.exists():raise RuntimeError('GUI probe timeout; see run.log')
+RuntimeError: GUI probe timeout; see run.log

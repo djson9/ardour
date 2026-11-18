@@ -39,12 +39,25 @@ public:
 
 	int set_state(const XMLNode&, int version);
 
+	/** Optional rendered input. Fill sidechain channels beginning at offset,
+	 * preserving preceding channels; silence unavailable data. Do not block or
+	 * allocate. Install/remove only while this processor's owner is suspended,
+	 * and keep context alive until removal. Null restores ordinary port input.
+	 */
+	typedef void (*CachedInputReader) (void*, BufferSet&, ChanCount const& offset, samplepos_t, pframes_t);
+	void set_cached_input_reader (CachedInputReader reader, void* context) {
+		_cached_input_reader = reader;
+		_cached_input_context = context;
+	}
+
 protected:
 	XMLNode& state () const;
 
 private:
 	/* disallow copy construction */
 	SideChain (const SideChain&);
+	CachedInputReader _cached_input_reader;
+	void* _cached_input_context;
 };
 
 } // namespace ARDOUR

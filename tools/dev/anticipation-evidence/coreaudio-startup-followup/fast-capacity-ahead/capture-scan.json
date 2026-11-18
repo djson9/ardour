@@ -1,0 +1,14 @@
+{
+  "capture_sha256": "f838b1fac1b0def103422861ec5dffd2956822c6bec84b1dfdf985aa0320fd63",
+  "frames": 32768,
+  "finite": true,
+  "seconds_or_final_partial_second": 1,
+  "minimum_one_second_rms": 0.025714346975023953,
+  "maximum_one_second_rms": 0.025714346975023953,
+  "minimum_sample": -0.037420447915792465,
+  "maximum_sample": 0.07629350572824478,
+  "unexpected_silent_seconds": 0,
+  "performed_after_timed_run": true,
+  "physical_delivery_verified": false,
+  "within_unity": true
+}

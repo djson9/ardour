@@ -134,6 +134,7 @@ namespace ARDOUR {
 class Amp;
 class AsyncMIDIPort;
 class AudioEngine;
+class AnticipativeProcess;
 class AudioFileSource;
 class AudioRegion;
 class AudioSource;
@@ -337,6 +338,19 @@ public:
 	std::shared_ptr<RouteList const> get_routes() const {
 		return routes.reader ();
 	}
+
+	/** Control thread, consumer quiescent: obtain the session-owned render plan.
+	 * Register route adapters before starting it; clear it before route mutation. */
+	AnticipativeProcess& anticipative_process ();
+	bool transport_change_ready () override;
+	/** Control thread: opt in to native plan preparation at transport start.
+	 * Experimental engine API; UI enablement awaits structural-edit barriers. */
+	void set_anticipative_processing (bool, uint32_t milliseconds = 200);
+	void request_anticipative_refresh () { _anticipation_settings_dirty.store (true); }
+	/** Non-RT, process lock held, before taking a route/IO mutation lock. */
+	void retire_anticipation_for_edit ();
+	/** RT, process lock held. False defers a pending structural mutation. */
+	bool anticipation_edit_ready ();
 
 	std::shared_ptr<RTTaskList> rt_tasklist () { return _rt_tasklist; }
 	std::shared_ptr<IOTaskList> io_tasklist () { return _io_tasklist; }
@@ -1296,7 +1310,9 @@ public:
 		PostTransportClearSubstate      = 0x80,
 		PostTransportAdjustPlaybackBuffering  = 0x100,
 		PostTransportAdjustCaptureBuffering   = 0x200,
-		PostTransportLoopChanged        = 0x400
+		PostTransportLoopChanged        = 0x400,
+		PostTransportPrepareAnticipation = 0x800,
+		PostTransportRetireAnticipation = 0x1000
 	};
 
 	std::shared_ptr<SessionPlaylists> playlists () const { return _playlists; }
@@ -2387,6 +2403,18 @@ private:
 	 * and solo/mute computations.
 	 */
 	GraphEdges _current_route_graph;
+	std::unique_ptr<AnticipativeProcess> _anticipative_process;
+	std::atomic<bool> _anticipation_enabled {false};
+	std::atomic<uint32_t> _anticipation_horizon {200};
+	std::atomic<bool> _anticipation_preparing {false};
+	std::atomic<bool> _anticipation_prepare_failed {false};
+	std::atomic<bool> _anticipation_edit_pending {false};
+	std::atomic<bool> _anticipation_external_edit {false};
+	std::atomic<bool> _anticipation_settings_dirty {false};
+	bool _anticipation_retirement_scheduled {false}; // process lock held
+	bool _anticipation_priming {false}; // process callback only
+	bool _anticipation_prepare_requested {false}; // process callback only
+	uint64_t _anticipation_generation {0}; // Butler only, under process lock
 
 	friend class IOPlug;
 	std::shared_ptr<Graph>      _process_graph;
@@ -2451,7 +2479,7 @@ private:
 
 	CoreSelection* _selection;
 
-	bool _global_locate_pending;
+	std::atomic<bool> _global_locate_pending;
 	std::optional<samplepos_t> _nominal_jack_transport_sample;
 
 	bool _had_destructive_tracks;

@@ -122,6 +122,11 @@ TransportFSM::process_events ()
 		DirectionState ods = _direction_state;
 
 		Event* ev = &queued_events.front();
+		if ((ev->type == StopTransport || ev->type == SetSpeed ||
+		     (ev->type == Locate && (!ev->for_loop_end || ev->force))) &&
+		    !api->transport_change_ready ()) {
+			return;
+		}
 		bool deferred;
 
 		/* must remove from the queued_events list now, because

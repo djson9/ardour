@@ -1,0 +1,3 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+MAX_CALLBACK first_observed_frame=116480 us=34141
+RESULT {"passed":true,"native_registered_routes":true,"mode":"anticipated","backend":"None (Dummy)","block":64,"chains":8,"inserts_per_chain":64,"verified_blocks":10000,"cache_underruns":0,"engine_mean_us":145.329,"observed_engine_max_us":34141,"playback_xruns":5,"capture":"/Users/davidson/workspace/ardour-anticipation-spike/artifacts/anticipation-native-capacity-probe/run-j1mbbgc2/session/native-capacity.f32","duration_seconds":13.3333}
