@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <sys/stat.h>
 #include "ardour/sndfileimportable.h"
 #include "ardour/mp3fileimportable.h"
 #include "ardour/ffmpegfileimportable.h"
+#include "ardour/ffmpegfilesource.h"
 #ifdef __APPLE__
 #include "ardour/caimportable.h"
 #endif
@@ -20,7 +22,8 @@ static std::shared_ptr<ARDOUR::ImportableSource> open (std::string const& path)
  try { return std::make_shared<ARDOUR::CAImportableSource> (path); } catch (...) {}
 #endif
  try { return std::make_shared<ARDOUR::Mp3FileImportableSource> (path); } catch (...) {}
- return std::make_shared<ARDOUR::FFMPEGFileImportableSource> (path);
+ if (ARDOUR::FFMPEGFileSource::safe_audio_file_extension (path)) return std::make_shared<ARDOUR::FFMPEGFileImportableSource> (path);
+ throw std::runtime_error ("Unsupported audio file");
 }
 
 std::shared_ptr<Analysis> analyze (std::string const& path, std::function<bool ()> const& cancelled)
@@ -29,6 +32,8 @@ std::shared_ptr<Analysis> analyze (std::string const& path, std::function<bool (
  result->path = path;
  try {
   if (cancelled ()) return nullptr;
+  struct stat info;
+  if (stat (path.c_str (), &info) || !S_ISREG (info.st_mode) || info.st_size == 0) throw std::runtime_error ("No readable audio file");
   auto source = open (path);
   auto channels = source->channels ();
   auto length = source->length ();
