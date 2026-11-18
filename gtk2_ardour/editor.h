@@ -235,6 +235,7 @@ public:
 
 	void edit_region_in_dedicated_window ();
 	void maybe_edit_region_in_bottom_pane (RegionView&);
+	void edit_track_clip_at_selection (TimeAxisView&) override;
 
 	void play_selection ();
 	void maybe_locate_with_edit_preroll (samplepos_t);

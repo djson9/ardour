@@ -40,6 +40,7 @@ namespace ARDOUR {
 class GenericPluginUI;
 class AudioRackUI;
 class ProcessorBox;
+class GainMeter;
 
 class RoutePropertiesBox : public Gtk::HBox, public ARDOUR::SessionHandlePtr
 {
@@ -52,6 +53,9 @@ public:
 	bool focus_processors ();
 
 private:
+	void on_map () override;
+	void on_unmap () override;
+	void update_focus_highlight (Gtk::Widget*);
 	void property_changed (const PBD::PropertyChange& what_changed);
 	void map_frozen ();
 	void ui_actions_ready ();
@@ -75,6 +79,9 @@ private:
 	bool _has_devices = false;
 	std::vector <GenericPluginUI*> _proc_uis;
 	std::vector<AudioRackUI*> _rack_uis;
+	GainMeter* _fader_ui = nullptr;
+	sigc::connection _fader_update;
+	sigc::connection _focus_connection;
 
 	ArdourWidgets::Frame _insert_frame;
 	ProcessorBox*        _insert_box;

@@ -21,7 +21,8 @@ for key, value in cache.items():
         includes.extend(map(Path, value))
 output = Path(sys.argv[1]).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
-result = subprocess.run(['/usr/bin/clang++', *cache['CXXFLAGS'], '-dynamiclib', '-undefined', 'dynamic_lookup',
+native = ['-x', 'objective-c++', '-framework', 'Cocoa'] if sys.platform == 'darwin' else []
+result = subprocess.run(['/usr/bin/clang++', *cache['CXXFLAGS'], *native, '-dynamiclib', '-undefined', 'dynamic_lookup',
                          *['-I' + str(p) for p in includes if p.is_dir()], str(root / 'tools/dev/selected-device-ui-probe.cc'), '-o', str(output)])
 if result.returncode:
     raise SystemExit(result.returncode)

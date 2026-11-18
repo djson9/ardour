@@ -2436,9 +2436,14 @@ ProcessorBox::build_possible_remove_listener_menu ()
 void
 ProcessorBox::show_processor_menu (int arg)
 {
+	_current_processor_box = this;
 	if (processor_menu == 0) {
 		processor_menu = build_processor_menu ();
 		processor_menu->signal_unmap().connect (sigc::mem_fun (*this, &ProcessorBox::processor_menu_unmapped));
+	}
+	if (auto* item = static_cast<Gtk::CheckMenuItem*> (g_object_get_data (G_OBJECT (processor_menu->gobj ()), "fader-last-item"))) {
+		item->set_active (_route->fader_last ());
+		item->set_sensitive (!_session->actively_recording ());
 	}
 
 	/* Sort out the plugin submenu */
@@ -2561,7 +2566,8 @@ ProcessorBox::show_processor_menu (int arg)
 
 	/* Sensitise actions as approprioate */
 
-	const bool sensitive = !processor_display.selection().empty() && ! stub_processor_selected () && !channelstrip_selected() && !surrsend_selected ();
+	const bool fader_only = single_selection && single_selection->processor () == _route->amp ();
+	const bool sensitive = !fader_only && !processor_display.selection().empty() && ! stub_processor_selected () && !channelstrip_selected() && !surrsend_selected ();
 
 	paste_action->set_sensitive (!_p_selection.processors.empty());
 	cut_action->set_sensitive (sensitive && can_cut ());
@@ -2620,6 +2626,14 @@ ProcessorBox::show_processor_menu (int arg)
 	_placement = processor_display.add_placeholder (y);
 }
 
+void
+ProcessorBox::set_focus_highlight (bool focused)
+{
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") return;
+	_focus_highlight = focused;
+	for (auto entry : processor_display.children ()) entry->set_selection_focus (focused);
+}
+
 bool
 ProcessorBox::focus_processors ()
 {
@@ -2654,7 +2668,7 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	std::vector<ProcessorEntry*> devices;
 	for (auto* entry : processor_display.children ()) {
 		auto p = entry->processor ();
-		if (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p)) devices.push_back (entry);
+		if (p == _route->amp () || std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p)) devices.push_back (entry);
 	}
 	if (devices.empty ()) return true;
 	auto selection = processor_display.selection ();
@@ -2897,6 +2911,21 @@ ProcessorBox::build_processor_menu ()
 {
 	processor_menu = dynamic_cast<Gtk::Menu*>(ActionManager::get_widget("/ProcessorMenu") );
 	processor_menu->set_name ("ArdourContextMenu");
+	if (!g_object_get_data (G_OBJECT (processor_menu->gobj ()), "fader-last-item")) {
+		auto* item = Gtk::manage (new Gtk::CheckMenuItem (_("Always put fader last")));
+		g_object_set_data (G_OBJECT (processor_menu->gobj ()), "fader-last-item", item);
+		processor_menu->prepend (*item);
+		item->signal_toggled ().connect ([item] () {
+			auto* box = _current_processor_box;
+			if (!box || !box->_route || box->_route->fader_last () == item->get_active ()) return;
+			if (!box->_route->set_fader_last (item->get_active ())) {
+				item->set_active (box->_route->fader_last ());
+				MessageDialog dialog (_("Cannot change fader placement while recording or with this processor configuration."));
+				dialog.run ();
+			}
+		});
+		item->show ();
+	}
 	if (!g_object_get_data (G_OBJECT (processor_menu->gobj ()), "audio-rack-item")) {
 		g_object_set_data (G_OBJECT (processor_menu->gobj ()), "audio-rack-item", GINT_TO_POINTER (1));
 		processor_menu->items ().push_front (Menu_Helpers::MenuElem (_("New Audio Rack"), [] () {
@@ -3205,7 +3234,7 @@ ProcessorBox::redisplay_processors ()
 				selected = entry;
 				break;
 			}
-			if (!selected && (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p))) selected = entry;
+			if (!selected && (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p) || p == _route->amp ())) selected = entry;
 		}
 		processor_display.select (selected);
 	}
@@ -3322,17 +3351,20 @@ ProcessorBox::add_processor_to_display (std::weak_ptr<Processor> p)
 	std::shared_ptr<UnknownProcessor> stub = std::dynamic_pointer_cast<UnknownProcessor> (processor);
 	std::shared_ptr<SurroundSend> sursend = std::dynamic_pointer_cast<SurroundSend> (processor);
 
-	//faders and meters are not deletable, copy/paste-able, so they shouldn't be selectable
+	/* The Live fader is selectable for navigation/control, with removal still
+	 * protected by Route. Other built-in processors remain non-selectable. */
+	bool live_fader = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && processor == _route->amp ();
 
 #ifdef HAVE_BEATBOX
-	if (!send && !plugin_insert && !audio_rack && !ext && !stub && !bb && !sursend) {
+	if (!send && !plugin_insert && !audio_rack && !live_fader && !ext && !stub && !bb && !sursend) {
 #else
-	if (!send && !plugin_insert && !audio_rack && !ext && !stub && !sursend) {
+	if (!send && !plugin_insert && !audio_rack && !live_fader && !ext && !stub && !sursend) {
 #endif
 		e->set_selectable(false);
 	}
 
 	/* Set up this entry's state from the GUIObjectState */
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !TrackFocusRequested.empty ()) e->set_selection_focus (_focus_highlight);
 	XMLNode* proc = entry_gui_object_state (e); // may be NULL
 	e->set_control_state (proc); /* apply InlineControl */
 	update_gui_object_state (e); /* save updated state (InlineControl) */

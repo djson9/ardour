@@ -735,8 +735,17 @@ ArdourButton::render (Cairo::RefPtr<Cairo::Context> const& ctx, cairo_rectangle_
 
 	//some buttons (like processor boxes) can be selected  (so they can be deleted).  Draw a selection indicator
 	if (visual_state() & Gtkmm2ext::Selected) {
-		cairo_set_line_width(cr, 1*scale);
-		cairo_set_source_rgba (cr, 1, 0, 0, 0.8);
+		if (_selection_focus_tracking) {
+			rounded_function (cr, padding_left, padding_top, get_width() - (padding_left + padding_right), get_height() - (padding_top + padding_bottom), corner_radius);
+			if (_selection_focused) cairo_set_source_rgba (cr, 1, 1, 1, .18);
+			else cairo_set_source_rgba (cr, 0, 0, 0, .42);
+			cairo_fill (cr);
+			cairo_set_line_width (cr, (_selection_focused ? 2.5 : 1) * scale);
+			cairo_set_source_rgba (cr, .82, .95, 1, _selection_focused ? 1 : .25);
+		} else {
+			cairo_set_line_width(cr, 1*scale);
+			cairo_set_source_rgba (cr, 1, 0, 0, 0.8);
+		}
 		rounded_function (cr, padding_left - 0.5, padding_top - 0.5, get_width() - (padding_left + padding_right) + 1, get_height() - (padding_top + padding_bottom) + 1, corner_radius);
 		cairo_stroke (cr);
 	}
@@ -1411,6 +1420,15 @@ ArdourButton::set_active_state (Gtkmm2ext::ActiveState s)
 		_update_colors = true;
 		CairoWidget::set_dirty ();
 	}
+}
+
+void
+ArdourButton::set_selection_focus (bool focused)
+{
+	if (_selection_focus_tracking && _selection_focused == focused) return;
+	_selection_focus_tracking = true;
+	_selection_focused = focused;
+	CairoWidget::set_dirty ();
 }
 
 void
