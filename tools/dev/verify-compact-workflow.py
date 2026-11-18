@@ -140,10 +140,13 @@ elif a.case == 'search':
 
 elif a.case == 'loop':
     call('transport_stop')
+    wait(lambda: not call('session_get_info')['transport']['rolling'])
+    call('transport_loop_toggle', enabled=False)
     call('ui_activate_action', action='EditorEditing/set-mouse-mode-object')
     call('ui_activate_action', action='EditorEditing/snap-normal')
     call('ui_activate_action', action='Editor/zoom-to-session')
     pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=-1000, deltaX=-1000)
+    time.sleep(.1)  # Zoom/layout changes apply on the next GTK redraw.
     state = instant().attrib
     zoom, left = int(state['zoom']), int(state['left-frame'])
     info = call('session_get_info')
@@ -219,6 +222,44 @@ elif a.case == 'loop':
         call('transport_stop')
         wait(lambda: not call('session_get_info')['transport']['rolling'])
     checks += ['audio transport actually wraps', 'Stop/Play retains loop mode']
+    def cross_boundary(enabled, start_playback=True):
+        lo, hi = bounds()
+        if start_playback: call('transport_play')
+        wait(lambda: call('session_get_info')['transport']['rolling'])
+        call('transport_locate_sample', sample=hi - info['sampleRate'] // 5)
+        wait(lambda: hi - info['sampleRate'] // 2 < call('session_get_info')['transport']['sample'] < hi)
+        if enabled:
+            wait(lambda: lo <= call('session_get_info')['transport']['sample'] < lo + bar)
+        else:
+            wait(lambda: call('session_get_info')['transport']['sample'] > hi + 1024)
+        wait(lambda: call('session_get_info')['transport']['rolling'])
+    # Same highlighted range toggles off/on while playback continues.
+    drag(x(3.12), y, x(8.14), y)
+    call('transport_play')
+    wait(lambda: call('session_get_info')['transport']['rolling'])
+    key('Primary-l'); time.sleep(.1)
+    wait(lambda: call('session_get_info')['transport']['rolling'])
+    expect(3, 8); cross_boundary(False, start_playback=False)
+    key('Primary-l'); time.sleep(.1)
+    wait(lambda: call('session_get_info')['transport']['rolling'])
+    expect(3, 8); cross_boundary(True, start_playback=False)
+    call('transport_stop')
+    wait(lambda: not call('session_get_info')['transport']['rolling'])
+    # No selected clips or range toggles the existing loop without moving it.
+    call('ui_activate_action', action='Common/deselect-all')
+    wait(lambda: len(list(instant().find('Selection'))) == 0)
+    key('Primary-l'); time.sleep(.1)
+    assert not call('session_get_info')['transport']['rolling']
+    expect(3, 8); cross_boundary(False)
+    call('transport_stop')
+    wait(lambda: not call('session_get_info')['transport']['rolling'])
+    key('Primary-l'); time.sleep(.1)
+    assert not call('session_get_info')['transport']['rolling']
+    expect(3, 8); cross_boundary(True)
+    call('transport_stop')
+    wait(lambda: not call('session_get_info')['transport']['rolling'])
+    checks += ['same selection toggles off/on without stopping playback', 'no selection toggles off/on without starting playback', 'disabled loop plays past end', 'toggle preserves loop bounds']
+
 
 elif a.case == 'curves':
     name = 'UI Curve Fixture'

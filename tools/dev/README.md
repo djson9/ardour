@@ -461,7 +461,10 @@ tracks without switching tools. Selection grips still trim the range, and a plai
 click still locates at the grid. A coalesced first pointer movement retains the
 original press as its anchor. Cmd+L loops either a time selection or selected clips;
 it enables Ardour's persistent loop mode without starting a stopped transport.
-Stop/Play retains looping. The middle of the joined bracket moves both endpoints;
+Stop/Play retains looping. Cmd+L toggles the existing loop off/on when the selected
+range matches it, or when nothing is selected. A different selection sets and enables
+a new loop. Toggling preserves transport playback and the saved loop bounds.
+The middle of the joined bracket moves both endpoints;
 each end grip resizes only that end. These use native marker snapping, cancellation,
 and undo. The bracket follows zoom and saved loop locations, including when stopped.
 Bars and the loop ruler default on, with a one-time migration for older compact
@@ -480,6 +483,8 @@ reverse selection, Cmd+L with no regions selected, ruler defaults, body/end drag
 undo/redo, Escape, zoom, click-to-locate, and unchanged regions. It also runs across
 the loop boundary twice with a Stop/Play between: checking the visible bracket alone
 misses Ardour's temporary-loop versus persistent-loop distinction. All checks share
-a 9-second deadline; the verified run took 2.08 seconds. Saved bounds were also
+a 9-second deadline; the toggle-expanded run took 4.17 seconds. The toggle checks
+verify matching and empty selections both off and on, preservation of bounds and
+playback, and actual passage beyond the disabled loop end. Saved bounds were also
 checked after an application restart. Theme resources must be copied by normal
 packaging (the incremental Mach-O delta does not include `.colors` files).

@@ -976,7 +976,7 @@ Session::process_event (SessionEvent* ev)
 	if ((changes_loop || overwrites_reader) && !anticipation_edit_ready ()) {
 		/* Keep the original event, including its overwrite reason. In particular
 		 * a loop edit must still reset the disk reader's loop crossfades. */
-		if (changes_loop && ev->yes_or_no && transport_rolling ()) { ev->third_yes_or_no = true; }
+		if (changes_loop && (ev->yes_or_no || !ev->second_yes_or_no) && transport_rolling ()) { ev->third_yes_or_no = true; }
 		immediate_events.push_back (ev);
 		_remove_event (ev);
 		return;
@@ -987,9 +987,9 @@ Session::process_event (SessionEvent* ev)
 		/* this is the event sent by a UI to define whether or not we
 		   use loop range playback or not.
 		*/
-		set_play_loop (ev->yes_or_no, true);
+		set_play_loop (ev->yes_or_no, ev->second_yes_or_no);
 		/* Retirement may temporarily put the FSM in its stopped/locating
-		 * state. Preserve a playing user's loop-enable request across that gap. */
+		 * state. Preserve playback across loop enable and non-stopping disable. */
 		if (ev->third_yes_or_no) { TFSM_ROLL (); }
 		break;
 

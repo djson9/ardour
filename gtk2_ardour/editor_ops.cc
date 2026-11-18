@@ -6934,21 +6934,32 @@ Editor::select_prev_stripable (bool routes_only)
 void
 Editor::set_loop_from_selection (bool play)
 {
-	if (_session == 0) {
+	if (!_session) {
 		return;
 	}
 
 	timepos_t start, end;
+	const bool selected = get_selection_extents (start, end);
+	const bool compact = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+	Location* loop = transport_loop_location ();
 
-	if (!get_selection_extents (start, end)) {
+	if (play && compact && loop &&
+	    (!selected || (start.samples () == loop->start_sample () && end.samples () == loop->end_sample ()))) {
+		/* Same range (or no range): toggle without moving the saved bracket
+		 * or changing whether transport is playing. A different range enables it. */
+		Config->set_loop_is_mode (true);
+		_session->request_play_loop (!_session->get_play_loop (), false);
 		return;
 	}
 
-	set_loop_range (start, end,  _("set loop range from selection"));
+	if (!selected) {
+		return;
+	}
+
+	set_loop_range (start, end, _("set loop range from selection"));
 
 	if (play) {
 		/* Loop-as-mode keeps Stop/Play independent of enabling the loop. */
-		const bool compact = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
 		if (compact) Config->set_loop_is_mode (true);
 		_session->request_play_loop (true, !compact);
 	}
