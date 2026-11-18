@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "log": "hal-startup-blackhole.log",
+      "device": "BlackHole 2ch",
+      "exit_code": 142,
+      "passed": false,
+      "last_step": "BEGIN select device",
+      "log_sha256": "99c61426e0ee05f0328dcb9631d74723b416ac84b42d2fe92c02bf9b33fc8e80"
+    },
+    {
+      "log": "hal-startup-speakers.log",
+      "device": "MacBook Pro Speakers",
+      "exit_code": 0,
+      "passed": true,
+      "last_step": "RESULT callbacks=189",
+      "log_sha256": "537cc5b527f1c56abd4316382c349a70db7bb04c622b6b7db1d8ac7262546119"
+    },
+    {
+      "log": "hal-startup-scarlett.log",
+      "device": "Scarlett 2i2 USB",
+      "exit_code": 142,
+      "passed": false,
+      "last_step": "BEGIN select device",
+      "log_sha256": "a57ba39e5153daeb89ff3f87bd13fda7f2983629733573ea9a6f138d82a77cf8"
+    },
+    {
+      "log": "../experiments/hal-runloop-blackhole.log",
+      "device": "BlackHole 2ch with AppKit run loop",
+      "exit_code": 142,
+      "passed": false,
+      "last_step": "BEGIN select device",
+      "log_sha256": "99c61426e0ee05f0328dcb9631d74723b416ac84b42d2fe92c02bf9b33fc8e80"
+    },
+    {
+      "log": "../experiments/hal-cycle-blackhole.log",
+      "device": "BlackHole 2ch with restored sample-rate cycle",
+      "exit_code": 142,
+      "passed": false,
+      "last_step": "BEGIN select device",
+      "log_sha256": "bf685338dc9af08c4668f70bc79b4bc4d35258786f0a69167a5f5ad3ace46917"
+    }
+  ],
+  "timeout_seconds": 15,
+  "ardour_linked": false,
+  "records_input": false
+}

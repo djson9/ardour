@@ -1,0 +1,14 @@
+{
+  "case": "midi-64",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "native_midi_track": true,
+    "held_notes": 4,
+    "immediate_events_delivered_once": 1,
+    "max_sample_error": 0,
+    "cache_underruns": 0
+  },
+  "probe_sha256": "d4d71b32f0c4c86ff2245ce4a92908dfedbd7ade761812dd75ba16608c92d66d"
+}

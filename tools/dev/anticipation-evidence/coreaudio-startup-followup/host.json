@@ -1,0 +1,16 @@
+{
+  "hw.model": "MacBookPro18,3",
+  "hw.physicalcpu": "10",
+  "hw.logicalcpu": "10",
+  "hw.memsize": "17179869184",
+  "hw.perflevel0.physicalcpu": "8",
+  "hw.perflevel1.physicalcpu": "2",
+  "macOS": "15.6",
+  "architecture": "arm64",
+  "sample_rate": 48000,
+  "output_device": "MacBook Pro Speakers",
+  "input": "synthetic native test processor",
+  "physical_roundtrip_measured": false,
+  "initial_production_revision": "8c4e2c58f0",
+  "followup_production_candidate": "2e57d0f82c: two channel-count getters read their owned metadata directly"
+}

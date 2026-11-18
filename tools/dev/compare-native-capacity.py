@@ -2,11 +2,22 @@
 """Require exact, finite output from paired native ahead/direct capacity runs."""
 import array,hashlib,json,math,pathlib,sys
 assert len(sys.argv)==3,'Supply ahead and direct result.json paths'
-results=[json.loads(pathlib.Path(p).read_text()) for p in sys.argv[1:]]
+documents=[json.loads(pathlib.Path(p).read_text()) for p in sys.argv[1:]]
+portable=['probe_result' in d for d in documents]
+assert portable[0]==portable[1], 'Compare runs from the same runner'
+if portable[0]:
+ assert all(d.get('runtime_hashes_verified') and d.get('exit_status')==0 for d in documents)
+ results=[dict(d['probe_result'],source_commit=d['source_commit'],runtime_manifest_sha256=d['runtime_manifest_sha256']) for d in documents]
+ identity='runtime_manifest_sha256'
+else:
+ results=documents
+ identity='library_sha256'
 assert [r['mode'] for r in results]==['anticipated','direct']
 assert all(r.get('passed') and r.get('native_registered_routes') for r in results)
-for key in ('source_commit','library_sha256','block','chains','inserts_per_chain','verified_blocks'):
+for key in ('source_commit',identity,'block','chains','inserts_per_chain','verified_blocks'):
  assert results[0][key]==results[1][key],key
+for key in ('effect_preset','rt_dsp_threads'):
+ if key in results[0] or key in results[1]:assert results[0].get(key)==results[1].get(key),key
 raw=[pathlib.Path(r['capture']).read_bytes() for r in results]
 values=[]
 for data in raw:

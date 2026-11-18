@@ -9,7 +9,7 @@ static void wait_for(std::function<bool()> ready){auto end=Clock::now()+std::chr
 static void buffers(BufferSet& b){b.ensure_buffers(DataType::AUDIO,2,64);b.ensure_buffers(DataType::MIDI,1,8192);ChanCount c(DataType::AUDIO,2);c.set(DataType::MIDI,1);b.set_count(c);}
 
 int main(int argc,char** argv){try{
- need(argc==2,"path");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();auto ui=std::make_unique<TestUI>();
+ need(argc==2,"path");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","QueueContracts","");
  need(bool(backend)&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(64)==0&&engine->start()==0,"engine");
  auto* s=new FixtureSession(*engine,argv[1],"queue-contracts",nullptr,"",true);engine->set_session(nullptr);
@@ -29,6 +29,10 @@ int main(int argc,char** argv){try{
   q.start({0,0,64},11);wait_for([&]{return q.primed();});
   samplepos_t t=0;unsigned events=0;
   for(unsigned cycle=0;cycle<700;++cycle){
+   // This is a range/ownership oracle, not a wall-clock throughput test.
+   // Wait in the harness for publication or drain acknowledgement; the separate
+   // held-producer case below tests that process() itself never waits.
+   wait_for([&]{auto state=q.state();return state==Queue::State::Live||state==Queue::State::Drained||(state==Queue::State::Ahead&&q.queued_blocks()>=2);});
    auto p=t%157;auto n=pframes_t(std::min<samplepos_t>({31,157-p,64}));
    auto result=q.process(out,{p,t,n},cycle>=100&&cycle<350,11);
    need(result==Queue::Result::Cached||result==Queue::Result::Live,"loop range consumption");
@@ -36,7 +40,6 @@ int main(int argc,char** argv){try{
    unsigned seen=0;for(auto it=out.get_midi(0).begin();it!=out.get_midi(0).end();++it){auto e=*it;if(!(e.time()>=0&&e.time()<n&&(t+e.time())%17==0))std::cerr<<"MIDI BAD cycle="<<cycle<<" t="<<t<<" n="<<n<<" event="<<e.time()<<" state="<<int(q.state())<<std::endl;need(e.time()>=0&&e.time()<n&&(t+e.time())%17==0,"MIDI offset");++seen;}
    unsigned expected=0;for(unsigned i=0;i<n;++i)if((t+i)%17==0)++expected;need(seen==expected,"missing/duplicate MIDI");events+=seen;t+=n;
    need(!ProcessThread::render_time(),"render scope leaked");
-   std::this_thread::sleep_for(std::chrono::microseconds(150));
   }
   q.stop();need(races==0&&q.underruns()==0&&q.live_handoffs()==1&&events>100,"loop/handoff");checks+=4;
   // Generation mismatch is an explicit fault; start after stop is reusable.

@@ -1,0 +1,205 @@
+{
+  "passed": true,
+  "elapsed_seconds": 8.320048000197858,
+  "execution_deadline_seconds": 9,
+  "under_ten_seconds": true,
+  "user_config_unchanged": true,
+  "hardware_deadlines_proven": false,
+  "source_commit": "2e57d0f82ceef21f97fad831b8296eb34496a520",
+  "library_sha256": "a843fc5d0d2db78f746ed1b8796aceca3702b79e0f9e72b1cb8c5c1272c408b6",
+  "cases": [
+    {
+      "case": "queue-contracts",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "contract_checks": 14,
+        "audio_midi_partial_loop": true,
+        "exclusive_handoff": true,
+        "generation_reuse": true,
+        "nonblocking_stalled_producer": true,
+        "joined_before_mutation": true
+      },
+      "probe_sha256": "8b49240f96b6c43489ccb98f8a687a37f8240a1262fc34a5ec61d39b740b087f"
+    },
+    {
+      "case": "plan-eligibility",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "session_owned_engine_plan": true,
+        "eligibility_cases": 6,
+        "existing_graph_reused": true,
+        "actual_record_and_monitor_controls": true,
+        "sidechain_graph_revision_checked": true,
+        "hardware_latency_measured": false
+      },
+      "probe_sha256": "48493a6431ec476d96db79fb06323488473caceffc37b22535af00627401e89b"
+    },
+    {
+      "case": "full-routing-64",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 2,
+        "block": 64,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+    },
+    {
+      "case": "gain-automation-64",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 0,
+        "block": 64,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+    },
+    {
+      "case": "monitor-64",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "block": 64,
+        "max_sample_error": 0,
+        "compared_samples": 32896,
+        "monitor_live_handoffs": 1,
+        "cache_underruns": 0,
+        "same_cycle_as_direct_monitor": true,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "163c2ad1eb900793c0681abb6013709b912d210313e78d25b53e24fd14568261"
+    },
+    {
+      "case": "midi-64",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_midi_track": true,
+        "held_notes": 4,
+        "immediate_events_delivered_once": 1,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "d4d71b32f0c4c86ff2245ce4a92908dfedbd7ade761812dd75ba16608c92d66d"
+    },
+    {
+      "case": "recording-64",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_disk_writer": true,
+        "live_capture_with_anticipated_playback": true,
+        "recorded_sample_error": 0,
+        "recorded_channels": 2,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "0bd447680efe722eb486b8a21b103128dd13de7c7cdfa79a3adf7c75f1bb0ec8"
+    },
+    {
+      "case": "full-routing-128",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 2,
+        "block": 128,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+    },
+    {
+      "case": "gain-automation-128",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_registered_route_dsp": true,
+        "cached_bus": true,
+        "automatic_arm_handoffs": 0,
+        "block": 128,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+    },
+    {
+      "case": "monitor-128",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "block": 128,
+        "max_sample_error": 0,
+        "compared_samples": 65536,
+        "monitor_live_handoffs": 1,
+        "cache_underruns": 0,
+        "same_cycle_as_direct_monitor": true,
+        "physical_roundtrip_measured": false
+      },
+      "probe_sha256": "163c2ad1eb900793c0681abb6013709b912d210313e78d25b53e24fd14568261"
+    },
+    {
+      "case": "midi-128",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_midi_track": true,
+        "held_notes": 4,
+        "immediate_events_delivered_once": 1,
+        "max_sample_error": 0,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "d4d71b32f0c4c86ff2245ce4a92908dfedbd7ade761812dd75ba16608c92d66d"
+    },
+    {
+      "case": "recording-128",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "original_disk_writer": true,
+        "live_capture_with_anticipated_playback": true,
+        "recorded_sample_error": 0,
+        "recorded_channels": 2,
+        "cache_underruns": 0
+      },
+      "probe_sha256": "0bd447680efe722eb486b8a21b103128dd13de7c7cdfa79a3adf7c75f1bb0ec8"
+    },
+    {
+      "case": "transport-controls-edits",
+      "exit_code": 0,
+      "passed": true,
+      "result": {
+        "passed": true,
+        "native_transport_retirements": 2,
+        "automatic_edit_rebuilds": 6,
+        "fault_stop_and_restart": true,
+        "stalled_worker_callback_progress": true,
+        "concurrent_dsp_resets": 0,
+        "stopped_processing_restored": true
+      },
+      "probe_sha256": "bc765ead7d52613eaec913035451ba4f9f62a752e10989fb0466cea7c8607613"
+    }
+  ]
+}

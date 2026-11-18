@@ -1,0 +1,26 @@
+{
+  "exit_status": -15,
+  "user_config_unchanged": true,
+  "runtime_hashes_verified": true,
+  "source_commit": "188c37370e62904dfd1b4fe5be80d7e20ee474d7",
+  "runtime_manifest_sha256": "53b9bdfa3609c9b99a825d69d0a88fc40bdb21dfa413bf63c53e912d9314757d",
+  "elapsed_seconds": 66.90411620796658,
+  "settings": {
+    "ARDOUR_PROBE_CONSOLE": "1",
+    "ARDOUR_PROBE_OUTPUT_DEVICE": "BlackHole 2ch",
+    "ARDOUR_PROBE_BLOCKS": "1000",
+    "ARDOUR_PROBE_HOME": "/Users/davidson/workspace/artifacts/native-coreaudio-ahead-1794970634869074000/private-home",
+    "DYLD_INSERT_LIBRARIES": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/private-home.dylib",
+    "ARDOUR_DLL_PATH": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/lib",
+    "ARDOUR_CONFIG_PATH": "/Users/davidson/workspace/artifacts/native-coreaudio-ahead-1794970634869074000/empty",
+    "ARDOUR_DATA_PATH": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/share",
+    "ARDOUR_BACKEND_PATH": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/backends",
+    "ARDOUR_PANNER_PATH": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/panners",
+    "ARDOUR_SURFACES_PATH": "/Users/davidson/workspace/artifacts/native-coreaudio-ahead-1794970634869074000/empty",
+    "VAMP_PATH": "/Users/davidson/workspace/artifacts/native-coreaudio-ahead-1794970634869074000/empty",
+    "LV2_PATH": "/Users/davidson/workspace/artifacts/native-capacity-portable-v3/LV2",
+    "ARDOUR_PROBE_BACKEND": "CoreAudio",
+    "ARDOUR_PROBE_BLOCK": "64"
+  },
+  "physical_loopback_latency_measured": false
+}

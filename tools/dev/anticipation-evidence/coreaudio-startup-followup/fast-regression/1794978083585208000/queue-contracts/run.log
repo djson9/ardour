@@ -1,0 +1,3 @@
+/Users/davidson/.bashrc: line 3: atuin: command not found
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+RESULT {"passed":true,"contract_checks":14,"audio_midi_partial_loop":true,"exclusive_handoff":true,"generation_reuse":true,"nonblocking_stalled_producer":true,"joined_before_mutation":true}

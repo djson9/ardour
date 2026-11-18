@@ -1,0 +1,143 @@
+Analysis of sampling probe (pid 59424) every 1 millisecond
+Process:         probe [59424]
+Path:            /Users/USER/*/probe
+Load Address:    0x1009d4000
+Identifier:      probe
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [59423]
+Target Type:     live task
+
+Date/Time:       2026-11-17 22:51:20.941 -0500
+Launch Time:     2026-11-17 22:51:11.722 -0500
+OS Version:      macOS 15.6 (24G84)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         3.3G
+Physical footprint (peak):  3.3G
+Idle exit:                  untracked
+----
+
+Sort by top of stack, same collapsed (when >= 5):
+        sem_wait  (in libsystem_kernel.dylib)        8009
+        run  (in a-delay.dylib)        6801
+        ARDOUR::Plugin::input_streams() const  (in libardour.dylib)        6085
+        __psynch_cvwait  (in libsystem_kernel.dylib)        3768
+        __semwait_signal  (in libsystem_kernel.dylib)        3647
+        ARDOUR::Plugin::output_streams() const  (in libardour.dylib)        2338
+        poll  (in libsystem_kernel.dylib)        1413
+        semaphore_wait_trap  (in libsystem_kernel.dylib)        1413
+        ARDOUR::ChanMapping::set(ARDOUR::DataType, unsigned int, unsigned int)  (in libardour.dylib)        1140
+        ARDOUR::LV2Plugin::connect_and_run(ARDOUR::BufferSet&, long long, long long, double, ARDOUR::ChanMapping const&, ARDOUR::ChanMapping const&, unsigned int, long long)  (in libardour.dylib)        996
+        mach_msg2_trap  (in libsystem_kernel.dylib)        961
+        __udivmodti4  (in libcompiler_rt.dylib)        945
+        __cxxabiv1::__vmi_class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib)        738
+        std::__tree<std::__value_type<unsigned int, unsigned int>, std::__map_value_compare<unsigned int, std::__value_type<unsigned int, unsigned int>, true>, PBD::StackAllocator<std::__value_type<unsigned int, unsigned int>, 16ul>>::destroy(std::__tree_node<std::__value_type<unsigned int, unsigned int>, void*>*)  (in libardour.dylib)        555
+        __divti3  (in libcompiler_rt.dylib)        530
+        Temporal::TempoPoint::quarters_at_superclock(long long) const  (in libtemporal.dylib)        477
+        __select  (in libsystem_kernel.dylib)        471
+        ARDOUR::AudioBuffer::silence(long long, long long)  (in libardour.dylib)        434
+        ARDOUR::PluginInsert::automate_and_run(ARDOUR::BufferSet&, long long, long long, double, unsigned int)  (in libardour.dylib)        422
+        semaphore_wait_signal_trap  (in libsystem_kernel.dylib)        399
+        Temporal::Meter::bbt_add(Temporal::BBT_Time const&, Temporal::BBT_Offset const&) const  (in libtemporal.dylib)        357
+        _platform_memmove  (in libsystem_platform.dylib)        308
+        Temporal::TempoMetric::bbt_at(Temporal::timepos_t const&) const  (in libtemporal.dylib)        272
+        ARDOUR::LV2Plugin::run(unsigned int, bool)  (in libardour.dylib)        251
+        Temporal::TempoPoint::superclock_at(Temporal::Beats const&) const  (in libtemporal.dylib)        248
+        mach_absolute_time  (in libsystem_kernel.dylib)        244
+        Temporal::timepos_t::timepos_t(long long)  (in libtemporal.dylib)        237
+        std::type_info::operator==[abi:ne190102](std::type_info const&) const  (in libc++abi.dylib)        224
+        ARDOUR::PluginInsert::signal_latency() const  (in libardour.dylib)        170
+        malloc_type_malloc  (in libsystem_malloc.dylib)        154
+        ARDOUR::PluginInsert::connect_and_run(ARDOUR::BufferSet&, long long, long long, double, unsigned int, long long, bool)  (in libardour.dylib)        149
+        std::__tree_balance_after_insert[abi:ne190102]<std::__tree_node_base<void*>*>(std::__tree_node_base<void*>*, std::__tree_node_base<void*>*)  (in libardour.dylib)        145
+        Temporal::TempoMap::get_grid(std::vector<Temporal::TempoMapPoint>&, long long, long long, unsigned int, unsigned int) const  (in libtemporal.dylib)        121
+        ARDOUR::Automatable::find_next_event(Temporal::timepos_t const&, Temporal::timepos_t const&, Evoral::ControlEvent&, bool) const  (in libardour.dylib)        119
+        __cxxabiv1::__vmi_class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib)        106
+        DYLD-STUB$$Temporal::Meter::bbt_add(Temporal::BBT_Time const&, Temporal::BBT_Offset const&) const  (in libtemporal.dylib)        101
+        __cxxabiv1::(anonymous namespace)::dyn_cast_to_derived(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long, long, bool)  (in libc++abi.dylib)        100
+        __cxxabiv1::__class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib)        94
+        ARDOUR::BufferSet::silence(long long, long long)  (in libardour.dylib)        92
+        ARDOUR::LV2Plugin::parameter_is_control(unsigned int) const  (in libardour.dylib)        86
+        ARDOUR::Pannerbalance::distribute_one(ARDOUR::AudioBuffer&, ARDOUR::BufferSet&, float, unsigned int, unsigned int)  (in libpanbalance.dylib)        79
+        __dynamic_cast  (in libc++abi.dylib)        77
+        ARDOUR::AudioBuffer::read_from(ARDOUR::Buffer const&, long long, long long, long long)  (in libardour.dylib)        66
+        std::__tree<std::__value_type<ARDOUR::DataType, std::map<unsigned int, unsigned int, PBD::StackAllocator<std::pair<unsigned int const, unsigned int>, 16ul>>>, std::__map_value_compare<ARDOUR::DataType, std::__value_type<ARDOUR::DataType, std::map<unsigned int, unsigned int, PBD::StackAllocator<std::pair<unsigned int const, unsigned int>, 16ul>>>, true>, PBD::StackAllocator<std::__value_type<ARDOUR::DataType, std::map<unsigned int, unsigned int, PBD::StackAllocator<std::pair<unsigned int const, unsigned int>, 16ul>>>, 2ul>>::destroy(std::__tree_node<std::__value_type<ARDOUR::DataType, std::map<unsigned int, unsigned int, PBD::StackAllocator<std::pair<unsigned int const, unsigned int>, 16ul>>>, void*>*)  (in libardour.dylib)        65
+        free_small  (in libsystem_malloc.dylib)        64
+        ARDOUR::ChanMapping::ChanMapping(ARDOUR::ChanMapping const&)  (in libardour.dylib)        62
+        ARDOUR::lv2_evbuf_reset(ARDOUR::LV2_Evbuf*, bool)  (in libardour.dylib)        61
+        ARDOUR::Route::process_output_buffers(ARDOUR::BufferSet&, long long, long long, unsigned int, bool, bool, bool, bool)  (in libardour.dylib)        52
+        g_private_get  (in libglib-2.0.0.dylib)        50
+        ARDOUR::Plugin::connect_and_run(ARDOUR::BufferSet&, long long, long long, double, ARDOUR::ChanMapping const&, ARDOUR::ChanMapping const&, unsigned int, long long)  (in libardour.dylib)        47
+        NativeInput::run(ARDOUR::BufferSet&, long long, long long, double, unsigned int, bool)  (in probe)        43
+        __cxxabiv1::__si_class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib)        43
+        ARDOUR::Automatable::automation_run(long long, unsigned int, bool)  (in libardour.dylib)        41
+        connect_port  (in a-delay.dylib)        41
+        sin  (in libsystem_m.dylib)        41
+        clock_gettime  (in libsystem_c.dylib)        39
+        ARDOUR::AutomationControl::automation_playback() const  (in libardour.dylib)        37
+        rack_get_thread_index  (in libsystem_malloc.dylib)        37
+        ARDOUR::BufferSet::get_available(ARDOUR::DataType, unsigned long)  (in libardour.dylib)        36
+        DYLD-STUB$$__divti3  (in libtemporal.dylib)        36
+        ARDOUR::ChanMapping::get(ARDOUR::DataType, unsigned int, bool*) const  (in libardour.dylib)        34
+        __cxxabiv1::(anonymous namespace)::dyn_cast_get_derived_info(__cxxabiv1::(anonymous namespace)::derived_object_info*, void const*)  (in libc++abi.dylib)        34
+        __cxxabiv1::__base_class_type_info::search_above_dst(__cxxabiv1::__dynamic_cast_info*, void const*, void const*, int, bool) const  (in libc++abi.dylib)        33
+        std::__tree<std::__value_type<unsigned int, ARDOUR::ChanMapping>, std::__map_value_compare<unsigned int, std::__value_type<unsigned int, ARDOUR::ChanMapping>, true>, PBD::StackAllocator<std::__value_type<unsigned int, ARDOUR::ChanMapping>, 4ul>>::__emplace_hint_unique_key_args<unsigned int, std::pair<unsigned int const, ARDOUR::ChanMapping> const&>(std::__tree_const_iterator<std::__value_type<unsigned int, ARDOUR::ChanMapping>, std::__tree_node<std::__value_type<unsigned int, ARDOUR::ChanMapping>, void*>*, long>, unsigned int const&, std::pair<unsigned int const, ARDOUR::ChanMapping> const&)  (in libardour.dylib)        33
+        __ulock_wait2  (in libsystem_kernel.dylib)        28
+        lilv_plugin_load_if_necessary  (in liblilv-0.0.dylib)        28
+        std::__function::__func<ARDOUR::AnticipativeProcess::prepare(long long, unsigned int, unsigned long long)::$_0, ARDOUR::AnticipationQueue::Range (ARDOUR::AnticipationQueue::Range const&)>::operator()(ARDOUR::AnticipationQueue::Range const&)  (in libardour.dylib)        27
+        ARDOUR::PluginInsert::run(ARDOUR::BufferSet&, long long, long long, double, unsigned int, bool)  (in libardour.dylib)        26
+        __cxxabiv1::__class_type_info::search_below_dst(__cxxabiv1::__dynamic_cast_info*, void const*, int, bool) const  (in libc++abi.dylib)        26
+        ARDOUR::Buffer::clear()  (in libardour.dylib)        24
+        ARDOUR::SlavableAutomationControl::automation_run(long long, unsigned int)  (in libardour.dylib)        22
+        std::__tree<std::__value_type<unsigned int, ARDOUR::ChanMapping>, std::__map_value_compare<unsigned int, std::__value_type<unsigned int, ARDOUR::ChanMapping>, true>, PBD::StackAllocator<std::__value_type<unsigned int, ARDOUR::ChanMapping>, 4ul>>::destroy(std::__tree_node<std::__value_type<unsigned int, ARDOUR::ChanMapping>, void*>*)  (in libardour.dylib)        22
+        pthread_getspecific  (in libsystem_pthread.dylib)        21
+        ___chkstk_darwin  (in libsystem_pthread.dylib)        20
+        ARDOUR::Amp::run(ARDOUR::BufferSet&, long long, long long, double, unsigned int, bool)  (in libardour.dylib)        19
+        ARDOUR::ProcessThread::get_scratch_buffers(ARDOUR::ChanCount, bool)  (in libardour.dylib)        19
+        Temporal::TempoMap::get_tempo_and_meter(Temporal::TempoPoint const*&, Temporal::MeterPoint const*&, long long, bool, bool) const  (in libtemporal.dylib)        19
+        DYLD-STUB$$pthread_getspecific  (in libglib-2.0.0.dylib)        18
+        ARDOUR::Processor::signal_latency() const  (in libardour.dylib)        17
+        std::mutex::lock()  (in libc++.1.dylib)        16
+        ???  (in libvDSP.dylib)  load address 0x19d859000 + 0x5a870  [0x19d8b3870]        14
+        DYLD-STUB$$ARDOUR::ProcessThread::get_scratch_buffers(ARDOUR::ChanCount, bool)  (in libardour.dylib)        14
+        ARDOUR::BufferSet::read_from(ARDOUR::BufferSet const&, long long)  (in libardour.dylib)        13
+        Temporal::TempoMap::metric_at(Temporal::timepos_t const&) const  (in libtemporal.dylib)        13
+        _platform_memset  (in libsystem_platform.dylib)        12
+        _szone_free  (in libsystem_malloc.dylib)        12
+        DYLD-STUB$$__divti3  (in libardour.dylib)        11
+        __cxxabiv1::(anonymous namespace)::dyn_cast_try_downcast(void const*, void const*, __cxxabiv1::__class_type_info const*, __cxxabiv1::__class_type_info const*, long, bool)  (in libc++abi.dylib)        11
+        std::__shared_mutex_base::lock_shared()  (in libc++.1.dylib)        11
+        ARDOUR::DelayLine::run(ARDOUR::BufferSet&, long long, long long, double, unsigned int, bool)  (in libardour.dylib)        10
+        <deduplicated_symbol>  (in probe)        9
+        ARDOUR::ChanMapping::offset_to(ARDOUR::DataType, int)  (in libardour.dylib)        9
+        DYLD-STUB$$lilv_plugin_get_num_ports  (in libardour.dylib)        9
+        _tlv_get_addr  (in libdyld.dylib)        9
+        DYLD-STUB$$ARDOUR::ChanMapping::ChanMapping(ARDOUR::ChanMapping const&)  (in libardour.dylib)        8
+        DYLD-STUB$$ARDOUR::LV2Plugin::run(unsigned int, bool)  (in libardour.dylib)        8
+        Temporal::MeterPoint::quarters_at(Temporal::BBT_Time const&) const  (in libtemporal.dylib)        8
+        _mach_boottime_usec  (in libsystem_c.dylib)        8
+        szone_malloc_should_clear  (in libsystem_malloc.dylib)        8
+        ???  (in libsystem_m.dylib)  load address 0x19e818000 + 0x1114  [0x19e819114]        7
+        ARDOUR::AnticipativeProcess::RouteAdapter::observe(void*, ARDOUR::Processor const*, ARDOUR::BufferSet const&, unsigned int)  (in libardour.dylib)        7
+        ARDOUR::BufferSet::get_available(ARDOUR::DataType, unsigned long) const  (in libardour.dylib)        7
+        ARDOUR::Route::muted_by_others_soloing() const  (in libardour.dylib)        7
+        DYLD-STUB$$ARDOUR::BufferSet::get_available(ARDOUR::DataType, unsigned long)  (in libardour.dylib)        7
+        exp  (in libsystem_m.dylib)        7
+        ARDOUR::Send::signal_latency() const  (in libardour.dylib)        6
+        DYLD-STUB$$ARDOUR::ChanMapping::get(ARDOUR::DataType, unsigned int, bool*) const  (in libardour.dylib)        6
+        __commpage_gettimeofday_internal  (in libsystem_kernel.dylib)        6
+        ARDOUR::LV2Plugin::parameter_is_input(unsigned int) const  (in libardour.dylib)        5
+        ARDOUR::PluginInsert::find_next_event(Temporal::timepos_t const&, Temporal::timepos_t const&, Evoral::ControlEvent&, bool) const  (in libardour.dylib)        5
+        ARDOUR::ProcessThread::get_silent_buffers(ARDOUR::ChanCount)  (in libardour.dylib)        5
+        DYLD-STUB$$ARDOUR::ChanMapping::set(ARDOUR::DataType, unsigned int, unsigned int)  (in libardour.dylib)        5
+        DYLD-STUB$$Temporal::TempoMetric::bbt_at(Temporal::timepos_t const&) const  (in libardour.dylib)        5
+        DYLD-STUB$$Temporal::TempoPoint::quarters_at_superclock(long long) const  (in libtemporal.dylib)        5
+        PBD::RWLock::ReaderLock::~ReaderLock()  (in libpbd.dylib)        5
+        Temporal::TempoMap::fill_grid_with_final_metric(std::vector<Temporal::TempoMapPoint>&, Temporal::TempoMetric, long long, long long, long long, int, int, Temporal::Beats, Temporal::BBT_Time) const  (in libtemporal.dylib)        5
+        Temporal::TempoMap::get_grid(Temporal::GridIterator&, std::vector<Temporal::TempoMapPoint>&, long long, long long, unsigned int, unsigned int) const  (in libtemporal.dylib)        5
+        pthread_mutex_unlock  (in libsystem_pthread.dylib)        5
+        sem_post  (in libsystem_kernel.dylib)        5
+

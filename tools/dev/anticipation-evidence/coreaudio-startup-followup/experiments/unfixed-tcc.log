@@ -1,0 +1,28 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-17 21:57:15.239 Df tccd[446:377c879] [com.apple.TCC:access] FORWARD: to=com.apple.tccd/501, request: {
+	require_purpose=<xpc_null>
+	service="kTCCServiceMicrophone"
+	function="TCCAccessRequest"
+	preflight=true
+	target_token={pid:20149, auid:501, euid:501}
+	TCCD_MSG_ID="466.3081"
+	background_session=false
+}
+2026-11-17 21:57:15.240 Df tccd[719:377c560] [com.apple.TCC:access] AUTHREQ_ATTRIBUTION: msgID=466.3081, attribution={responsible={TCCDProcess: identifier=com.googlecode.iterm2, pid=20149, auid=501, euid=501, responsible_path=/Applications/iTerm.app/Contents/MacOS/iTerm2, binary_path=/Users/davidson/workspace/artifacts/native-capacity-portable-v3/probe}, accessing={TCCDProcess: identifier=probe-55554944573b322b9d77399abd493c21da9625f6, pid=20149, auid=501, euid=501, binary_path=/Users/davidson/workspace/artifacts/native-capacity-portable-v3/probe}, requesting={TCCDProcess: identifier=com.apple.tccd, pid=446, auid=0, euid=0, binary_path=/System/Library/PrivateFrameworks/TCC.framework/Support/tccd}, },
+2026-11-17 21:57:15.257 E  tccd[446:377c879] [com.apple.TCC:access] Request message contains a target_token to accessing_process (TCCDProcess: identifier=probe-55554944573b322b9d77399abd493c21da9625f6, pid=20149, auid=501, euid=501, binary_path=/Users/davidson/workspace/artifacts/native-capacity-portable-v3/probe) but TCCDProcess: identifier=com.apple.audio.coreaudiod, pid=466, auid=202, euid=202, binary_path=/usr/sbin/coreaudiod is not a TCC manager for service: kTCCServiceScreenCapture.
+2026-11-17 21:57:15.257 Df tccd[446:377cbbb] [com.apple.TCC:access] REQUEST: tccd_uid=0, sender_pid=466, sender_uid=202, sender_auid=-1, function=TCCAccessRequest, msgID=466.3083
+2026-11-17 21:57:15.257 Df tccd[446:377cbbb] [com.apple.TCC:access] FORWARD: to=com.apple.tccd/501, request: {
+	require_purpose=<xpc_null>
+	service="kTCCServiceAudioCapture"
+	function="TCCAccessRequest"
+	preflight=true
+	target_token={pid:20149, auid:501, euid:501}
+	TCCD_MSG_ID="466.3083"
+	background_session=false
+}
+2026-11-17 21:57:15.257 Df tccd[719:377c560] [com.apple.TCC:access] REQUEST: tccd_uid=501, sender_pid=446, sender_uid=0, sender_auid=-1, function=TCCAccessRequest, msgID=466.3083
+2026-11-17 21:57:15.257 Df tccd[719:377c560] [com.apple.TCC:access] AUTHREQ_CTX: msgID=466.3083, function=<private>, service=kTCCServiceAudioCapture, preflight=yes, query=1, client_dict=(null), daemon_dict=<private>
+2026-11-17 21:57:15.257 Df tccd[719:377c560] [com.apple.TCC:access] AUTHREQ_ATTRIBUTION: msgID=466.3083, attribution={responsible={TCCDProcess: identifier=com.googlecode.iterm2, pid=20149, auid=501, euid=501, responsible_path=/Applications/iTerm.app/Contents/MacOS/iTerm2, binary_path=/Users/davidson/workspace/artifacts/native-capacity-portable-v3/probe}, accessing={TCCDProcess: identifier=probe-55554944573b322b9d77399abd493c21da9625f6, pid=20149, auid=501, euid=501, binary_path=/Users/davidson/workspace/artifacts/native-capacity-portable-v3/probe}, requesting={TCCDProcess: identifier=com.apple.tccd, pid=446, auid=0, euid=0, binary_path=/System/Library/PrivateFrameworks/TCC.framework/Support/tccd}, },
+2026-11-17 21:57:15.258 Df tccd[719:377c560] [com.apple.TCC:access] AUTHREQ_SUBJECT: msgID=466.3083, subject=com.googlecode.iterm2,
+2026-11-17 21:57:15.266 Df tccd[719:377c560] [com.apple.TCC:access] AUTHREQ_RESULT: msgID=466.3083, authValue=1, authReason=0, authVersion=1, desired_auth=0, error=(null),
+2026-11-17 21:57:15.266 Df tccd[719:377c560] [com.apple.TCC:access] REPLY: (501) function=TCCAccessRequest, msgID=466.3083

@@ -6,7 +6,7 @@
 
 int main(int argc,char** argv){try{
  need(argc==2,"session path");need(std::string(g_get_home_dir())==getenv("ARDOUR_PROBE_HOME"),"preferences isolation");
- need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();auto ui=std::make_unique<TestUI>();
+ need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","EligibilityProbe","");
  need(bool(backend)&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(64)==0&&engine->start()==0,"engine");
  auto* s=new FixtureSession(*engine,argv[1],"eligibility-probe",nullptr,"",true);engine->set_session(nullptr);

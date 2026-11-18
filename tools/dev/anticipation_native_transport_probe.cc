@@ -19,7 +19,7 @@ struct LifecycleWitness : Processor {
  void non_realtime_locate(samplepos_t p)override{if(entered)++races;++resets;Processor::non_realtime_locate(p);}
 };
 int main(int argc,char** argv){try{
- need(argc==2&&ARDOUR::init(true,"/tmp"),"init");Temporal::reset();auto ui=std::make_unique<TestUI>();
+ need(argc==2&&ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","NativeLifecycle","");
  constexpr unsigned block=64;
  need(backend&&backend->set_driver("Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");

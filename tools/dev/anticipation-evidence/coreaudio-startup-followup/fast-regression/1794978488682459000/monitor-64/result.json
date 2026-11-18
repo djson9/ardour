@@ -1,0 +1,16 @@
+{
+  "case": "monitor-64",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "block": 64,
+    "max_sample_error": 0,
+    "compared_samples": 33024,
+    "monitor_live_handoffs": 1,
+    "cache_underruns": 0,
+    "same_cycle_as_direct_monitor": true,
+    "physical_roundtrip_measured": false
+  },
+  "probe_sha256": "163c2ad1eb900793c0681abb6013709b912d210313e78d25b53e24fd14568261"
+}

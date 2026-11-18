@@ -1,5 +1,38 @@
 # Anticipative processing integration and probes
 
+## Default regression command: under ten seconds
+
+After building Ardour, prepare the seven standalone binaries once (or after their
+sources/dependencies change):
+
+```sh
+python3 tools/dev/validate-native-anticipation.py . --prepare
+```
+
+Then run the complete thirteen-case native suite:
+
+```sh
+python3 tools/dev/validate-native-anticipation.py .
+```
+
+The default command verifies compiled inputs, runs independent cases concurrently,
+and enforces a nine-second execution deadline, leaving time to save results before
+ten seconds. Stale binaries fail immediately with the preparation command; tests
+do not silently rebuild. Preparation caches unchanged probe builds. Compilation
+is a separate build step and is not promised to finish in ten seconds.
+
+No test assertions, audio sequence lengths or transition events were removed.
+Each isolated process uses one realtime graph thread and parallel future workers.
+A test-only, explicitly enabled macOS semaphore namespace prevents concurrent
+processes from colliding in PBD's named-sem_open/unlink constructor. Hardware
+probes do not enable that interposition. Each case has private preferences, a
+separate session, retained logs, and verified binary/header/library fingerprints.
+Dummy timing is correctness evidence, not hardware latency qualification.
+
+Capacity probes also default to 512 blocks and a bounded execution timeout.
+Captures over two seconds require the explicit `--soak` flag; long hardware runs
+are never part of the default regression command.
+
 `jay/anticipation-integration` moves the validated scheduling mechanism into
 libardour. `AnticipationQueue` supplies bounded audio/MIDI storage, exclusive DSP
 ownership and retained fan-out readers; Session owns `AnticipativeProcess`, which
@@ -81,7 +114,7 @@ host-boundary hooks, not the full engine implementation's size.
 
 ## Current validation summary
 
-The complete native 13-case matrix passes on engine `188c37370e`, including 14
+The complete native 13-case matrix passes on engine `2e57d0f82c`, including 14
 queue contracts and six eligibility checks. The earlier 21-case feasibility matrix
 also passes against the integrated engine. The full GUI and test targets build,
 and the actual Preferences page was rendered and visually inspected.
@@ -103,19 +136,35 @@ for the remaining 1,279,998 samples. The delay injects a 1e-20 filter bias; a di
 in that same first stereo sample. Unsettled
 startup runs and their larger smoothing difference remain in the evidence.
 
-The final native CoreAudio attempt stalls before Session construction, including
-on another test Mac. The previously successful feasibility binary now stalls at
-the same AudioUnitSetProperty / CoreAudio IOProc call. Failed logs and sampled
-stacks are retained. No installed DAW or audio service was restarted. The successful
-CoreAudio numbers below belong to the earlier feasibility path.
+Native CoreAudio now starts on the local MacBook's built-in output. BlackHole and
+Scarlett still stall at device selection; a minimal Apple-only program reproduces
+the same IOProc creation hang without linking Ardour. Two attempted backend changes
+were ineffective and reverted. No installed DAW or audio service was restarted.
+See `anticipation-evidence/coreaudio-startup-followup/README.md` for native hardware
+results, failed controls and startup isolation. The older CoreAudio numbers under
+"CoreAudio capacity breakthrough" below belong to the earlier feasibility path.
+
+The standalone native capacity harness now requests the same macOS latency-critical
+activity as the GUI. It also polls its atomic capture counter without taking the
+engine process mutex: the earlier polling lock could make the callback try-lock
+fail and manufacture xruns. Non-atomic setup checks remain protected. Duration-based
+timeouts support ten-minute runs. `ARDOUR_PROBE_RT_THREADS` selects the existing
+processor-usage setting for controls; no production thread policy changed.
+`ARDOUR_PROBE_ALLOW_APP_NAP=1` omits the activity request for a diagnostic control.
+
+`playback_xruns` is the total since the measured startup began. `startup_xruns` and
+`rolling_xruns` partition that count at the first captured rolling frame. No errors
+are removed from the total. A capture `passed` result is not a hardware deadline
+pass; inspect the xrun, queue-underrun and observed callback-maximum fields.
 
 Evidence: `anticipation-evidence/native-integration/validation-2026-11-17/README.md`.
-Reproduce native correctness with:
+After preparation, reproduce native correctness with:
 
 ```sh
 python3 tools/dev/validate-native-anticipation.py .
-python3 tools/dev/run-anticipation-probe.py . anticipation_native_capacity_probe.cc
-ARDOUR_PROBE_DIRECT=1 python3 tools/dev/run-anticipation-probe.py . anticipation_native_capacity_probe.cc
+# Separate build/package preparation for optional hardware capacity checks:
+python3 tools/dev/run-anticipation-probe.py . anticipation_native_capacity_probe.cc --build-only
+python3 tools/dev/package-native-capacity.py
 ```
 
 Save each capacity result before running the other mode, then compare their capture
@@ -124,6 +173,71 @@ finite equality and exits nonzero for any difference. `package-native-capacity.p
 and `run-native-portable.py` support isolated arm64 macOS reproduction without
 installing the build; manifests verify every relocated binary and the real user
 configuration checksum is checked. The probe asserts its private GLib home.
+
+For built-in-output native capacity reproduction (synthetic live input, not a
+physical monitoring loopback), after packaging:
+
+```sh
+ARDOUR_PROBE_CONSOLE=1 ARDOUR_PROBE_OUTPUT_DEVICE='MacBook Pro Speakers' \
+  ARDOUR_PROBE_RT_THREADS=1 ARDOUR_PROBE_LOCK_CAPTURE=1 \
+  python3 tools/dev/run-native-portable.py \
+  artifacts/native-capacity-portable ahead
+```
+
+This captures 512 blocks at 48 kHz / 64 frames, with one realtime graph thread
+and parallel playback workers. Historical ten-minute cases can be reproduced only
+by explicitly setting `ARDOUR_PROBE_BLOCKS=450000` and appending `--soak`; these
+are separate diagnostics, not routine tests. The equivalent GUI setting is **Performance → DSP
+CPU Utilization → Signal processing uses → 1 processor** (restart required).
+Capture memory is pinned only inside this test; locking failure fails the run.
+The capacity fixture now uses 5% wet / 10% feedback per active delay and unit-sum
+playback sends, so large cascades stay at usable levels. The legacy 70%-wet /
+55%-feedback fixture built excessive gain in long captures; reproduce it only
+with `ARDOUR_PROBE_LEGACY_GAIN_PRESET=1`. Synthetic stress audio is captured
+internally, with no physical output connections. The hardware buffer size is
+checked throughout the run. `scan-native-capacity.py RESULT_JSON` (NumPy, test-only)
+checks the complete capture for finite samples, full-scale bounds and non-silent
+one-second windows after the timed run ends.
+
+Run `direct` separately for a paired
+control; never overlap capacity runs. `compare-native-capacity.py` also accepts the
+portable runner's nested results and requires the same runtime manifest, workload,
+length and exact finite samples. Package manifests include the production source
+patch hash and harness source hashes, as well as every relocated binary hash.
+
+## Native hardware scaling follow-up
+
+The first sustained native hardware runs exposed two probe problems (missing GUI
+activity setup and an unnecessary process-lock poll) and then a real throughput
+bottleneck. At 64 routes / 512 effects, `Plugin::input_streams()` and
+`output_streams()` repeatedly copied shared plugin metadata ownership. Profiling
+found more top-of-stack samples in those two getters than in the delay DSP.
+
+Commit `2e57d0f82c` replaces those two temporary shared-pointer copies with reads
+through the Plugin's existing `_info` owner. The channel counts and ownership
+contract are unchanged. The same one-minute 64-route hardware run then has zero
+queue underruns, versus 2.8 million before, though two rolling xruns remain. No
+thread-pool, worker-priority, queue-wakeup or CoreAudio backend change was needed.
+The full native 13-case matrix and GUI build pass with this optimization.
+With the optimized engine on both sides of the 64-frame paired comparison, mean
+callback work falls from 479.475 to 110.860 us (4.325×). Its 128-frame one-minute
+run has zero total xruns and cache underruns. The optimized default-thread-count
+ten-minute run still has three rolling xruns despite zero cache misses; do not
+call that a deadline pass. Selecting the existing one-realtime-DSP-thread setting
+produces a one-minute 64-route run with zero rolling xruns and cache misses, an
+887-us maximum callback, and nine separately reported startup xruns. Background
+playback remains parallel. Full results, failed controls and exact package/source
+hashes are retained in
+`anticipation-evidence/coreaudio-startup-followup/`.
+
+The corrected resident-buffer, bounded-preset short pair at 64 frames / one realtime
+DSP thread now passes the exact comparator: both 5,120,000-byte captures have
+SHA-256 `fa2ba4e310d1d3822c25cd9e5f31046c0e72a8eaa1bb4c29f98888c81d1dceee`,
+with finite samples and a 0.0762935 peak. Mean callback work is 88.4479 us anticipated
+versus 2,671.35 us direct (30.20× less callback work, not less total DSP). Playback
+xruns are zero anticipated versus 10,000 direct; each has one startup xrun.
+The historical gain-stress measurements above are preserved but are not usable-level
+audio qualification. Consult the latest evidence for sustained results.
 
 ## CoreAudio capacity breakthrough
 
@@ -437,3 +551,12 @@ in the original feasibility gates are implemented. Remaining release validation:
    remains an intentional first-version limit.
 4. Evaluate the whole-generation structural-edit pause before promising seamless
    edits during recording. Monitoring transitions use the measured drain behavior.
+
+The concurrent suite also exposed an implicit scheduling assumption in the queue
+range oracle: sleeping 150 us did not guarantee a producer publication during
+parallel Session construction. That oracle now waits for published slots or a
+drain acknowledgement outside `process()`, preserving its 700 iterations and all
+assertions. The separate held-producer test still asserts a nonblocking consumer
+and off-callback join. A compiled sleep(30) capacity-runner fixture was terminated
+and reported failure in 8.55 s (`timeout-harness-result.json` in the follow-up
+evidence); this is a watchdog check, not audio evidence.

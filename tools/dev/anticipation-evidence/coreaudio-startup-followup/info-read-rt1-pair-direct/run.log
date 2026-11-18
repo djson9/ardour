@@ -1,0 +1,21 @@
+NATIVE_PROBE latency_critical_activity=active
+OUTPUT_DEVICE None
+OUTPUT_DEVICE USB Advanced Audio Device
+OUTPUT_DEVICE Scarlett 2i2 USB
+OUTPUT_DEVICE BlackHole 2ch
+OUTPUT_DEVICE BlackHole 64ch
+OUTPUT_DEVICE MacBook Pro Speakers
+OUTPUT_DEVICE Pro Tools Audio Bridge 16
+OUTPUT_DEVICE Pro Tools Audio Bridge 2-A
+OUTPUT_DEVICE Pro Tools Audio Bridge 2-B
+OUTPUT_DEVICE Pro Tools Audio Bridge 32
+OUTPUT_DEVICE Pro Tools Audio Bridge 64
+OUTPUT_DEVICE Pro Tools Audio Bridge 6
+OUTPUT_DEVICE Pro Tools 통합 I/O
+OUTPUT_DEVICE Loopback Audio 2
+OUTPUT_DEVICE 2i2+Blackhole
+OUTPUT_DEVICE Multi-Output Device
+DSP_THREADS configured=1 actual=1
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+MAX_CALLBACK first_observed_frame=362944 us=3834
+RESULT {"passed":true,"native_registered_routes":true,"mode":"direct","backend":"CoreAudio","block":64,"chains":8,"inserts_per_chain":64,"verified_blocks":10000,"cache_underruns":0,"engine_mean_us":2669.99,"observed_engine_max_us":3834,"playback_xruns":10001,"rolling_xruns":10000,"startup_xruns":1,"capture":"/Users/davidson/workspace/artifacts/ardour-coreaudio-startup/native-coreaudio-direct-1794975473973003000/session/native-capacity.f32","duration_seconds":13.3333}

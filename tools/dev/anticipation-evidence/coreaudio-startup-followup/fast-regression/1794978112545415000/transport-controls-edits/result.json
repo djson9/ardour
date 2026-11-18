@@ -1,0 +1,15 @@
+{
+  "case": "transport-controls-edits",
+  "exit_code": 0,
+  "passed": true,
+  "result": {
+    "passed": true,
+    "native_transport_retirements": 2,
+    "automatic_edit_rebuilds": 6,
+    "fault_stop_and_restart": true,
+    "stalled_worker_callback_progress": true,
+    "concurrent_dsp_resets": 0,
+    "stopped_processing_restored": true
+  },
+  "probe_sha256": "bc765ead7d52613eaec913035451ba4f9f62a752e10989fb0466cea7c8607613"
+}

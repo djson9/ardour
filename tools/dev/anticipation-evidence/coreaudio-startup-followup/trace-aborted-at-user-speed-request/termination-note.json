@@ -1,0 +1,6 @@
+{
+  "reason": "User requested tests finish in less than ten seconds; stopped active long diagnostic",
+  "status": "aborted_not_a_pass",
+  "partial_capture_saved": false,
+  "production_source_commit": "2e57d0f82ceef21f97fad831b8296eb34496a520"
+}

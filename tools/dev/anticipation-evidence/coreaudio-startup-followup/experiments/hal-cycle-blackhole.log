@@ -1,0 +1,23 @@
+BEGIN runloop
+END runloop 0
+BEGIN device size
+END device size 0
+BEGIN devices
+END devices 0
+DEVICE 125 BlackHole 2ch
+BEGIN read running
+END read running 0
+BEGIN read rate
+END read rate 0
+RATE original=48000 temporary=44100
+BEGIN temporary rate
+END temporary rate 0
+BEGIN restore rate
+END restore rate 0
+BEGIN new
+END new 0
+BEGIN input off
+END input off 0
+BEGIN output on
+END output on 0
+BEGIN select device

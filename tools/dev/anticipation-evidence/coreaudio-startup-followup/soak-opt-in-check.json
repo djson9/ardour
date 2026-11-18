@@ -1,0 +1,6 @@
+{
+  "check": "long capacity capture requires explicit --soak",
+  "exit_code": 1,
+  "wall_seconds": 0.06651066592894495,
+  "message": "Capture longer than two seconds requires explicit --soak; default command is bounded below ten seconds"
+}

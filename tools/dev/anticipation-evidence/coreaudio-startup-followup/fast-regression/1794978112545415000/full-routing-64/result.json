@@ -1,0 +1,7 @@
+{
+  "case": "full-routing-64",
+  "exit_code": 1,
+  "passed": false,
+  "result": {},
+  "probe_sha256": "a4cd4aecc4a621c8c754e5d7f023c23278a24795c2301156b4a51773eff26611"
+}
