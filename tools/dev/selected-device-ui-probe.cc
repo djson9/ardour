@@ -3,9 +3,6 @@
 #include <fstream>
 #include <type_traits>
 #include <execinfo.h>
-#ifdef __APPLE__
-#import <Cocoa/Cocoa.h>
-#endif
 #include <ytkmm/container.h>
 #include <ytkmm/label.h>
 #include <ytkmm/window.h>
@@ -14,9 +11,6 @@
 #include <ytkmm/menu.h>
 #include <ytkmm/messagedialog.h>
 #include "gtkmm2ext/keyboard.h"
-#ifdef __APPLE__
-extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
-#endif
 #include "ardour/amp.h"
 #include "ardour/automation_clip.h"
 #include "ardour/audio_track.h"
@@ -42,10 +36,16 @@ extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #include "../../gtk2_ardour/automation_clip_editor.h"
 #include "../../gtk2_ardour/region_view.h"
 #include "../../gtk2_ardour/selection.h"
+#include "../../gtk2_ardour/selection_properties_box.h"
 #include "../../gtk2_ardour/processor_box.h"
 #include "../../gtk2_ardour/route_properties_box.h"
 #include "../../gtk2_ardour/public_editor.h"
 #include "../../gtk2_ardour/time_axis_view.h"
+
+#ifdef __APPLE__
+#import <Cocoa/Cocoa.h>
+extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
+#endif
 
 using namespace ARDOUR;
 using List = Gtkmm2ext::DnDVBox<ProcessorEntry>;
@@ -342,17 +342,60 @@ static gboolean tick (gpointer) {
     header_key (midi_track, GDK_Return);
     stage = 32; return TRUE;
    }
-   if (stage == 32 || stage == 33 || stage == 34) {
-    auto* piano = piano_canvas ();
-    if (!piano || editor.get_selection ().regions.size () != 1 || editor.get_selection ().regions.front ()->region () != midi_b) return finish ("Enter did not open the MIDI clip at the selection marker");
-    if (stage == 32) {
-     snapshot (piano, ".midi");
-     auto* view = editor.time_axis_view_from_stripable (midi_track); view->focus_track_header ();
-     key (*piano, GDK_KP_Enter); stage = 33; return TRUE;
+   auto has_midi = [&] (std::shared_ptr<Region> clip) {
+    auto const& regions = editor.get_selection ().regions;
+    if (regions.size () != 1 || regions.front ()->region () != clip) return false;
+    for (auto* widget = piano_canvas (); widget; widget = widget->get_parent ()) {
+     if (auto* box = dynamic_cast<SelectionPropertiesBox*> (widget)) return box->visible_clip () == clip;
     }
-    range (midi_track, timepos_t (Temporal::Beats (stage == 33 ? 8 : 13, 0)));
-    header_key (midi_track, GDK_Return);
-    stage = stage == 33 ? 34 : 35; return TRUE;
+    return false;
+   };
+   auto* midi_view = editor.time_axis_view_from_stripable (midi_track);
+   if (stage == 32) {
+    if (!has_midi (midi_b)) return finish ("Enter did not open the MIDI clip at the selection marker");
+    auto* piano = piano_canvas ();
+    snapshot (piano, ".midi"); piano->grab_focus (); key (*piano, GDK_Escape);
+    stage = 40; return TRUE;
+   }
+   if (stage == 40 || stage == 43) {
+    if (piano_canvas ()) return finish ("First Escape left the piano roll open");
+    if (!editor.get_selection ().selected (midi_view)) return finish ("First Escape lost the track selection");
+    if (!midi_view->track_header_has_focus ()) return finish ("First Escape lost keyboard focus on the track");
+    header_key (midi_track, stage == 40 ? GDK_KP_Enter : GDK_Escape);
+    stage = stage == 40 ? 41 : 44; return TRUE;
+   }
+   if (stage == 41) {
+    if (!has_midi (midi_b)) return finish ("Enter after Escape did not reopen the same clip");
+    session->request_locate (timepos_t (Temporal::Beats (5, 0)).samples ());
+    stage = 42; return TRUE;
+   }
+   if (stage == 42) {
+    if (editor.playhead_cursor_sample () != timepos_t (Temporal::Beats (5, 0)).samples ()) return TRUE;
+    auto* piano = piano_canvas (); if (!piano) return finish ("Piano roll closed during locate");
+    piano->grab_focus (); key (*piano, GDK_Return); stage = 45; return TRUE;
+   }
+   if (stage == 45) {
+    if (!has_midi (midi_a)) return finish ("Enter did not follow the moved playhead into another clip");
+    auto* canvas = named (piano_canvas ()->get_toplevel (), "EditorMainCanvas");
+    auto* next = editor.regionview_from_region (midi_b);
+    if (!canvas || !next) return finish ("Missing arrangement clip or canvas");
+    editor.get_selection ().set (next);
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 46; return TRUE;
+   }
+   if (stage == 46) {
+    if (!has_midi (midi_b)) return finish ("Enter did not open the newly selected clip in the arrangement");
+    key (*piano_canvas (), GDK_Escape); stage = 43; return TRUE;
+   }
+   if (stage == 44) {
+    if (midi_view->track_header_has_focus () || editor.get_selection ().selected (midi_view))
+     return finish ("Second Escape kept the track focused or selected");
+    range (midi_track, timepos_t (Temporal::Beats (8, 0)));
+    header_key (midi_track, GDK_Return); stage = 34; return TRUE;
+   }
+   if (stage == 34) {
+    if (!has_midi (midi_b)) return finish ("Enter selected the wrong clip at a shared boundary");
+    range (midi_track, timepos_t (Temporal::Beats (13, 0)));
+    header_key (midi_track, GDK_Return); stage = 35; return TRUE;
    }
    if (stage == 35) {
     if (!editor.get_selection ().regions.empty () || piano_canvas ()) return finish ("Enter in a gap selected a clip elsewhere");
@@ -375,6 +418,27 @@ static gboolean tick (gpointer) {
     auto* curve = panel (static_cast<AutomationClipEditor*> (nullptr));
     if (!curve || curve->region () != automation_region || editor.get_selection ().regions.size () != 1 || editor.get_selection ().regions.front ()->region () != automation_region) return finish ("Enter did not open the automation clip curve");
     snapshot (curve, ".automation");
+    auto* canvas = named (curve, "AutomationClipCanvas");
+    if (!canvas) return finish ("Missing automation canvas");
+    canvas->grab_focus (); key (*canvas, GDK_Escape); stage = 38; return TRUE;
+   }
+   if (stage == 38) {
+    auto* view = editor.time_axis_view_from_stripable (automation_track);
+    if (panel (static_cast<AutomationClipEditor*> (nullptr)) || !view->track_header_has_focus () || !editor.get_selection ().selected (view))
+     return finish ("Escape from the automation curve did not return to the track");
+    header_key (automation_track, GDK_Return); stage = 39; return TRUE;
+   }
+   if (stage == 39) {
+    auto* curve = panel (static_cast<AutomationClipEditor*> (nullptr));
+    if (!curve || curve->region () != automation_region) return finish ("Enter did not reopen the automation curve");
+    auto* canvas = named (curve->get_toplevel (), "EditorMainCanvas");
+    range (midi_track, timepos_t (Temporal::Beats (9, 0)));
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 47; return TRUE;
+   }
+   if (stage == 47) {
+    if (!has_midi (midi_b) || panel (static_cast<AutomationClipEditor*> (nullptr))) return finish ("Enter on a new track range did not switch from automation to the piano roll");
+    key (*piano_canvas (), GDK_Escape);
+    header_key (midi_track, GDK_Escape);
     midi_track->playlist ()->remove_region (midi_a); midi_track->playlist ()->remove_region (midi_b);
     session->remove_route (automation_track);
     return finish (nullptr);
@@ -449,10 +513,10 @@ static gboolean tick (gpointer) {
    auto* h = header (props->get_toplevel (), view);
    if (!h || title_brightness (h, route->name ()) >= active_title_brightness * .75) return finish ("Track did not dim after Tab");
    snapshot (h, ".track-inactive"); snapshot (&entry (list, eq)->widget (), ".device-active");
-   key (*props, GDK_Right); stage = 12; return TRUE;
+   key (*props, GDK_Down); stage = 12; return TRUE;
   }
   if (stage == 12) {
-   if (!list->is_focus () || !selected (delay)) return finish ("Right did not select Delay");
+   if (!list->is_focus () || !selected (delay)) return finish ("Down did not select Delay");
    if (!single ("Detail Delay")) return TRUE;
    key (*props, GDK_Right); stage = 13; return TRUE;
   }
@@ -486,10 +550,10 @@ static gboolean tick (gpointer) {
   if (stage == 14) {
    if (!selected (delay)) return finish ("Left did not select Delay");
    if (!single ("Detail Delay")) return TRUE;
-   key (*props, GDK_Left); stage = 15; return TRUE;
+   key (*props, GDK_Up); stage = 15; return TRUE;
   }
   if (stage == 15) {
-   if (!selected (eq)) return finish ("Left did not select EQ");
+   if (!selected (eq)) return finish ("Up did not select EQ");
    if (!single ("Detail EQ")) return TRUE;
    key (*props, GDK_Left); if (!selected (eq)) return finish ("Device navigation wrapped at the start");
    key (*props, GDK_Tab); stage = 16; return TRUE;
@@ -553,7 +617,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 20) {
    if (!list->is_focus ()) return finish ("Tab did not focus a fader-only track");
-   key (*props, GDK_Right); key (*props, GDK_Left);
+   key (*props, GDK_KP_Down); key (*props, GDK_KP_Up);
    if (!list->is_focus () || !selected (session->master_out ()->amp ()) || count<GainMeter> (props) != 1) return finish ("Fader-only navigation changed focus/selection");
    click (entry (list, session->master_out ()->amp ())->action_widget (), 3);
    auto* menu = dynamic_cast<Gtk::Menu*> (ActionManager::get_widget ("/ProcessorMenu"));

@@ -169,28 +169,6 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	const guint mask = (Keyboard::RelevantModifierKeyMask & ~(Gdk::SHIFT_MASK|Gdk::LOCK_MASK));
 	bool cutcopypaste = false;
 
-	if ((ev->keyval == GDK_Left || ev->keyval == GDK_Right) && Keyboard::modifier_state_equals (ev->state, 0) &&
-	    focus && std::string (gtk_widget_get_name (focus)) == "EditorMainCanvas" &&
-	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && editor && !editor->internal_editing () &&
-	    !editor->get_selection ().regions.empty ()) {
-		if (ev->keyval == GDK_Right) {
-			editor->nudge_forward (false, false);
-		} else {
-			editor->nudge_backward (false, false);
-		}
-		return true;
-	}
-
-	const bool up = ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up;
-	const bool down = ev->keyval == GDK_Down || ev->keyval == GDK_KP_Down;
-	if ((up || down) && Keyboard::modifier_state_equals (ev->state, 0) &&
-	    editor && top_level_bindings && top_level_bindings == editor->contents ().get_data (ARDOUR_BINDING_KEY) &&
-	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !loading_session () &&
-	    !(focus && (GTK_IS_ENTRY (focus) || GTK_IS_TEXT_VIEW (focus)))) {
-		editor->focus_adjacent_track (down);
-		return true;
-	}
-
 	/* Header/device-list navigation takes precedence over editor accelerators.
 	 * Entry widgets and the rename dialog retain their own keyboard handling. */
 	if (focus) {
@@ -214,6 +192,41 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 				}
 			}
 		}
+	}
+
+	if ((ev->keyval == GDK_Return || ev->keyval == GDK_KP_Enter || ev->keyval == GDK_Escape) &&
+	    Keyboard::modifier_state_equals (ev->state, 0) && editor && top_level_bindings &&
+	    top_level_bindings == editor->contents ().get_data (ARDOUR_BINDING_KEY) &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		const std::string name = focus ? gtk_widget_get_name (focus) : "";
+		if (ev->keyval == GDK_Escape) {
+			if (name == "MidiCueCanvas" && editor->leave_clip_editor ()) return true;
+		} else if ((!focus || name == "EditorMainCanvas" || name == "MidiCueCanvas" || name == "AutomationClipCanvas") &&
+		    editor->edit_selected_clip ()) {
+			return true;
+		}
+	}
+
+	if ((ev->keyval == GDK_Left || ev->keyval == GDK_Right) && Keyboard::modifier_state_equals (ev->state, 0) &&
+	    focus && std::string (gtk_widget_get_name (focus)) == "EditorMainCanvas" &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && editor && !editor->internal_editing () &&
+	    !editor->get_selection ().regions.empty ()) {
+		if (ev->keyval == GDK_Right) {
+			editor->nudge_forward (false, false);
+		} else {
+			editor->nudge_backward (false, false);
+		}
+		return true;
+	}
+
+	const bool up = ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up;
+	const bool down = ev->keyval == GDK_Down || ev->keyval == GDK_KP_Down;
+	if ((up || down) && Keyboard::modifier_state_equals (ev->state, 0) &&
+	    editor && top_level_bindings && top_level_bindings == editor->contents ().get_data (ARDOUR_BINDING_KEY) &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && !loading_session () &&
+	    !(focus && (GTK_IS_ENTRY (focus) || GTK_IS_TEXT_VIEW (focus)))) {
+		editor->focus_adjacent_track (down);
+		return true;
 	}
 
 	if (focus && std::string (gtk_widget_get_name (focus)) == "AutomationClipCanvas" && gtk_window_propagate_key_event (win, ev)) {

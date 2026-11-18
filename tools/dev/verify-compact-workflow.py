@@ -593,6 +593,9 @@ elif a.case == 'midi-clip-focus':
     expect_selection([midi['id']])
     key('Tab')
     key('Down')
+    expect_selection([midi['id']])
+    key('Tab')
+    key('Down')
     expect_selection(following)
     key('Up')
     expect_selection([midi['id']])
@@ -629,7 +632,7 @@ elif a.case == 'midi-clip-focus':
     key('Primary-Tertiary-m')
     assert call('track_get_regions', id=audio['id'])['regions'] == before_audio and not new_regions()
     checks += ['empty MIDI clip matches dragged range', 'repeat skips occupied range',
-               'undo and redo', 'adjacent MIDI insertion', 'vertical navigation resumes after Escape and from the device list',
+               'undo and redo', 'adjacent MIDI insertion', 'track navigation resumes after Escape and after tabbing back from the device list',
                'horizontal arrows move the playhead and retain track focus',
                'off-grid selection survives snap changes', 'audio range is skipped']
 

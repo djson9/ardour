@@ -235,7 +235,10 @@ public:
 
 	void edit_region_in_dedicated_window ();
 	void maybe_edit_region_in_bottom_pane (RegionView&);
+	bool edit_selected_clip () override;
+	bool leave_clip_editor () override;
 	void edit_track_clip_at_selection (TimeAxisView&) override;
+	void open_clip_editor (RegionView&);
 
 	void play_selection ();
 	void maybe_locate_with_edit_preroll (samplepos_t);
@@ -1073,6 +1076,8 @@ private:
 	bool _automation_clips_visible = false;
 	TrackViewList track_views;
 	std::weak_ptr<ARDOUR::Stripable> _last_focused_track;
+	std::weak_ptr<ARDOUR::Region> _clip_to_reopen;
+	samplepos_t _clip_edit_playhead = 0;
 
 	std::pair<TimeAxisView*, double> trackview_by_y_position (double, bool trackview_relative_offset = true) const;
 
