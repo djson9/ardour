@@ -60,6 +60,12 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 	Gtkmm2ext::BindingSet* bindings = nullptr;
 	Gtk::Window* window = 0;
 
+	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
+	if (ev->type == GDK_KEY_PRESS && focus && std::string (gtk_widget_get_name (focus)) == "PluginParameterList" &&
+	    gtk_widget_event (focus, reinterpret_cast<GdkEvent*> (ev))) {
+		return true;
+	}
+
 	if (virtual_keyboard_window && virtual_keyboard_window->get_visible()) {
 		if (gtk_window_propagate_key_event (virtual_keyboard_window->gobj(), ev)) {
 			return true;

@@ -79,6 +79,8 @@ namespace ArdourWidgets {
 	class FastMeter;
 }
 
+namespace Gtk { class MessageDialog; }
+
 class TimeCtlGUI;
 class ArdourWindow;
 class PluginEqGui;
@@ -218,12 +220,13 @@ private:
 class GenericPluginUI : public PlugUIBase, public Gtk::VBox
 {
 public:
-	GenericPluginUI (std::shared_ptr<ARDOUR::PlugInsertBase> plug, bool scrollable = false, bool ctrls_only = false);
+	GenericPluginUI (std::shared_ptr<ARDOUR::PlugInsertBase> plug, bool scrollable = false, bool ctrls_only = false, size_t max_controls = 0);
 	~GenericPluginUI ();
 
 	gint get_preferred_height () { return prefheight; }
 	gint get_preferred_width () { return -1; }
 	bool empty () const { return _empty; }
+	sigc::signal<void> FullControlsRequested;
 
 	bool start_updating(GdkEventAny*);
 	bool stop_updating(GdkEventAny*);
@@ -237,6 +240,7 @@ private:
 	gint prefheight;
 	bool is_scrollable;
 	bool want_ctrl_only;
+	size_t _max_controls;
 	bool _empty;
 
 	struct MeterInfo {
@@ -300,6 +304,28 @@ private:
 	void output_update();
 
 	void build ();
+	ControlUI* build_parameter (Evoral::Parameter const&);
+	void build_compact_list ();
+	bool append_compact_parameter (Evoral::Parameter const&);
+	void configure_compact_list ();
+	void learn_compact_parameter (Evoral::Parameter const&);
+	void save_compact_list ();
+	void select_compact_row (int index, bool extend);
+	bool compact_row_press (GdkEventButton*, Gtk::EventBox*);
+	bool compact_key_press (GdkEventKey*);
+	void hide_compact_selection ();
+	void confirm_compact_removal ();
+
+	Gtk::VBox* _compact_list = nullptr;
+	Gtk::ToggleButton* _configure = nullptr;
+	std::vector<Gtk::EventBox*> _compact_rows;
+	std::map<Evoral::Parameter, Gtk::EventBox*> _compact_cache;
+	int _compact_anchor = -1;
+	int _compact_cursor = -1;
+	std::unique_ptr<Gtk::Menu> _compact_menu;
+	std::unique_ptr<Gtk::MessageDialog> _compact_dialog;
+	PBD::ScopedConnectionList _configure_connections;
+
 	void automatic_layout (const std::vector<ControlUI *>& control_uis);
 
 	ControlUI* build_control_ui (const Evoral::Parameter&                     param,
