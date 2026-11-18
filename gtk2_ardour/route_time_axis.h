@@ -88,6 +88,7 @@ public:
 	std::shared_ptr<ARDOUR::Stripable> stripable() const { return RouteUI::stripable(); }
 
 	void set_route (std::shared_ptr<ARDOUR::Route>);
+	void update_group_header ();
 
 	void show_selection (TimeSelection&);
 	void set_button_names ();
@@ -279,6 +280,8 @@ protected:
 
 	GainMeterBase gm;
 	Gtk::EventBox live_name_box;
+	Gtk::HBox live_name_content;
+	ArdourWidgets::ArdourButton group_fold_button;
 	Gtk::VBox live_io_box;
 	Gtk::HBox live_monitor_box;
 	IOButton live_input {true};

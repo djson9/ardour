@@ -83,6 +83,7 @@
 #include "ardour/profile.h"
 #include "ardour/route.h"
 #include "ardour/route_group.h"
+#include "ardour/group_tracks.h"
 #include "ardour/session_playlists.h"
 #include "ardour/tempo.h"
 #include "ardour/utils.h"
@@ -5145,7 +5146,7 @@ Editor::maybe_move_tracks ()
 {
 	for (auto & tv : track_views) {
 
-		if (!tv->marked_for_display () || (tv == track_drag->track)) {
+		if (!tv->marked_for_display () || tv->hidden () || (tv == track_drag->track)) {
 			continue;
 		}
 
@@ -5241,6 +5242,7 @@ Editor::redisplay_track_views ()
 
 	for (auto & tv : track_views) {
 		if (tv == master) continue;
+		if (auto* rtv = dynamic_cast<RouteTimeAxisView*> (tv)) rtv->update_group_header ();
 
 		if (tv->marked_for_display ()) {
 			position += tv->show_at (position, n, &edit_controls_vbox);

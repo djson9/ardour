@@ -251,6 +251,9 @@ public:
 	void set_selected_regionview_from_region_list (std::shared_ptr<ARDOUR::Region> region, ARDOUR::SelectionOperation op = ARDOUR::SelectionSet);
 
 	void remove_tracks ();
+	void group_selected_tracks ();
+	void ungroup_selected_tracks ();
+	void toggle_group_track (std::shared_ptr<ARDOUR::Route>);
 
 	/* tempo */
 

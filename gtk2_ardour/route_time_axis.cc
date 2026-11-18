@@ -61,6 +61,7 @@
 #include "ardour/processor.h"
 #include "ardour/profile.h"
 #include "ardour/route_group.h"
+#include "ardour/group_tracks.h"
 #include "ardour/session.h"
 #include "ardour/surround_send.h"
 #include "ardour/track.h"
@@ -155,7 +156,15 @@ RouteTimeAxisView::setup_live_header ()
 	/* Repack native controls: their routing dialogs, automation, grouping,
 	 * record safety and metering continue using Ardour's existing paths. */
 	controls_table.remove (name_label);
-	live_name_box.add (name_label);
+	live_name_box.add (live_name_content);
+	live_name_content.pack_start (group_fold_button, false, false);
+	live_name_content.pack_start (name_label, true, true);
+	group_fold_button.set_data ("compact-track-control", const_cast<char*> ("group-fold"));
+	group_fold_button.set_name ("route button");
+	group_fold_button.set_size_request (20, 20);
+	group_fold_button.set_no_show_all (true);
+	group_fold_button.signal_clicked.connect ([this] { _editor.toggle_group_track (_route); });
+	live_name_content.show ();
 	name_label.set_alignment (0., 0.);
 	name_label.set_padding (5, 5);
 	name_label.set_size_request (118 * UIConfiguration::instance().get_ui_scale (), -1);
@@ -210,6 +219,22 @@ RouteTimeAxisView::setup_live_header ()
 	set_height (current_height ());
 	update_track_number_visibility ();
 	route_color_changed ();
+	update_group_header ();
+}
+
+void
+RouteTimeAxisView::update_group_header ()
+{
+	if (!live_header || !_session) return;
+	name_label.set_padding (5 + 12 * std::min<size_t> (8, ARDOUR::GroupTracks::ancestors (*_session, _route).size ()), 5);
+	if (ARDOUR::GroupTracks::is_group (_route)) {
+		const bool folded = ARDOUR::GroupTracks::collapsed (_route);
+		group_fold_button.set_text (folded ? "\u25b6" : "\u25bc");
+		set_tooltip (group_fold_button, folded ? _("Expand group") : _("Collapse group"));
+		group_fold_button.show ();
+	} else {
+		group_fold_button.hide ();
+	}
 }
 
 void
@@ -1042,6 +1067,11 @@ RouteTimeAxisView::build_display_menu ()
 		items.push_back (MenuElem (_("Duplicate..."), std::bind (&ARDOUR_UI::start_duplicate_routes, ARDOUR_UI::instance())));
 	}
 	items.push_back (SeparatorElem());
+	items.push_back (MenuElem (_("Group Selected Tracks"), sigc::mem_fun (_editor, &PublicEditor::group_selected_tracks)));
+	if (GroupTracks::is_group (_route)) {
+		items.push_back (MenuElem (GroupTracks::collapsed (_route) ? _("Expand Group") : _("Collapse Group"), sigc::bind (sigc::mem_fun (_editor, &PublicEditor::toggle_group_track), _route)));
+		items.push_back (MenuElem (_("Ungroup Selected Tracks"), sigc::mem_fun (_editor, &PublicEditor::ungroup_selected_tracks)));
+	}
 	items.push_back (MenuElem (_("Remove"), sigc::mem_fun(_editor, &PublicEditor::remove_tracks)));
 }
 
@@ -2794,7 +2824,7 @@ RouteTimeAxisView::color () const
 bool
 RouteTimeAxisView::marked_for_display () const
 {
-	return !_route->presentation_info().hidden();
+	return !_route->presentation_info().hidden() && (!_session || !GroupTracks::folded (*_session, _route));
 }
 
 bool

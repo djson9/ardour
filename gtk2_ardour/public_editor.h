@@ -191,6 +191,9 @@ public:
 	}
 	virtual void add_location_mark_with_flag (Temporal::timepos_t const & where, ARDOUR::Location::Flags, int32_t cue_id) = 0;
 	virtual void remove_tracks () = 0;
+	virtual void group_selected_tracks () = 0;
+	virtual void ungroup_selected_tracks () = 0;
+	virtual void toggle_group_track (std::shared_ptr<ARDOUR::Route>) = 0;
 	virtual void set_loop_range (Temporal::timepos_t const & start, Temporal::timepos_t const & end, std::string cmd) = 0;
 	virtual void set_punch_range (Temporal::timepos_t const & start, Temporal::timepos_t const & end, std::string cmd) = 0;
 
