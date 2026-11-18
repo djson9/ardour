@@ -40,6 +40,7 @@
 #include "debug.h"
 #include "keyboard.h"
 #include "public_editor.h"
+#include "processor_box.h"
 #include "time_axis_view.h"
 #include "virtual_keyboard_window.h"
 
@@ -151,12 +152,28 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	const guint mask = (Keyboard::RelevantModifierKeyMask & ~(Gdk::SHIFT_MASK|Gdk::LOCK_MASK));
 	bool cutcopypaste = false;
 
-	/* Header navigation/renaming takes precedence over editor accelerators.
+	/* Header/device-list navigation takes precedence over editor accelerators.
 	 * Entry widgets and the rename dialog retain their own keyboard handling. */
 	if (focus) {
 		auto* header = static_cast<TimeAxisView*> (g_object_get_data (G_OBJECT (focus), "ardour-track-header"));
 		if (header && header->track_header_key_press (ev)) {
 			return true;
+		}
+		auto* processors = static_cast<ProcessorBox*> (g_object_get_data (G_OBJECT (focus), "processorbox"));
+		if (processors && processors->processor_list_key_press (ev)) {
+			return true;
+		}
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" &&
+		    (ev->keyval == GDK_Tab || ev->keyval == GDK_ISO_Left_Tab) &&
+		    (Keyboard::modifier_state_equals (ev->state, 0) || Keyboard::modifier_state_equals (ev->state, Gdk::SHIFT_MASK))) {
+			for (GtkWidget* ancestor = focus; ancestor; ancestor = gtk_widget_get_parent (ancestor)) {
+				if (g_object_get_data (G_OBJECT (ancestor), "ardour-device-panel")) {
+					/* Parameter fields use GTK traversal, before arrangement Tab bindings. */
+					gtk_widget_child_focus (GTK_WIDGET (win),
+					    ev->keyval == GDK_ISO_Left_Tab || (ev->state & GDK_SHIFT_MASK) ? GTK_DIR_TAB_BACKWARD : GTK_DIR_TAB_FORWARD);
+					return true;
+				}
+			}
 		}
 	}
 

@@ -278,6 +278,7 @@ public:
 	virtual void invert_selection () = 0;
 	virtual void set_selected_track (TimeAxisView&, ARDOUR::SelectionOperation op = ARDOUR::SelectionSet, bool no_remove = false) = 0;
 	virtual void set_selected_mixer_strip (TimeAxisView&) = 0;
+	virtual bool focus_route_processors () = 0;
 	virtual void hide_track_in_display (TimeAxisView* tv, bool apply_to_selection = false) = 0;
 	virtual void show_track_in_display (TimeAxisView* tv, bool move_into_view = false) = 0;
 

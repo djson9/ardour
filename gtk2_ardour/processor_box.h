@@ -436,6 +436,8 @@ public:
 
 	void set_route (std::shared_ptr<ARDOUR::Route>);
 	void set_width (Width);
+	bool focus_processors ();
+	bool processor_list_key_press (GdkEventKey*);
 
 	bool processor_operation (ProcessorOperation);
 
@@ -467,6 +469,7 @@ public:
 
 	sigc::signal<void,std::shared_ptr<ARDOUR::Processor> > ProcessorSelected;
 	sigc::signal<void,std::shared_ptr<ARDOUR::Processor> > ProcessorUnselected;
+	sigc::signal<bool> TrackFocusRequested;
 
 	static Glib::RefPtr<Gtk::ActionGroup> processor_box_actions;
 	static Gtkmm2ext::Bindings* bindings;

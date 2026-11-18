@@ -2599,6 +2599,56 @@ ProcessorBox::show_processor_menu (int arg)
 }
 
 bool
+ProcessorBox::focus_processors ()
+{
+	if (!processor_display.get_mapped () || !processor_display.is_sensitive ()) return false;
+	_current_processor_box = this;
+	processor_display.grab_focus ();
+	/* Mapping the bottom panel can reconnect it to an unchanged route. */
+	auto selection = processor_display.selection ();
+	ProcessorSelected (selection.empty () ? std::shared_ptr<Processor> () : selection.back ()->processor ());
+	return processor_display.is_focus ();
+}
+
+bool
+ProcessorBox::processor_list_key_press (GdkEventKey* event)
+{
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !processor_display.is_focus () || TrackFocusRequested.empty ()) return false;
+	if ((event->keyval == GDK_Tab || event->keyval == GDK_ISO_Left_Tab) &&
+	    (Keyboard::modifier_state_equals (event->state, 0) || Keyboard::modifier_state_equals (event->state, Gdk::SHIFT_MASK))) {
+		return TrackFocusRequested ();
+	}
+	if (!Keyboard::modifier_state_equals (event->state, 0)) return false;
+	bool previous;
+	switch (event->keyval) {
+	case GDK_Up: case GDK_KP_Up: case GDK_Left: case GDK_KP_Left:
+		previous = true; break;
+	case GDK_Down: case GDK_KP_Down: case GDK_Right: case GDK_KP_Right:
+		previous = false; break;
+	default:
+		return false;
+	}
+
+	std::vector<ProcessorEntry*> devices;
+	for (auto* entry : processor_display.children ()) {
+		auto p = entry->processor ();
+		if (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p)) devices.push_back (entry);
+	}
+	if (devices.empty ()) return true;
+	auto selection = processor_display.selection ();
+	auto current = selection.empty () ? devices.end () : std::find (devices.begin (), devices.end (), selection.back ());
+	if (current == devices.end ()) current = previous ? std::prev (devices.end ()) : devices.begin ();
+	else if (previous && current != devices.begin ()) --current;
+	else if (!previous && std::next (current) != devices.end ()) ++current;
+	processor_display.select (*current);
+	int x, y;
+	if ((*current)->widget ().translate_coordinates (processor_display, 0, 0, x, y)) {
+		processor_scroller.get_vadjustment ()->clamp_page (y, y + (*current)->widget ().get_height ());
+	}
+	return true;
+}
+
+bool
 ProcessorBox::enter_notify (GdkEventCrossing*)
 {
 	processor_display.grab_focus ();
@@ -2614,13 +2664,14 @@ ProcessorBox::leave_notify (GdkEventCrossing* ev)
 	}
 
 	Widget* top = get_toplevel();
+	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
 
-	if (top->get_is_toplevel()) {
+	if (!live_layout && top->get_is_toplevel()) {
 		Window* win = dynamic_cast<Window*> (top);
 		gtk_window_set_focus (win->gobj(), 0);
 	}
 
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" &&
+	if (!live_layout &&
 	    ev->detail != GDK_NOTIFY_NONLINEAR && ev->detail != GDK_NOTIFY_NONLINEAR_VIRTUAL) {
 		processor_display.select_none ();
 	}

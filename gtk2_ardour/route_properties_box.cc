@@ -42,6 +42,8 @@
 #include "plugin_ui.h"
 #include "port_insert_ui.h"
 #include "route_properties_box.h"
+#include "public_editor.h"
+#include "time_axis_view.h"
 #include "timers.h"
 #include "ui_config.h"
 
@@ -139,6 +141,7 @@ RoutePropertiesBox::RoutePropertiesBox ()
 	, _show_insert (false)
 	, _idle_refill_processors_id (-1)
 {
+	set_data ("ardour-device-panel", this);
 	_scroller.set_policy (Gtk::POLICY_AUTOMATIC, Gtk::POLICY_NEVER);
 	_scroller.add (_box);
 
@@ -196,6 +199,14 @@ RoutePropertiesBox::set_session (ARDOUR::Session* s) {
 	delete _insert_box;
 	_insert_box = new ProcessorBox (_session, std::bind (&Mixer_UI::plugin_selector, Mixer_UI::instance()), Mixer_UI::instance()->selection(), 0);
 	_insert_box->show_all ();
+	_insert_box->TrackFocusRequested.connect ([this] () {
+		auto& editor = PublicEditor::instance ();
+		auto* view = editor.time_axis_view_from_stripable (_route);
+		if (!view || !view->marked_for_display ()) return false;
+		editor.ensure_time_axis_view_is_visible (*view, false);
+		view->focus_track_header ();
+		return view->track_header_has_focus ();
+	});
 	_insert_box->ProcessorSelected.connect ([this] (std::shared_ptr<Processor> p) {
 		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
 			if (_selected_processor.lock () == p) return;
@@ -252,6 +263,14 @@ RoutePropertiesBox::set_route (std::shared_ptr<Route> r, bool force_update)
 	_insert_box->set_route (r);
 	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") idle_refill_processors ();
 	else refill_processors ();
+}
+
+bool
+RoutePropertiesBox::focus_processors ()
+{
+	if (!_route || !_insert_box) return false;
+	update_processor_box_visibility ();
+	return _insert_box->focus_processors ();
 }
 
 void
@@ -313,6 +332,7 @@ void
 RoutePropertiesBox::drop_route ()
 {
 	drop_plugin_uis ();
+	_insert_frame.hide ();
 	_selected_processor.reset ();
 	_has_devices = false;
 	_route.reset ();
@@ -342,7 +362,6 @@ RoutePropertiesBox::drop_plugin_uis ()
 	_proc_uis.clear ();
 	for (auto ui : _rack_uis) delete ui;
 	_rack_uis.clear ();
-	_insert_frame.hide ();
 }
 
 void
