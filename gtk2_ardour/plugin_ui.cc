@@ -119,6 +119,7 @@ PluginUIWindow::PluginUIWindow (std::shared_ptr<PlugInsertBase> pib,
 	: ArdourWindow (string ())
 	, was_visible (false)
 	, _keyboard_focused (false)
+	, _capture_shortcut_down (false)
 #ifdef AUDIOUNIT_SUPPORT
 	, pre_deactivate_x (-1)
 	, pre_deactivate_y (-1)
@@ -466,6 +467,16 @@ PluginUIWindow::keyboard_focused (bool yn)
 bool
 PluginUIWindow::on_key_press_event (GdkEventKey* event)
 {
+	/* The host owns this escape from plugin keyboard capture. Handle it before
+	 * forwarding native or GTK events to the editor in either capture mode. */
+	if (_pluginui && (event->keyval == GDK_k || event->keyval == GDK_K) &&
+	    Keyboard::modifier_state_equals (event->state, Keyboard::PrimaryModifier)) {
+		if (_capture_shortcut_down) { return true; }
+		if (_pluginui->toggle_keyboard_capture ()) {
+			_capture_shortcut_down = true;
+			return true;
+		}
+	}
 	if (_keyboard_focused) {
 		if (_pluginui) {
 			_pluginui->grab_focus ();
@@ -501,6 +512,13 @@ PluginUIWindow::on_key_press_event (GdkEventKey* event)
 bool
 PluginUIWindow::on_key_release_event (GdkEventKey* event)
 {
+	if (event->keyval == GDK_k || event->keyval == GDK_K) {
+		const bool handled = _capture_shortcut_down;
+		_capture_shortcut_down = false;
+		if (handled) { return true; }
+	}
+	if (!(event->state & Keyboard::PrimaryModifier) || event->keyval == GDK_Meta_L || event->keyval == GDK_Meta_R ||
+	    event->keyval == GDK_Control_L || event->keyval == GDK_Control_R) { _capture_shortcut_down = false; }
 	if (_keyboard_focused) {
 		if (_pluginui) {
 			if (_pluginui->non_gtk_gui ()) {
@@ -512,6 +530,13 @@ PluginUIWindow::on_key_release_event (GdkEventKey* event)
 		gtk_window_propagate_key_event (GTK_WINDOW (gobj ()), event);
 	}
 	return relay_key_press (event, this);
+}
+
+bool
+PluginUIWindow::on_focus_out_event (GdkEventFocus* event)
+{
+	_capture_shortcut_down = false;
+	return ArdourWindow::on_focus_out_event (event);
 }
 
 void
@@ -627,7 +652,7 @@ PlugUIBase::PlugUIBase (std::shared_ptr<PlugInsertBase> pib, bool with_presets)
 
 	_focus_button.add (*_focus_out_image);
 
-	set_tooltip (_focus_button, string_compose (_("Click to allow the plugin to receive keyboard events that %1 would normally use as a shortcut"), PROGRAM_NAME));
+	set_tooltip (_focus_button, string_compose (_("Click or press %2+K to allow the plugin to receive keyboard events that %1 would normally use as a shortcut"), PROGRAM_NAME, Keyboard::primary_modifier_name ()));
 	set_tooltip (_bypass_button, _("Click to enable/disable this plugin"));
 
 	description_expander.property_expanded ().signal_changed ().connect (sigc::mem_fun (*this, &PlugUIBase::toggle_description));
@@ -983,14 +1008,14 @@ PlugUIBase::focus_toggled (GdkEventButton*)
 		_focus_button.remove ();
 		_focus_button.add (*_focus_out_image);
 		_focus_out_image->show ();
-		set_tooltip (_focus_button, string_compose (_("Click to allow the plugin to receive keyboard events that %1 would normally use as a shortcut"), PROGRAM_NAME));
+		set_tooltip (_focus_button, string_compose (_("Click or press %2+K to allow the plugin to receive keyboard events that %1 would normally use as a shortcut"), PROGRAM_NAME, Keyboard::primary_modifier_name ()));
 		KeyboardFocused (false);
 	} else {
 		Keyboard::the_keyboard ().magic_widget_grab_focus ();
 		_focus_button.remove ();
 		_focus_button.add (*_focus_in_image);
 		_focus_in_image->show ();
-		set_tooltip (_focus_button, string_compose (_("Click to allow normal use of %1 keyboard shortcuts"), PROGRAM_NAME));
+		set_tooltip (_focus_button, string_compose (_("Click or press %2+K to allow normal use of %1 keyboard shortcuts"), PROGRAM_NAME, Keyboard::primary_modifier_name ()));
 		KeyboardFocused (true);
 	}
 
