@@ -498,7 +498,7 @@ Session::stop_transport (bool abort, bool clear_state)
 
 /** Called from the process thread */
 void
-Session::start_transport (bool after_loop)
+Session::start_transport (bool after_loop, bool after_locate)
 {
 	ENSURE_PROCESS_THREAD;
 	DEBUG_TRACE (DEBUG::Transport, "start_transport\n");
@@ -514,7 +514,9 @@ Session::start_transport (bool after_loop)
 		return;
 	}
 
-	if (Config->get_loop_is_mode() && get_play_loop ()) {
+	// A resumed locate already chose its position and configured track looping.
+	// Applying the ordinary Play policy here would discard the user's click.
+	if (!after_locate && Config->get_loop_is_mode() && get_play_loop ()) {
 
 		Location *location = _locations->auto_loop_location();
 

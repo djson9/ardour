@@ -1474,7 +1474,7 @@ protected:
 
 	void locate (samplepos_t, bool for_loop_end=false, bool force=false, bool with_mmc=true);
 	void stop_transport (bool abort = false, bool clear_state = false);
-	void start_transport (bool after_loop);
+	void start_transport (bool after_loop, bool after_locate = false);
 	void butler_completed_transport_work ();
 	void post_locate ();
 	void schedule_butler_for_transport_work ();
