@@ -150,6 +150,7 @@ gtk2_ardour_sources = [
         'sfdb_freesound_mootcher.cc',
         'gain_meter.cc',
         'generic_pluginui.cc',
+        'audio_rack_ui.cc',
         'ghost_event.cc',
         'ghostregion.cc',
         'global_port_matrix.cc',

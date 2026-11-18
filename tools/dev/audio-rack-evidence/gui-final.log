@@ -1,0 +1,118 @@
+Disabling MacOS AppNap
+Ardour9.0.pre0 (built using 9.10-84-ge54fb8374f and GCC version Apple LLVM 17.0.0 (clang-1700.0.13.3))
+Copyright (C) 1999-2026 Paul Davis
+Some portions Copyright (C) Steve Harris, Ari Johnson, Brett Viren, Joel Baker, Robin Gareus
+
+Ardour comes with ABSOLUTELY NO WARRANTY
+not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the source for copying conditions.
+Ardour: [INFO]: Your system is configured to limit Ardour to 10240 open files
+Ardour: [INFO]: Loading system configuration file /Users/davidson/workspace/ardour-audio-racks-build/system_config
+Ardour: [INFO]: Loading user configuration file /Users/davidson/workspace/ardour-audio-racks-build/artifacts/audio-racks/private-home/Library/Preferences/Ardour9/config
+Ardour: [INFO]: Apple VecLib H/W specific optimizations in use
+Ardour: [INFO]: Set Clip Library directory to '/Users/davidson/workspace/ardour-audio-racks-build/artifacts/audio-racks/private-home/Library/Audio/Sounds/Clips'
+Ardour: [INFO]: Loading plugin meta data file /Users/davidson/workspace/ardour-audio-racks-build/share/plugin_metadata/plugin_tags
+Ardour: [INFO]: Loading 471 MIDI patches from /Users/davidson/workspace/ardour-audio-racks-build/share/patchfiles
+Ardour: [INFO]: Loading default ui configuration file /Users/davidson/workspace/ardour-audio-racks-build/build/gtk2_ardour/default_ui_config
+Ardour: [INFO]: Loading color file /Users/davidson/workspace/ardour-audio-racks-build/gtk2_ardour/themes/dark-ardour.colors
+Ardour: [INFO]: Loading ui configuration file /Users/davidson/workspace/ardour-audio-racks-build/build/gtk2_ardour/clearlooks.rc
+cocoa invalidation: 1
+Ardour: [INFO]: Loading bindings from /Users/davidson/workspace/ardour-audio-racks-build/build/gtk2_ardour/ardour.keys
+Loading ui configuration file /Users/davidson/workspace/ardour-audio-racks-build/build/gtk2_ardour/clearlooks.rc
+Ardour: [INFO]: Detecting Audio/MIDI Devices
+Ardour: [INFO]: Audio/MIDI Devices detection complete. Elapsed time: 5 ms
+Set cursor set to default
+cocoa invalidation: 1
+
+(ardour-9.0.pre0:28626): Gtk-WARNING **: 12:49:42.812: Could not find the icon 'inode-directory'. The 'hicolor' theme
+was not found either, perhaps you need to install it.
+You can get a copy from:
+	http://icon-theme.freedesktop.org/releases
+SProv @ 0x14c7c0a70 kep [2026/11/18 12:49:42:8252] N: lws_create_context: LWS: 5.1.0-unknown, OpenSSL 4.1.0 23 Oct 2026, NET CLI SRV H1 H2 WS SS-JSON-POL ConMon ASYNC_DNS IPV6-on
+[2026/11/18 12:49:42:8264] N: lws_adns_watch_start: platform DNS servers: {"ns":["209.18.47.62","209.18.47.61"],"search":["tailade3f5.ts.net","hsd1.tn.comcast.net"],"ndots":1}
+[2026/11/18 12:49:42:8269] E: lws_socket_bind: ERROR on binding fd 45 to port 4820 (EADDRINUSE)
+[2026/11/18 12:49:42:8269] E: [vh|1|default|127.0.0.1|127.0.0.1|4820]: lws_create_vhost: init server failed
+[2026/11/18 12:49:42:8269] E: lws_create_context: Failed to create default vhost
+[2026/11/18 12:49:42:8269] N: lws_context_destroy: lws_context_destroy: initiated
+[2026/11/18 12:49:42:8269] N: lws_smd_unregister: destroying peer 0x600003bf0b40
+[2026/11/18 12:49:42:8271] N: lws_create_context: LWS: 5.1.0-unknown, OpenSSL 4.1.0 23 Oct 2026, NET CLI SRV H1 H2 WS SS-JSON-POL ConMon ASYNC_DNS IPV6-on
+[2026/11/18 12:49:42:8282] N: lws_adns_watch_start: platform DNS servers: {"ns":["209.18.47.62","209.18.47.61"],"search":["tailade3f5.ts.net","hsd1.tn.comcast.net"],"ndots":1}
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.554: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.554: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.555: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.555: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.555: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.555: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.555: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.556: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.556: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:43.556: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+RACK PROBE stage 2
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.366: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.366: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.366: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.366: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.366: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:45.367: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:47.311: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:47.311: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+RACK PROBE stage 5
+RACK PROBE stage 10
+RACK PROBE stage 14
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.125: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.126: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.126: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.126: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.126: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.127: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+
+(ardour-9.0.pre0:28626): Gdk-CRITICAL **: 12:49:58.127: gdk_quartz_window_get_nsview: assertion 'GDK_WINDOW_IS_QUARTZ (window)' failed
+RACK PROBE stage 19
+RACK PROBE PASSED: rack, chain addition, mapping dialog, plugin parameters, learned addition, right-click removal, touch learning, and macro control types

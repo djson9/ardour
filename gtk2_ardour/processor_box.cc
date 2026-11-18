@@ -93,6 +93,7 @@
 #include "plugin_pin_dialog.h"
 #include "plugin_selector.h"
 #include "plugin_ui.h"
+#include "audio_rack_ui.h"
 #include "port_insert_ui.h"
 #include "processor_box.h"
 #include "processor_selection.h"
@@ -2817,6 +2818,16 @@ ProcessorBox::build_processor_menu ()
 {
 	processor_menu = dynamic_cast<Gtk::Menu*>(ActionManager::get_widget("/ProcessorMenu") );
 	processor_menu->set_name ("ArdourContextMenu");
+	if (!g_object_get_data (G_OBJECT (processor_menu->gobj ()), "audio-rack-item")) {
+		g_object_set_data (G_OBJECT (processor_menu->gobj ()), "audio-rack-item", GINT_TO_POINTER (1));
+		processor_menu->items ().push_front (Menu_Helpers::MenuElem (_("New Audio Rack"), [] () {
+			ProcessorBox* box = _current_processor_box;
+			if (!box || !box->_route || !box->_session) return;
+			auto rack = std::make_shared<AudioRack> (*box->_session, *box->_route);
+			if (box->_route->add_processor_by_index (rack, box->_placement, nullptr, true) == 0) box->edit_processor (rack);
+			else { MessageDialog dialog (_("Cannot add an audio rack here. Audio channels are required and recording must be stopped.")); dialog.run (); }
+		}));
+	}
 	return processor_menu;
 }
 
@@ -3123,7 +3134,7 @@ ProcessorBox::maybe_add_processor_to_ui_list (std::weak_ptr<Processor> w)
 	/* see also ProcessorBox::get_editor_window */
 	bool have_ui = false;
 
-	if (std::dynamic_pointer_cast<PluginInsert> (p)) {
+	if (std::dynamic_pointer_cast<PluginInsert> (p) || std::dynamic_pointer_cast<AudioRack> (p)) {
 		have_ui = true;
 	} else if (std::dynamic_pointer_cast<PortInsert> (p)) {
 		have_ui = true;
@@ -3480,7 +3491,7 @@ ProcessorBox::can_cut () const
 
 	for (vector<std::shared_ptr<Processor> >::const_iterator i = sel.begin (); i != sel.end (); ++i) {
 
-		if (std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
+		if (std::dynamic_pointer_cast<AudioRack>(*i) || std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
 		    (std::dynamic_pointer_cast<Send>((*i)) != 0) ||
 		    (std::dynamic_pointer_cast<Return>((*i)) != 0)) {
 			return true;
@@ -3541,7 +3552,7 @@ ProcessorBox::cut_processors (const ProcSelection& to_be_removed)
 	no_processor_redisplay = true;
 	for (ProcSelection::const_iterator i = to_be_removed.begin(); i != to_be_removed.end(); ++i) {
 		// Cut only plugins, sends and returns
-		if (std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
+		if (std::dynamic_pointer_cast<AudioRack>(*i) || std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
 		    (std::dynamic_pointer_cast<Send>((*i)) != 0) ||
 		    (std::dynamic_pointer_cast<Return>((*i)) != 0)) {
 
@@ -3580,7 +3591,7 @@ ProcessorBox::copy_processors (const ProcSelection& to_be_copied)
 
 	for (ProcSelection::const_iterator i = to_be_copied.begin(); i != to_be_copied.end(); ++i) {
 		// Copy only plugins, sends, returns
-		if (std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
+		if (std::dynamic_pointer_cast<AudioRack>(*i) || std::dynamic_pointer_cast<PluginInsert>((*i)) != 0 ||
 		    (std::dynamic_pointer_cast<Send>((*i)) != 0) ||
 		    (std::dynamic_pointer_cast<Return>((*i)) != 0)) {
 			node->add_child_nocopy ((*i)->get_state());
@@ -3839,6 +3850,11 @@ ProcessorBox::paste_processor_state (const XMLNodeList& nlist, std::shared_ptr<P
 				}
 
 				p.reset (pi);
+			} else if (type->value() == "audio-rack") {
+				auto rack = std::make_shared<AudioRack> (*_session, *_route);
+				rack->set_owner (_route.get ());
+				if (rack->set_state (**niter, Stateful::current_state_version)) return;
+				rack->regenerate_ids (); p = rack;
 			} else if (type->value() == "beatbox") {
 				/* XXX do something */
 			} else {
@@ -4008,6 +4024,7 @@ ProcessorBox::processor_can_be_edited (std::shared_ptr<Processor> processor)
 	if (std::dynamic_pointer_cast<Send> (processor) ||
 	    std::dynamic_pointer_cast<Return> (processor) ||
 	    std::dynamic_pointer_cast<PluginInsert> (processor) ||
+	    std::dynamic_pointer_cast<AudioRack> (processor) ||
 	    std::dynamic_pointer_cast<PortInsert> (processor)
 #ifdef HAVE_BEATBOX
 	    || std::dynamic_pointer_cast<BeatBox> (processor)
@@ -4113,6 +4130,9 @@ ProcessorBox::get_editor_window (std::shared_ptr<Processor> processor, bool use_
 
 		gidget = return_ui;
 
+	} else if (auto rack = std::dynamic_pointer_cast<AudioRack> (processor)) {
+		gidget = get_processor_ui (processor);
+		if (!gidget) { gidget = new AudioRackUI (rack); set_processor_ui (processor, gidget); }
 	} else if ((plugin_insert = std::dynamic_pointer_cast<PluginInsert> (processor)) != 0) {
 
 		PluginUIWindow *plugin_ui;

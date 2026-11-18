@@ -25,6 +25,7 @@
 
 #include "ardour/audio_track.h"
 #include "ardour/plugin_insert.h"
+#include "ardour/audio_rack.h"
 #include "ardour/port_insert.h"
 #include "ardour/route.h"
 #include "ardour/session.h"
@@ -320,6 +321,11 @@ void
 RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 {
 	std::shared_ptr<Processor> p = w.lock ();
+	if (std::dynamic_pointer_cast<AudioRack> (p)) {
+		auto open = manage (new Gtk::Button (p->name () + _(" — Macros and chains…")));
+		open->signal_clicked ().connect ([this, p] () { _insert_box->edit_processor (p); });
+		_box.pack_start (*open, false, false); open->show (); return;
+	}
 	std::shared_ptr<PlugInsertBase> pib = std::dynamic_pointer_cast<PlugInsertBase> (p);
 	if (!pib) {
 		return;
