@@ -83,7 +83,7 @@ void Editor::update_group_drop (int x, int y)
 	for (auto* tv : track_views) {
 		auto* rtv = dynamic_cast<RouteTimeAxisView*> (tv);
 		if (!rtv || !tv->marked_for_display () || tv->hidden () || rtv->route ()->is_singleton ()) continue;
-		bottom = std::max (bottom, tv->y_position () + tv->effective_height ());
+		bottom = std::max (bottom, double (tv->y_position () + tv->effective_height ()));
 		if (y < tv->y_position () || y >= tv->y_position () + tv->effective_height ()) continue;
 		auto route = rtv->route ();
 		const double fraction = (y - tv->y_position ()) / tv->current_height ();
