@@ -535,3 +535,12 @@ selection/deletion 1.34 s, clock/pinned Master 1.33 s, and native scrolling/pinc
 5.64 s. The loop regression also passed in 3.44 s. Native scroll tests obtain
 actual header geometry rather than treating the ruler-label area as a track.
 The native macOS arm64 build and installed bundle signature checks passed.
+
+## Chord Grid plugin reload
+
+Chord Grid MIDI VST3 has a Reload button in its host toolbar. After installing a
+new plugin build, stop transport and click Reload to preserve the current state
+and replace its binary without restarting Ardour. Loading this new host button
+requires one initial Ardour update/restart. See [controls, implementation and
+validation](CHORD-GRID-RELOAD.md). Native 1.3.2 → 1.3.3 replacement, rollback,
+playback guard and packaged-GUI button/editor tests passed on macOS arm64.

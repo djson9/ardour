@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-18",
+  "platform": "macOS arm64",
+  "native": {
+    "passed": true,
+    "old_version": "1.3.2",
+    "new_version": "1.3.3",
+    "old_peer_preserved": true,
+    "state_preserved": true,
+    "repeat_reload": true,
+    "playback_guard": true,
+    "missing_binary_rollback": true,
+    "chain_identity_preserved": true
+  },
+  "packaged_gui": {
+    "passed": true,
+    "toolbar_button_found": true,
+    "button_action_replaced_instance": true,
+    "state_preserved": true,
+    "editor_reopened": true
+  },
+  "live_user_session_restarted": false
+}
