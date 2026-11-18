@@ -7,7 +7,7 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves', 'loop', 'master-clock', 'track-info', 'groups', 'group-drag', 'loop-locate'], required=True)
 p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
 if a.case == 'native-scroll':
@@ -384,6 +384,53 @@ elif a.case == 'search':
     expect_selection([ids[1]])
     checks += ['command T audio', 'command shift T MIDI', 'slash opens search', 'first result selected; Down chooses second', 'typing resets selection to first', 'typo match', 'command A edits text in search']
     remove_fixture(names, ids)
+
+elif a.case == 'loop-locate':
+    call('transport_stop'); wait(lambda: not call('transport_get_state')['rolling'])
+    master = next(r for r in routes() if r['name'] == 'Master')
+    call('track_set_mute', id=master['id'], value=True)  # Quiet disposable fixture.
+    call('transport_loop_toggle', enabled=False)
+    name = 'UI Loop Locate'
+    assert not any(r['name'] == name for r in routes()), 'Remove prior loop fixture'
+    route_id = create('Primary-t', name, 'audio_track'); header(name)
+    call('ui_activate_action', action='EditorEditing/set-mouse-mode-object')
+    call('ui_activate_action', action='EditorEditing/snap-normal')
+    call('ui_activate_action', action='Editor/zoom-to-session')
+    pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=-1000, deltaX=-1000)
+    time.sleep(.1)
+    state = instant().attrib
+    zoom, left = int(state['zoom']), int(state['left-frame'])
+    info = call('session_get_info'); rate = info['sampleRate']
+    bar = int(rate * 60 / info['tempoBpm'] * 4)
+    assert state['grid-type'] == 'GridTypeBar', state
+    call('markers_set_auto_loop_samples', startSample=2*bar, endSample=7*bar)
+    call('transport_loop_toggle', enabled=True)
+    call('transport_play'); wait(lambda: call('transport_get_state')['rolling'])
+    def click_bar(number, rolling=True):
+        c = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
+        h = pointer('TrackHeader:' + name, 'move', 30, 14)
+        x = ((number-1+.08)*bar-left)/zoom
+        y = h['yRoot'] - c['yRoot'] + 24
+        assert 0 < x < c['width'] and 0 < y < c['height'], (x,y,c,h)
+        for event in ['move','press','release']: pointer('EditorMainCanvas',event,x,y)
+        target = (number-1)*bar
+        def located():
+            t = call('transport_get_state')
+            return t['rolling'] == rolling and target <= t['sample'] < target + (rate//4 if rolling else 1)
+        wait(located)
+    click_bar(5)
+    click_bar(2)  # Before the bracket: play here, then encounter the loop normally.
+    click_bar(9)  # After it: do not pull playback back to the bracket.
+    call('transport_locate_sample', sample=7*bar-rate//5)
+    wait(lambda: 7*bar-rate//2 < call('transport_get_state')['sample'] < 7*bar)
+    wait(lambda: 2*bar <= call('transport_get_state')['sample'] < 2*bar+rate//2)
+    loop = next(m for m in call('markers_list')['markers'] if m['isAutoLoop'])
+    assert (loop['startSample'],loop['endSample']) == (2*bar,7*bar)
+    call('transport_stop'); wait(lambda: not call('transport_get_state')['rolling'])
+    click_bar(5, rolling=False)
+    call('transport_loop_toggle', enabled=False)
+    remove_fixture([name],[route_id])
+    checks += ['arrangement click plays at snapped point while looping', 'clicks before/after bracket are honored', 'loop bounds and wrapping preserved', 'stopped click does not start playback']
 
 elif a.case == 'loop':
     call('transport_stop')
