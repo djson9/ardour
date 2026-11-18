@@ -4,11 +4,26 @@ import CoreGraphics
 let args = CommandLine.arguments.dropFirst().compactMap(Double.init)
 guard args.count == 6, let app = NSRunningApplication(processIdentifier: pid_t(args[5])) else { exit(2) }
 guard app.activate(options: [.activateIgnoringOtherApps]) else { exit(3) }
-usleep(300_000)
+RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
 guard app.isActive else { exit(3) }
+let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+guard CGPreflightPostEventAccess(), let window = windows.first(where: { w in
+    guard w[kCGWindowOwnerPID as String] as? Int == Int(args[5]),
+          w[kCGWindowLayer as String] as? Int == 0,
+          let bounds = w[kCGWindowBounds as String] as? [String: Any],
+          let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { return false }
+    return rect.contains(CGPoint(x: args[0], y: args[1])) && rect.contains(CGPoint(x: args[2], y: args[3]))
+}), let windowID = window[kCGWindowNumber as String] as? Int64 else { exit(4) }
+let oldPoint = CGEvent(source: nil)?.location
+defer { if let oldPoint = oldPoint { CGWarpMouseCursorPosition(oldPoint) } }
 let source = CGEventSource(stateID: .hidSystemState)
 func mouse(_ type: CGEventType, _ x: Double, _ y: Double) {
-    CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)?.post(tap: .cghidEventTap)
+    let point = CGPoint(x: x, y: y)
+    CGWarpMouseCursorPosition(point)
+    let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)!
+    event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: windowID)
+    event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: windowID)
+    event.post(tap: .cghidEventTap)
 }
 mouse(.mouseMoved, args[0], args[1]); usleep(100_000)
 mouse(.leftMouseDown, args[0], args[1]); usleep(150_000)

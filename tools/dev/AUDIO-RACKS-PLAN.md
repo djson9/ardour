@@ -135,3 +135,33 @@ Reproduce with `python3 tools/dev/verify-rack-bottom-panel.py` (or add
 and result JSON are in `audio-rack-evidence/`.
 
 ![Rack controls and selected-chain plugin list in the bottom panel](audio-rack-evidence/rack-bottom-panel.png)
+
+## Dragging effects through chains — 2026-11-18
+
+Existing audio effects can be dragged from the track processor list into a
+chain, reordered between plugin rows, moved between chains/racks, and dragged
+back out to a track. Dropping on a chain row appends; an empty selected chain
+also accepts drops. Each drag moves the plugin under the pointer.
+
+`Route::move_rack_plugin` retains the PluginInsert and its controls under the
+engine process lock, retires anticipative work, and restores both locations if
+channel configuration fails. Macro mappings stay attached within the same rack;
+leaving a rack removes its mappings. Moves retain bypass and learned controls,
+and update the time-domain parent so deleting the former rack is safe.
+
+The selected-device UI changes on mouse-up, keeping the source row in place
+until GTK can start the drag. Dragging a track plugin temporarily previews the
+most recently selected rack without altering the source selection. Transfers
+wait for drag completion before processor notifications can rebuild widgets.
+
+Validation passed: the native macOS build, all five engine tests (including
+cross-track transfers, rollback and session reopening), and actual Quartz mouse
+drags between chains, reorder, out to the track, into an empty chain, and Escape
+cancellation. The GUI test also checks the saved plugin ID occurs exactly once,
+learned controls survive, stale macro mappings are gone, and track switching
+still restores the bottom panel. Results are in `audio-rack-evidence/drag-result.json`
+and `audio-rack-evidence/drag-engine-tests.log`.
+
+The mouse test ran in a separate local app with private preferences, dummy audio,
+and MCP port 4894 because the build host's screen was locked. For a prepared
+fixture, use `verify-rack-bottom-panel.py --drag --prepared --port 4894`.

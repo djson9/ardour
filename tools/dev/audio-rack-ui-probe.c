@@ -43,7 +43,7 @@ static void finish_capture(void) {
 }
 static void find_named (GtkWidget* w,gpointer arg) {
  struct Search* s=arg;if(s->result)return;
- if(!strcmp(gtk_widget_get_name(w),s->text)){s->result=w;return;}
+ if(gtk_widget_get_mapped(w)&&!strcmp(gtk_widget_get_name(w),s->text)){s->result=w;return;}
  if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),find_named,s);
 }
 static void find_menu (GtkWidget* w,gpointer arg) {
@@ -112,7 +112,8 @@ static int select_delay(GtkWidget* w,int keyboard) {
  gtk_tree_path_free(path);return 1;
 }
 static int drag_request(int id, GtkWidget* source, int source_row, GtkWidget* destination, int destination_row, int cancel) {
- if(!source||!destination)return 0;
+ if(!source||!destination||!gtk_widget_get_mapped(source)||!gtk_widget_get_mapped(destination))return 0;
+ gtk_window_present(GTK_WINDOW(gtk_widget_get_toplevel(source)));
  GtkWidget* widgets[]={source,destination}; int rows[]={source_row,destination_row}; int x[2],y[2];
  for(int i=0;i<2;++i) {
   if(GTK_IS_TREE_VIEW(widgets[i])&&rows[i]>=0) {
@@ -241,7 +242,7 @@ static gboolean probe(gpointer unused) {
   stage=41;break;
  case 41:
   if(!drag_done(1))return TRUE;
-  if(plugin_count()!=2||!plugin_name(0,"ACE EQ")||!plugin_name(1,"Rack test")){g_printerr("RACK PROBE FAILED: mouse drag between chains\n");return FALSE;}
+  if(plugin_count()!=2||!plugin_name(0,"ACE EQ")||!plugin_name(1,"Rack test")){g_printerr("RACK PROBE FAILED: mouse drag between chains (count=%d, first_eq=%d, second_rack=%d)\n",plugin_count(),plugin_name(0,"ACE EQ"),plugin_name(1,"Rack test"));return FALSE;}
   if(!drag_request(2,named(rack,"AudioRackPluginList"),1,named(rack,"AudioRackPluginList"),0,0))return TRUE;
   stage=42;break;
  case 42:

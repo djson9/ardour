@@ -356,9 +356,11 @@ bool AudioRackUI::drop_plugin (Session& session, SelectionData const& data, Rout
 	auto target_chain = rack ? rack->chains ()[chain] : nullptr;
 	// Route notifications can destroy both the drag source and this panel.
 	// Wait until GTK has finished tearing down its drag context.
-	Glib::signal_idle ().connect_once ([plugin, source, rack, destination, target_chain, position, before] () {
+	Glib::signal_idle ().connect_once ([plugin, source, source_route, rack, destination, target_chain, position, before] () {
 		size_t index = rack ? std::distance (rack->chains ().begin (), std::find (rack->chains ().begin (), rack->chains ().end (), target_chain)) : 0;
-		if (!destination->move_rack_plugin (plugin, source, rack, index, position, before)) {
+		if (source_route->session ().route_by_id (source_route->id ()) != source_route ||
+		    destination->session ().route_by_id (destination->id ()) != destination ||
+		    !destination->move_rack_plugin (plugin, source, rack, index, position, before)) {
 			MessageDialog dialog (_("Cannot move this plugin here. Racks accept compatible audio effects without MIDI or external sidechains; moves are disabled while recording."));
 			dialog.run ();
 		}

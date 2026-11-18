@@ -16,6 +16,8 @@ import xml.etree.ElementTree as ET
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--floating', action='store_true', help='Exercise the optional floating editor instead')
 parser.add_argument('--drag', action='store_true', help='Exercise native mouse drag and drop (embedded panel only)')
+parser.add_argument('--prepared', action='store_true', help='Use an already prepared isolated GUI fixture and launch plist')
+parser.add_argument('--port', type=int, default=4838, help='Isolated fixture MCP port')
 args = parser.parse_args()
 assert not (args.drag and args.floating)
 root = Path(__file__).resolve().parents[2]
@@ -23,7 +25,9 @@ out = root / 'artifacts/audio-racks'
 service = f'gui/{os.getuid()}/dev.ardour.audio-racks-verification'
 if subprocess.run(['launchctl', 'print', service], capture_output=True).returncode == 0:
     raise SystemExit('The rack verification job is already loaded; leaving it alone.')
-subprocess.run([sys.executable, str(root / 'tools/dev/verify-audio-racks.py'), '--prepare-gui'] + ([] if args.floating else ['--embedded']), check=True)
+if not args.prepared:
+    assert args.port == 4838, 'Custom ports require a prepared fixture'
+    subprocess.run([sys.executable, str(root / 'tools/dev/verify-audio-racks.py'), '--prepare-gui'] + ([] if args.floating else ['--embedded']), check=True)
 if args.drag:
     plist = out / 'gui.plist'
     job = plistlib.loads(plist.read_bytes())
@@ -37,11 +41,11 @@ session_file = fixture / 'Rack Verification.ardour'
 route_id = next(r.get('id') for r in ET.parse(session_file).findall('./Routes/Route') if r.find("Processor[@type='audio-rack']") is not None)
 initial_plugin_id = ET.parse(session_file).find(f"./Routes/Route[@id='{route_id}']/Processor[@type='audio-rack']/Chain/Processor").get('id')
 log = out / 'gui.log'
-offset = log.stat().st_size if log.exists() else 0
+offset = log.stat().st_size if log.exists() and not args.prepared else 0
 
-def call(tool_name, **args):
-    data = json.dumps(dict(jsonrpc='2.0', id=1, method='tools/call', params=dict(name=tool_name, arguments=args))).encode()
-    request = urllib.request.Request('http://127.0.0.1:4838/mcp', data, {'Content-Type': 'application/json'})
+def call(tool_name, **arguments):
+    data = json.dumps(dict(jsonrpc='2.0', id=1, method='tools/call', params=dict(name=tool_name, arguments=arguments))).encode()
+    request = urllib.request.Request(f'http://127.0.0.1:{args.port}/mcp', data, {'Content-Type': 'application/json'})
     result = json.load(urllib.request.urlopen(request, timeout=3))['result']
     if result.get('isError'):
         raise RuntimeError(result)
@@ -70,7 +74,8 @@ try:
         if args.drag and request.exists():
             drag = json.loads(request.read_text())
             if drag['id'] > last_drag:
-                subprocess.run([str(out / 'drag-mouse'), *map(str, drag['from']), *map(str, drag['to']), str(drag['cancel']), subprocess.check_output(['lsof', '-t', '-iTCP:4838', '-sTCP:LISTEN'], text=True).strip()], check=True, timeout=8)
+                assert call('session_get_info')['sessionPath'] == str(fixture)
+                subprocess.run([str(out / 'drag-mouse'), *map(str, drag['from']), *map(str, drag['to']), str(drag['cancel']), subprocess.check_output(['lsof', '-t', f'-iTCP:{args.port}', '-sTCP:LISTEN'], text=True).strip()], check=True, timeout=8)
                 time.sleep(.8)
                 last_drag = drag['id']
                 (out / 'drag-done').write_text(str(last_drag))

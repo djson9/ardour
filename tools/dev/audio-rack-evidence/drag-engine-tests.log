@@ -1,0 +1,24 @@
+AudioRackTest::mix_and_state: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+ : OK
+AudioRackTest::mappingMIDI Clock in new MIDI buffer of size 8192
+MTC in new MIDI buffer of size 8192
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+ : OK
+AudioRackTest::latencyMIDI Clock in new MIDI buffer of size 8192
+MTC in new MIDI buffer of size 8192
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+ : OK
+AudioRackTest::session_roundtripMIDI Clock in new MIDI buffer of size 8192
+MTC in new MIDI buffer of size 8192
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+Rack fixture: /var/tmp/libardour9test/1697731701/test_session
+SProv @ 0x125a13670 kep : [WARNING]: Falling back to Reasonable Synth for Midi Audition
+ : OK
+AudioRackTest::transfersMIDI Clock in new MIDI buffer of size 8192
+MTC in new MIDI buffer of size 8192
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+SProv @ 0x135107670 kep SProv @ 0x135130a70 kep : [WARNING]: LuaException: [string "..."]:16: assertion failed!
+Falling back to Reasonable Synth for Midi Audition
+ : OK
+OK (5)
+

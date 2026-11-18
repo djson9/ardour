@@ -1985,6 +1985,12 @@ ProcessorBox::ProcessorBox (ARDOUR::Session* sess, std::function<PluginSelector*
 	set_widget_bindings (processor_display, *bindings, ARDOUR_BINDING_KEY);
 	processor_display.SelectionAdded.connect (sigc::mem_fun (*this, &ProcessorBox::selection_added));
 	processor_display.SelectionChanged.connect ([this] () {
+		// Changing the bottom panel on mouse-down can move the source row out
+		// from under the pointer before GTK reaches its drag threshold.
+		GdkEvent* event = gtk_get_current_event ();
+		const bool pressed = event && event->type == GDK_BUTTON_PRESS && event->button.button == 1;
+		if (event) gdk_event_free (event);
+		if (pressed && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") return;
 		auto selected = processor_display.selection ();
 		auto p = selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ();
 		if (std::dynamic_pointer_cast<AudioRack> (p)) _rack_drop_target = p;
@@ -2791,7 +2797,7 @@ ProcessorBox::processor_button_press_event (GdkEventButton *ev, ProcessorEntry* 
 
 	} else if (processor && ev->button == 1 && selected) {
 		// this is purely informational but necessary for route params UI
-		ProcessorSelected (processor); // emit
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") ProcessorSelected (processor); // emit
 
 	} else if (!processor && ev->button == 1 && ev->type == GDK_2BUTTON_PRESS) {
 
@@ -2805,6 +2811,7 @@ ProcessorBox::processor_button_press_event (GdkEventButton *ev, ProcessorEntry* 
 bool
 ProcessorBox::processor_button_release_event (GdkEventButton *ev, ProcessorEntry* child)
 {
+	if (ev->button == 1 && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") restore_drag_selection ();
 	std::shared_ptr<Processor> processor;
 	if (child) {
 		processor = child->processor ();
@@ -3317,7 +3324,9 @@ void
 ProcessorBox::restore_drag_selection ()
 {
 	auto selected = processor_display.selection ();
-	ProcessorSelected (selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ());
+	auto p = selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ();
+	if (std::dynamic_pointer_cast<AudioRack> (p)) _rack_drop_target = p;
+	ProcessorSelected (p);
 }
 
 void
