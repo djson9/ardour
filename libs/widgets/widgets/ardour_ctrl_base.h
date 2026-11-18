@@ -60,6 +60,7 @@ public:
 		NoHorizontal = 0x4,
 		NoVertical   = 0x8,
 		Reverse      = 0x10,
+		NoScroll     = 0x20,
 	};
 
 	ArdourCtrlBase (Flags flags = NoFlags);
@@ -67,6 +68,8 @@ public:
 
 	void set_active_state (Gtkmm2ext::ActiveState);
 	void set_visual_state (Gtkmm2ext::VisualState);
+
+	void disable_scrolling () { _flags = Flags (_flags | NoScroll); }
 
 	void set_tooltip_prefix (std::string pfx) { _tooltip_prefix = pfx; controllable_changed (true); }
 

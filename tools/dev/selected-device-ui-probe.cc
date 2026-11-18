@@ -9,6 +9,7 @@
 #include <ytkmm/container.h>
 #include <ytkmm/label.h>
 #include <ytkmm/window.h>
+#include "widgets/ardour_knob.h"
 #include <ytkmm/checkmenuitem.h>
 #include <ytkmm/menu.h>
 #include <ytkmm/messagedialog.h>
@@ -132,6 +133,54 @@ static std::vector<std::shared_ptr<Processor>> visible_order (std::shared_ptr<Ro
  std::vector<std::shared_ptr<Processor>> order;
  route->foreach_processor ([&] (std::weak_ptr<Processor> w) { auto p = w.lock (); if (p && p->display_to_user ()) order.push_back (p); });
  return order;
+}
+static void check_plugin_knob_scroll (GenericPluginUI* ui) {
+ auto* knob = find<ArdourWidgets::ArdourKnob> (ui);
+ auto* scroller = find<Gtk::ScrolledWindow> (ui);
+ if (!knob || !scroller) throw std::runtime_error ("Missing compact plugin knob or scroller");
+ auto* adj = scroller->get_vadjustment ();
+ const bool overflows = adj->get_upper () - adj->get_page_size () > adj->get_lower ();
+
+ const double original_scroll = adj->get_value ();
+ const auto control = knob->get_controllable ();
+ const double original_value = control->get_value ();
+ adj->set_value (adj->get_lower ());
+ auto scroll = [&] (GdkScrollDirection direction, bool smooth) {
+  GdkEvent* event = gdk_event_new (GDK_SCROLL);
+  event->scroll.window = GDK_WINDOW (g_object_ref (knob->get_window ()->gobj ()));
+  event->scroll.send_event = true;
+  event->scroll.direction = direction;
+  event->scroll.has_deltas = smooth;
+  event->scroll.delta_y = direction == GDK_SCROLL_UP ? -5 : 5;
+  gtk_propagate_event (GTK_WIDGET (knob->gobj ()), event);
+  gdk_event_free (event);
+  if (control->get_value () != original_value) throw std::runtime_error ("Scrolling edited a compact plugin parameter");
+ };
+ scroll (GDK_SCROLL_UP, false); // At the top edge.
+ scroll (GDK_SCROLL_DOWN, false);
+ const double after_wheel = adj->get_value ();
+ if (overflows && after_wheel <= adj->get_lower ()) throw std::runtime_error ("Wheel did not scroll the plugin list");
+ scroll (GDK_SCROLL_UP, true);
+ if (overflows && adj->get_value () >= after_wheel) throw std::runtime_error ("Smooth scroll did not scroll the plugin list");
+ adj->set_value (original_scroll);
+
+ const double step = control->get_interface (true) < 0.5 ? -60 : 60;
+ double y = 8;
+ for (auto type : {GDK_BUTTON_PRESS, GDK_MOTION_NOTIFY, GDK_MOTION_NOTIFY, GDK_BUTTON_RELEASE}) {
+  GdkEvent* event = gdk_event_new (type);
+  event->any.window = GDK_WINDOW (g_object_ref (knob->get_window ()->gobj ()));
+  event->any.send_event = true;
+  if (type == GDK_MOTION_NOTIFY) {
+   y += step;
+   event->motion.state = GDK_BUTTON1_MASK; event->motion.x = 8; event->motion.y = y;
+  } else {
+   event->button.button = 1; event->button.x = 8; event->button.y = y;
+  }
+  gtk_widget_event (GTK_WIDGET (knob->gobj ()), event);
+  gdk_event_free (event);
+ }
+ if (control->get_value () == original_value) throw std::runtime_error ("Dragging did not edit the compact plugin parameter");
+ control->set_value (original_value, PBD::Controllable::NoGroup);
 }
 static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  auto* window = dynamic_cast<Gtk::Window*> (widget.get_toplevel ());
@@ -378,6 +427,7 @@ static gboolean tick (gpointer) {
   auto* view = PublicEditor::instance ().time_axis_view_from_stripable (route);
   if (stage == 1) {
    if (!single ("Detail EQ")) return TRUE;
+   check_plugin_knob_scroll (find<GenericPluginUI> (props));
    if (visible_order (route) != std::vector<std::shared_ptr<Processor>> {eq, delay, rack, route->amp ()}) return finish ("Reorder moved the pinned fader");
    click (entry (list, eq)->action_widget (), 3);
    auto* menu = dynamic_cast<Gtk::Menu*> (ActionManager::get_widget ("/ProcessorMenu"));
