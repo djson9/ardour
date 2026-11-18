@@ -1001,8 +1001,10 @@ GenericPluginUI::build_control_ui (const Evoral::Parameter&             param,
 				assert(but);
 				but->set_tweaks(ArdourButton::Square);
 			} else if (use_knob) {
+				auto& knob = dynamic_cast<ArdourKnob&> (*control_ui->controller->widget ());
+				knob.disable_scrolling ();
 				/* Delay size request so that styles are gotten right */
-				control_ui->controller->widget()->signal_size_request().connect(
+				knob.signal_size_request().connect(
 						sigc::bind (sigc::mem_fun (*this, &GenericPluginUI::knob_size_request), control_ui));
 			} else {
 				control_ui->controller->set_size_request (200, -1);
