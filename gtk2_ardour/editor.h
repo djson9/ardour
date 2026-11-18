@@ -2133,6 +2133,7 @@ private:
 	                                      Temporal::RoundMode   direction,
 	                                      ARDOUR::SnapPref    gpref) const;
 
+	int live_grid_step_ticks () const;
 	Temporal::timepos_t snap_to_grid (Temporal::timepos_t const & start,
 	                                  Temporal::RoundMode   direction,
 	                                  ARDOUR::SnapPref    gpref) const;

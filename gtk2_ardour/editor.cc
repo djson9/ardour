@@ -2754,7 +2754,7 @@ Editor::snap_to_grid (timepos_t const & presnap, Temporal::RoundMode direction, 
 	timepos_t ret(presnap);
 
 	if (grid_musical()) {
-		ret = snap_to_bbt (presnap, direction, gpref);
+		ret = snap_to_bbt (presnap, direction, live_grid_step_ticks () ? SnapToGrid_Unscaled : gpref);
 	}
 
 	switch (grid_type()) {
