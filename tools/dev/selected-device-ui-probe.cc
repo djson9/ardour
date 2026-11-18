@@ -11,6 +11,8 @@
 #include <ytkmm/window.h>
 #include <ytkmm/checkmenuitem.h>
 #include <ytkmm/menu.h>
+#include <ytkmm/messagedialog.h>
+#include "gtkmm2ext/keyboard.h"
 #ifdef __APPLE__
 extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #endif
@@ -147,6 +149,90 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
 }
+static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<PluginInsert> eq, std::shared_ptr<PluginInsert> other)
+{
+ auto* list = dynamic_cast<Gtk::Box*> (named (&props, "PluginParameterList"));
+ auto* configure = dynamic_cast<Gtk::ToggleButton*> (named (&props, "PluginConfigure"));
+ auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
+ check (list && configure && !configure->get_active (), "Missing compact list/configure toggle");
+ auto rows = [&] () {
+  std::vector<Gtk::Widget*> visible;
+  for (auto row : list->get_children ()) if (row->get_visible ()) visible.push_back (row);
+  return visible;
+ };
+ auto selected = [&] () {
+  auto visible = rows ();
+  return std::count_if (visible.begin (), visible.end (), [] (Gtk::Widget* row) { return row->get_state () == Gtk::STATE_SELECTED; });
+ };
+ auto respond = [&] (int response) {
+  for (auto w : Gtk::Window::list_toplevels ()) if (auto dialog = dynamic_cast<Gtk::MessageDialog*> (w)) {
+   if (dialog->get_visible () && dialog->get_transient_for () == props.get_toplevel ()) {
+    dialog->response (response);
+    return;
+   }
+  }
+  throw std::runtime_error ("Expected a parameter removal dialog");
+ };
+ auto before = rows ();
+ check (before.size () >= 4, "Too few EQ parameters");
+ click (*before[1]);
+ check (list->is_focus () && selected () == 1 && before[1]->get_state () == Gtk::STATE_SELECTED, "Click did not select the parameter");
+ key (props, GDK_Down);
+ key (props, GDK_Down, GDK_SHIFT_MASK);
+ key (props, GDK_Up, GDK_SHIFT_MASK);
+ check (selected () == 1 && before[2]->get_state () == Gtk::STATE_SELECTED, "Shift range did not shrink to its anchor");
+ key (props, GDK_Up, GDK_SHIFT_MASK);
+ snapshot (find<GenericPluginUI> (&props), ".parameter-selection");
+ key (props, GDK_BackSpace);
+ respond (Gtk::RESPONSE_CANCEL);
+ check (rows () == before && selected () == 2, "Cancel changed the list/selection");
+ key (props, GDK_Delete);
+ respond (Gtk::RESPONSE_ACCEPT);
+ auto after = rows ();
+ check (after.size () == before.size () - 2 && after[0] == before[0] && after[1] == before[3], "Delete removed the wrong range");
+ click (*after.front (), 3);
+ auto grab = gtk_grab_get_current ();
+ check (grab && GTK_IS_MENU (grab), "Missing parameter context menu");
+ auto menu = Glib::wrap (GTK_MENU (grab));
+ check (label (menu, "Hide parameter"), "Missing Hide parameter item");
+ menu->items ().front ().activate ();
+ menu->popdown ();
+ check (rows ().size () == after.size () - 1, "Hide parameter did not remove the row");
+ click (*rows ().front ());
+ key (props, GDK_a, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (selected () == (int) rows ().size (), "Select All missed parameters");
+ key (props, GDK_BackSpace);
+ respond (Gtk::RESPONSE_ACCEPT);
+ check (rows ().empty () && eq->extra_xml ("CompactPluginParameters"), "Empty list was not persisted");
+
+ auto control = find<AutomationController> (before.back ())->controllable ();
+ auto param = control->parameter ();
+ auto value = control->get_value ();
+ eq->plugin ()->StartTouch (param.id ());
+ eq->plugin ()->EndTouch (param.id ());
+ check (rows ().empty (), "Configure off added a row");
+ configure->set_active (true);
+ other->plugin ()->StartTouch (0);
+ other->plugin ()->EndTouch (0);
+ eq->plugin ()->ParameterChangedExternally (param.id (), value);
+ check (rows ().empty (), "Another plugin populated this list");
+ control->start_touch (timepos_t (0));
+ control->stop_touch (timepos_t (0));
+ eq->plugin ()->StartTouch (param.id ());
+ eq->plugin ()->EndTouch (param.id ());
+ check (rows ().size () == 1 && rows ()[0] == before.back (), "Touch did not restore exactly one parameter");
+ auto gain = eq->automation_control (Evoral::Parameter (PluginAutomation, 0, 16));
+ check (gain && gain->desc ().label == "Master Gain", "Missing EQ parameter outside the default list");
+ eq->plugin ()->StartTouch (16);
+ eq->plugin ()->EndTouch (16);
+ check (rows ().size () == 2 && label (rows ().back (), "Master Gain"), "Could not learn a parameter beyond the initial limit");
+ configure->set_active (false);
+ std::unique_ptr<XMLNode> insert_state (&eq->get_state ());
+ auto extra = insert_state->child ("Extra");
+ auto state = extra ? extra->child ("CompactPluginParameters") : nullptr;
+ check (state && state->children ().size () == 2 && control->get_value () == value, "Wrong serialized parameter list or value");
+}
+
 static gboolean tick (gpointer) {
  const char* output = getenv ("ARDOUR_DEVICE_UI_PROBE"); if (!output) return FALSE;
  static int stage = 0;
@@ -379,6 +465,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 2) {
    if (!single ("Detail EQ") || label (props, "Detail Delay") || label (props, "Detail Rack")) return TRUE;
+   verify_parameter_list (*props, eq, delay);
    list->select (entry (list, delay)); stage = 3; return TRUE;
   }
   if (stage == 3) {
@@ -405,6 +492,8 @@ static gboolean tick (gpointer) {
   }
   if (stage == 8) {
    if (!single ("Detail EQ") || count<AudioRackUI> (props)) return TRUE;
+   auto* restored = dynamic_cast<Gtk::Box*> (named (props, "PluginParameterList"));
+   if (!restored || restored->get_children ().size () != 2 || !label (restored, "Master Gain")) return finish ("Configured list was lost on device switch");
    session->selection ().select_stripable_and_maybe_group (session->master_out (), SelectionSet, false); stage = 9; return TRUE;
   }
   if (stage == 9) {
