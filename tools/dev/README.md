@@ -336,3 +336,86 @@ macOS build/install, ten actual MCP arrow-key pairs, visible compact controls an
 All controls button, and opening Serum's full generic editor from that button.
 
 The playlist core rebuild/deploy/restart measured 18.05 seconds with development optimization (29.42 seconds previously). The under-ten-second measurements apply to adapter edits, not every core or header change.
+
+
+### Compact arrangement workflow (Live layout)
+
+With `ARDOUR_LIVE_LAYOUT=1`, the top bar contains BPM, meter, metronome,
+count-in (Off/1/2/4 bars), session key/scale, position, play/stop/record,
+Automation visibility, and the native computer-keyboard Piano toggle. The
+secondary editing toolbar is hidden. Its mode, snap/grid, edit-point and nudge
+keyboard bindings are removed at startup and after live key-file reloads.
+Menus retain those actions. Existing session themes and device panels are reused.
+
+Plain clicks on clips or empty arrangement space locate to the nearest visible
+grid division; Snap Off uses the exact position. Completed drags and modified
+clicks preserve the playhead. Right-side track headers accept Shift-click ranges,
+Cmd-click toggles, and Cmd+A to select all tracks. Header-focused Delete or
+Backspace uses the existing removal confirmation; Cancel preserves the tracks.
+Text fields keep their own editing shortcuts.
+
+Cmd+T creates a stereo audio track; Cmd+Shift+T creates a MIDI track. `/` opens
+Find Track/Bus with eight ranked matches (exact, prefix, substring, abbreviation,
+then typo distance). The first result is highlighted as the query changes.
+Enter immediately jumps to it; Down chooses the second result. Further typing
+resets selection to the new best result. Hidden matches are revealed on arrival.
+These bindings are applied at startup and after reload without rewriting the
+user's `.keys` file. The bundled GTK completion has an opt-in object-data flag
+`ardour-select-first-completion`; other completion dialogs retain GTK behavior.
+
+Quartz precise trackpad deltas now scroll continuously, including fractional
+movement and momentum. Pinch zoom anchors to the gesture position. Pending
+scroll/zoom changes accumulate between redraws. Native GTK event tests exercise
+the handlers; a physical trackpad session is still a manual acceptance check.
+
+Double-click an automation clip to open its bottom curve editor. Double-click
+inside it to add a point, drag points to move them, or drag a segment vertically
+to bend it. Delete removes a selected interior point; Escape cancels a drag.
+The arrangement shows a read-only curve preview. Existing target mapping,
+per-target range and inversion remain in Automation Clip Targets.
+
+Sparse handles and outgoing bends are saved in region Extra XML. Curves compile
+on edit into the existing linear playback envelope, with adaptive interpolation
+and no additional audio-callback work. Undo/redo includes both representations.
+If native trim/split/stretch changes the source bounds, the editor falls back to
+the transformed envelope's linear knots, preserving its playback rather than
+reusing stale sparse handles. This first version does not preserve sparse bend
+handles across those operations. Ardour may move the last envelope point to the
+last sample when loading a clip; curve handles remain intact.
+
+The interaction was informed by Zrythm revision
+`c680fbad9265cbad578d6fda1ba251766e91edaa`: `src/dsp/curve.{h,cpp}`,
+`AutomationArranger.qml`, `AutomationPointView.qml`, `AutomationClipContent.qml`,
+`AutomationEditorPane.qml`, and `automation_clip_canvas_renderer.cpp`.
+The exponential shape/compiler here is an independent implementation; no Zrythm
+code or runtime dependency was imported.
+
+Run the standalone curve and search checks (build outside the source tree):
+
+```sh
+c++ -std=c++17 -O2 tools/dev/tests/automation-clip-curve.cc -o /tmp/ardour-curve-test
+/tmp/ardour-curve-test
+c++ -std=c++17 -O2 tools/dev/tests/track-name-search.cc -o /tmp/ardour-search-test
+/tmp/ardour-search-test
+```
+
+For native UI checks, open a disposable session whose directory name contains
+`Verification`, enable MCP on the intended port, and leave the keyboard/mouse
+idle during the run. Each case enforces a nine-second deadline, creates its own
+fixture tracks and confirms deletion of only those fixtures on success. A failed
+case leaves fixtures for inspection; remove them before rerunning that case.
+Never run against the working music session.
+
+```sh
+python3 tools/dev/verify-compact-workflow.py --url http://127.0.0.1:4838/mcp \
+  --session-path '/absolute/path/Compact UI Verification' --case search
+```
+
+Cases: `headers`, `search`, `scroll`, `curves`. They exercise native GTK events,
+not global OS key injection. On 2026-11-18, header selection/removal took 1.32 s,
+search including typing/refinement took 2.43 s, fractional scroll/pinch took
+1.64 s, and curve editing/read-only arrangement checks took 1.67 s. The separate recording count-in check measured 2.006 s for one bar and
+4.010 s for two bars at 120 BPM (7.25 s total). Curve math checked 70 dense cases
+with a worst normalized playback error of 0.00004991 in about 0.08 s. Live
+shortcut reload verification took 1.73 s. These are focused UI/curve checks,
+not evidence of sustained audio-engine stability.

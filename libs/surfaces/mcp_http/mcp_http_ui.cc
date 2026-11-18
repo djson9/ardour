@@ -12,6 +12,8 @@
 #include "gtkmm2ext/gtk_ui.h"
 #include "gtkmm2ext/actions.h"
 #include "gtkmm2ext/bindings.h"
+#include "gtkmm2ext/keyboard.h"
+#include <ytkmm/label.h>
 #include "pbd/event_loop.h"
 #include <ytkmm/window.h>
 #include <ytkmm/treeview.h>
@@ -67,8 +69,23 @@ void warp_controls (Gtk::Widget* widget, std::vector<Gtk::Widget*>& result) {
 }
 void canvas_widgets (Gtk::Widget* widget, std::vector<Gtk::Widget*>& result) {
  if (!widget || !widget->get_visible ()) return;
- if (widget->get_name () == "EditorMainCanvas" || widget->get_name () == "AudioClipCanvas" || widget->get_name () == "MidiCueCanvas") result.push_back (widget);
+ if (widget->get_name () == "AutomationClipCanvas" || widget->get_name () == "EditorMainCanvas" || widget->get_name () == "AudioClipCanvas" || widget->get_name () == "MidiCueCanvas") result.push_back (widget);
  if (auto* container = dynamic_cast<Gtk::Container*> (widget)) for (auto* child : container->get_children ()) canvas_widgets (child, result);
+}
+// Resolve a header by its full track name, independent of screen geometry.
+Gtk::Widget* track_header (Gtk::Widget* widget, std::string const& name) {
+ if (!widget || !widget->get_visible ()) return nullptr;
+ if (auto* label = dynamic_cast<Gtk::Label*> (widget)) {
+  if (label->get_text () == name) {
+   for (auto* parent = label->get_parent (); parent; parent = parent->get_parent ()) {
+    if (GTK_IS_EVENT_BOX (parent->gobj ()) && parent->get_name ().raw ().find ("ControlsBase") != std::string::npos) return parent;
+   }
+  }
+ }
+ if (auto* container = dynamic_cast<Gtk::Container*> (widget)) for (auto* child : container->get_children ()) {
+  if (auto* found = track_header (child, name)) return found;
+ }
+ return nullptr;
 }
 void canvas_labels (ArdourCanvas::Item* item, std::ostringstream& out, unsigned& count, unsigned depth=0) {
  if (!item || !item->visible () || count >= 256 || depth > 64) return;
@@ -133,20 +150,23 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     if (!w->get_visible () || w->get_title () != window_name) continue;
     std::vector<Gtk::Widget*> canvases; canvas_widgets (w, canvases);
     for (auto* c : canvases) if (c->get_name () == group) target = c;
+    if (group.compare (0, 12, "TrackHeader:") == 0) target = track_header (w, group.substr (12));
    }
    auto* canvas_target = dynamic_cast<ArdourCanvas::GtkCanvas*> (target);
    const bool grabbed = canvas_target && canvas_target->have_grab ();
    double x=0,y=0;int button=1;bool shift=false,down=false;std::istringstream coordinates (key_name);coordinates.imbue (std::locale::classic ());
-   if (!target || !target->get_window () || !(coordinates >> x >> y >> shift >> down) || x < 0 || y < 0 || (!grabbed && (x >= target->get_allocation ().get_width () || y >= target->get_allocation ().get_height ())) || (action_name != "move" && action_name != "press" && action_name != "release")) {
+   if (!target || !target->get_window () || !(coordinates >> x >> y >> shift >> down) || x < 0 || y < 0 || (!grabbed && (x >= target->get_allocation ().get_width () || y >= target->get_allocation ().get_height ())) || (action_name != "move" && action_name != "press" && action_name != "release" && action_name != "pinch" && action_name != "doublePress" && action_name != "scroll")) {
     out << "{\"error\":\"Invalid canvas, event, or local coordinates\"}";
    } else {
-    coordinates >> button;
+    double magnification = 0; bool primary = false; double dx = 0, dy = 0; coordinates >> button >> magnification >> primary >> dx >> dy;
     if (button != 1 && button != 3) button = 1;
-    const auto type = action_name == "move" ? GDK_MOTION_NOTIFY : action_name == "press" ? GDK_BUTTON_PRESS : GDK_BUTTON_RELEASE;
+    const auto type = (action_name == "pinch" || action_name == "scroll") ? GDK_SCROLL : action_name == "move" ? GDK_MOTION_NOTIFY : action_name == "press" ? GDK_BUTTON_PRESS : action_name == "doublePress" ? GDK_2BUTTON_PRESS : GDK_BUTTON_RELEASE;
     auto* event = gdk_event_new (type);event->any.window = GDK_WINDOW (g_object_ref (target->get_window ()->gobj ()));event->any.send_event = true;
     int ox=0,oy=0;target->get_window ()->get_origin (ox, oy);
-    const guint state = (shift ? GDK_SHIFT_MASK : 0) | (down ? (button == 3 ? GDK_BUTTON3_MASK : GDK_BUTTON1_MASK) : 0);
-    if (type == GDK_MOTION_NOTIFY) {
+    const guint state = (primary ? Gtkmm2ext::Keyboard::PrimaryModifier : 0) | (shift ? GDK_SHIFT_MASK : 0) | (down ? (button == 3 ? GDK_BUTTON3_MASK : GDK_BUTTON1_MASK) : 0);
+    if (type == GDK_SCROLL) {
+     event->scroll.time = guint32 (g_get_monotonic_time ()/1000);event->scroll.x=x;event->scroll.y=y;event->scroll.x_root=x+ox;event->scroll.y_root=y+oy;event->scroll.state=state;event->scroll.direction=action_name == "pinch" ? GDK_SCROLL_PINCH : GDK_SCROLL_DOWN;event->scroll.has_deltas=true;event->scroll.delta_x=dx;event->scroll.delta_y=action_name == "pinch" ? magnification : dy;
+    } else if (type == GDK_MOTION_NOTIFY) {
      event->motion.time = guint32 (g_get_monotonic_time ()/1000);event->motion.x=x;event->motion.y=y;event->motion.x_root=x+ox;event->motion.y_root=y+oy;event->motion.state=state;event->motion.is_hint=false;
     } else {
      event->button.time = guint32 (g_get_monotonic_time ()/1000);event->button.x=x;event->button.y=y;event->button.x_root=x+ox;event->button.y_root=y+oy;event->button.state=state;event->button.button=button;
@@ -249,6 +269,9 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
 				    << ",\"focus\":" << quote (w->get_focus () ? G_OBJECT_TYPE_NAME (w->get_focus ()->gobj ()) : "");
 				if (w->get_focus () && GTK_IS_ENTRY (w->get_focus ()->gobj ())) {
 					out << ",\"focusText\":" << quote (gtk_entry_get_text (GTK_ENTRY (w->get_focus ()->gobj ())));
+					gint start = 0, end = 0;
+					gtk_editable_get_selection_bounds (GTK_EDITABLE (w->get_focus ()->gobj ()), &start, &end);
+					out << ",\"selectionStart\":" << start << ",\"selectionEnd\":" << end;
 				}
 				if (auto* view = dynamic_cast<Gtk::TreeView*> (w->get_focus ())) {
 					auto row = view->get_selection ()->get_selected ();
@@ -272,7 +295,8 @@ ArdourSurface::mcp_ui_call (PBD::EventLoop* loop, std::string const& tool,
     std::vector<Gtk::Widget*> canvases;canvas_widgets (w, canvases);bool first_canvas=true;
     for (auto* canvas : canvases) {
      if (!first_canvas) out << ',';first_canvas=false;
-     out << "{\"name\":" << quote (canvas->get_name ()) << ",\"width\":" << canvas->get_allocation ().get_width () << ",\"height\":" << canvas->get_allocation ().get_height () << ",\"labels\":[";
+     int ox = 0, oy = 0; canvas->get_window ()->get_origin (ox, oy);
+     out << "{\"xRoot\":" << ox << ",\"yRoot\":" << oy << ",\"name\":" << quote (canvas->get_name ()) << ",\"width\":" << canvas->get_allocation ().get_width () << ",\"height\":" << canvas->get_allocation ().get_height () << ",\"labels\":[";
      unsigned labels=0;auto* c=dynamic_cast<ArdourCanvas::GtkCanvas*> (canvas);if (c) canvas_labels (c->root (), out, labels);
      out << "],\"grabbed\":" << (c && c->have_grab () ? "true" : "false") << "}";
     }

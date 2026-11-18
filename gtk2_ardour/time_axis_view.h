@@ -110,6 +110,8 @@ public:
 	virtual ~TimeAxisView ();
 
 	std::string name () const { return name_label.get_text (); }
+	bool track_header_has_focus () const { return controls_ebox.is_focus (); }
+	void focus_track_header () { controls_ebox.grab_focus (); }
 
 	static PBD::Signal<void(TimeAxisView*)> CatchDeletion;
 

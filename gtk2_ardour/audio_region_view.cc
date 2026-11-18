@@ -1277,7 +1277,12 @@ AudioRegionView::update_envelope_visibility ()
 		return;
 	}
 
-	if (AutomationClips::is_clip(audio_region()) || trackview.editor().current_mouse_mode() == Editing::MouseDraw || trackview.editor().current_mouse_mode() == Editing::MouseContent ) {
+	if (AutomationClips::is_clip (audio_region ())) {
+		_fx_line->add_visibility (EditorAutomationLine::Line);
+		_fx_line->remove_visibility (EditorAutomationLine::ControlPoints);
+		_fx_line->canvas_group ().raise_to_top ();
+		_fx_line->canvas_group ().set_ignore_events (true);
+	} else if (trackview.editor().current_mouse_mode() == Editing::MouseDraw || trackview.editor().current_mouse_mode() == Editing::MouseContent ) {
 		_fx_line->add_visibility (EditorAutomationLine::Line);
 		if (hovered) {
 			_fx_line->add_visibility (EditorAutomationLine::ControlPoints);
@@ -1491,7 +1496,7 @@ AudioRegionView::peaks_ready_handler (uint32_t which)
 void
 AudioRegionView::add_gain_point_event (ArdourCanvas::Item *item, GdkEvent *ev, bool with_guard_points)
 {
-	if (!_fx_line) {
+	if (!_fx_line || AutomationClips::is_clip (audio_region ())) {
 		return;
 	}
 

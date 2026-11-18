@@ -85,7 +85,34 @@ Editor::track_canvas_scroll (GdkEventScroll* ev)
 
 	Duple event_coords = _track_canvas->window_to_canvas (Duple (ev->x, ev->y));
 
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && ev->has_deltas &&
+	    direction != GDK_SCROLL_PINCH && Keyboard::modifier_state_equals (ev->state, 0) &&
+	    std::isfinite (ev->delta_x) && std::isfinite (ev->delta_y)) {
+		/* Quartz supplies pixel deltas, including trackpad momentum. Accumulate
+		 * against pending origins so events between redraws are not discarded. */
+		const double y = (pending_visual_change.pending & VisualChange::YOrigin) ? pending_visual_change.y_origin : vertical_adjustment.get_value ();
+		const samplepos_t x = (pending_visual_change.pending & VisualChange::TimeOrigin) ? pending_visual_change.time_origin : _leftmost_sample;
+		reset_y_origin (std::max (0.0, std::min (std::max (0.0, vertical_adjustment.get_upper () - vertical_adjustment.get_page_size ()), y + ev->delta_y)));
+		reset_x_origin (std::max (0.0, std::min (double (max_samplepos - current_page_samples ()), x + ev->delta_x * samples_per_pixel)));
+		return true;
+	}
+
 	switch (direction) {
+	case GDK_SCROLL_PINCH:
+		if (std::isfinite (ev->delta_y) && ev->delta_y != 0.0) {
+			const double factor = std::max (0.5, std::min (2.0, 1.0 + ev->delta_y));
+			const samplecnt_t previous = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
+			const samplepos_t origin = (pending_visual_change.pending & VisualChange::TimeOrigin) ? pending_visual_change.time_origin : _leftmost_sample;
+			const samplecnt_t requested = std::max<samplecnt_t> (1, llround (previous / factor));
+			reset_zoom (requested);
+			if (requested == samples_per_pixel && (pending_visual_change.pending & VisualChange::ZoomLevel)) {
+				pending_visual_change.samples_per_pixel = requested;
+			}
+			const samplecnt_t next = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
+			/* Use the gesture's position, not a later global mouse query. */
+			reset_x_origin (std::max (0.0, origin + ev->x * (previous - next)));
+		}
+		return true;
 	case GDK_SCROLL_UP:
 		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollZoomHorizontalModifier)) {
 			temporal_zoom_step_mouse_focus (false);
@@ -157,7 +184,7 @@ Editor::track_canvas_scroll (GdkEventScroll* ev)
 bool
 Editor::canvas_scroll_event (GdkEventScroll *event, bool from_canvas)
 {
-	if (from_canvas) {
+	if (from_canvas && event->direction != GDK_SCROLL_PINCH && !(event->has_deltas && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1")) {
 		std::optional<ArdourCanvas::Rect> rulers = _time_markers_group->bounding_box();
 		if (rulers && rulers->contains (Duple (event->x, event->y))) {
 			return canvas_ruler_event ((GdkEvent*) event, timecode_ruler, TimecodeRulerItem);

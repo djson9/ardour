@@ -703,6 +703,10 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 	}
 
 	Editing::MouseMode eff = effective_mouse_mode ();
+	if ((eff == MouseDraw || eff == MouseContent) && clicked_regionview &&
+	    AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (clicked_regionview->region ()))) {
+		eff = MouseObject;
+	}
 
 	/* special case: allow drag of region fade in/out in object mode with join object/range enabled */
 	if (get_smart_mode()) {
@@ -1110,7 +1114,7 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 						std::shared_ptr<RegionList> rl = playlist->regions_touched (j->start(), j->end());
 						for (RegionList::iterator ir = rl->begin(); ir != rl->end(); ++ir) {
 							RegionView* rv;
-							if ((rv = tatv->view()->find_view (*ir)) != 0) {
+							if (!AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (*ir)) && (rv = tatv->view()->find_view (*ir)) != 0) {
 								rvl.push_back (rv);
 							}
 						}
@@ -1232,7 +1236,11 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 bool
 Editor::button_press_handler_2 (ArdourCanvas::Item* item, GdkEvent* event, ItemType item_type)
 {
-	Editing::MouseMode const eff = effective_mouse_mode ();
+	Editing::MouseMode eff = effective_mouse_mode ();
+	if ((eff == MouseDraw || eff == MouseContent) && clicked_regionview &&
+	    AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (clicked_regionview->region ()))) {
+		eff = MouseObject;
+	}
 
 	NoteBase* note = NULL;
 
@@ -1636,7 +1644,11 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 
 	/* delete events get handled here */
 
-	Editing::MouseMode const eff = effective_mouse_mode ();
+	Editing::MouseMode eff = effective_mouse_mode ();
+	if ((eff == MouseDraw || eff == MouseContent) && clicked_regionview &&
+	    AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (clicked_regionview->region ()))) {
+		eff = MouseObject;
+	}
 
 	if (!_drags->active () && Keyboard::is_delete_event (&event->button)) {
 
@@ -1788,14 +1800,20 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 
 		}
 
-		/* A completed move returned above. Locate only for a plain region
-		 * selection, never note editing, trimming, range selection or modifiers.
-		 * Keep the transport stopped/rolling as it was before the click. */
+		/* A completed drag returned above. Plain arrangement clicks locate at
+		 * the pointer, including empty tracks and the drop zone. Use the visible
+		 * grid, not a nearby clip edge or the magnetic snap distance. Keep note
+		 * editing, handles and modified selections on their existing paths. */
 		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && _session &&
-		    clicked_regionview && eff == MouseObject &&
-		    (item_type == RegionItem || item_type == RegionViewName) &&
+		    !_session->config.get_external_sync () &&
+		    (eff == MouseObject || eff == MouseRange) &&
+		    (item_type == RegionItem || item_type == RegionViewName ||
+		     item_type == StreamItem || item_type == DropZoneItem || item_type == SelectionItem) &&
 		    Keyboard::modifier_state_equals (event->button.state, Keyboard::ModifierMask (0))) {
-			_session->request_locate (clicked_regionview->region()->position().samples ());
+			if (snap_mode () != SnapOff) {
+				where = snap_to_grid (where, Temporal::RoundNearest, SnapToGrid_Scaled);
+			}
+			_session->request_locate (where.samples ());
 		}
 
 		/* do any (de)selection operations that should occur on button release */
@@ -1991,9 +2009,10 @@ Editor::can_remove_control_point (ArdourCanvas::Item* item)
 void
 Editor::edit_region (RegionView* rv)
 {
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && dynamic_cast<MidiRegionView*> (rv)) {
+	if (AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (rv->region ())) ||
+	    (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && dynamic_cast<MidiRegionView*> (rv))) {
 		show_att_bottom (true);
-		_properties_box->edit_midi_region (rv->region ());
+		_properties_box->edit_clip_region (rv->region ());
 		return;
 	}
 
@@ -2613,13 +2632,6 @@ Editor::rb_click (GdkEvent* event, timepos_t const & where)
 	} else if ((atv = dynamic_cast<AutomationTimeAxisView*> (clicked_axisview)) != 0) {
 		atv->add_automation_event (event, where, event->button.y, false);
 		do_deselect = false;
-	}
-
-	if (auto arv = dynamic_cast<AudioRegionView*> (clicked_regionview)) {
-		if (AutomationClips::is_clip(arv->audio_region())) {
-			arv->add_gain_point_event (&arv->fx_line()->grab_item(), event, false);
-			do_deselect = false;
-		}
 	}
 
 	return do_deselect;

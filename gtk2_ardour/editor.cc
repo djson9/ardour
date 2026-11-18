@@ -2344,6 +2344,10 @@ Editor::set_state (const XMLNode& node, int version)
 		smart_mode_action->set_active (yn);
 		set_mouse_mode (current_mouse_mode(), true);
 	}
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		/* A hidden toolbar must not restore an invisible cut/grid/draw tool. */
+		set_mouse_mode (MouseObject, true);
+	}
 
 	EditPoint ep;
 	if (node.get_property ("edit-point", ep)) {
@@ -2973,6 +2977,12 @@ Editor::setup_toolbar ()
 	_grid_box_spacer.set_no_show_all ();
 
 	toolbar_hbox.show_all ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+		toolbar_hbox.set_no_show_all ();
+		toolbar_hbox.hide ();
+		spacer->set_no_show_all ();
+		spacer->hide ();
+	}
 }
 
 void

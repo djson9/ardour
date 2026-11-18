@@ -402,6 +402,7 @@ get_event_mask_from_ns_event (NSEvent *nsevent)
       return GDK_BUTTON_RELEASE_MASK;
     case NSMouseMoved:
       return GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK;
+    case NSEventTypeMagnify:
     case NSScrollWheel:
       /* Since applications that want button press events can get
        * scroll events on X11 (since scroll wheel events are really
@@ -768,6 +769,7 @@ find_window_for_ns_event (NSEvent *nsevent,
     case NSRightMouseUp:
     case NSOtherMouseUp:
     case NSMouseMoved:
+    case NSEventTypeMagnify:
     case NSScrollWheel:
     case NSLeftMouseDragged:
     case NSRightMouseDragged:
@@ -1585,6 +1587,11 @@ gdk_event_translate (GdkEvent *event,
         append_event (input_event, TRUE);
       else
         gdk_event_free (input_event);
+      break;
+
+    case NSEventTypeMagnify:
+      fill_scroll_event (window, event, nsevent, x, y, x_root, y_root,
+                         TRUE, 0.0, [nsevent magnification], GDK_SCROLL_PINCH);
       break;
 
     case NSScrollWheel:

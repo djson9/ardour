@@ -1829,6 +1829,19 @@ Editor::select_all_internal_edit (SelectionOperation)
 void
 Editor::select_all_objects (SelectionOperation op)
 {
+	/* Header clicks establish keyboard context; canvas clicks take it back.
+	 * Reuse the existing Select All binding without capturing name entry. */
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && op == SelectionSet) {
+		for (auto* view : track_views) {
+			if (view->track_header_has_focus ()) {
+				begin_reversible_selection_op (X_("select all tracks"));
+				select_all_tracks ();
+				commit_reversible_selection_op ();
+				return;
+			}
+		}
+	}
+
 	list<Selectable *> touched;
 
 	if (internal_editing() && select_all_internal_edit(op)) {
