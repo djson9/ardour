@@ -67,6 +67,11 @@ Drag/drop follow-up:
 - Existing GTK group workflow: 2.25 seconds; header selection/shortcut/deletion
   regression: 1.22 seconds. The header check initially timed out waiting for its
   saved-selection snapshot after dismissing a dialog; a clean fixture rerun passed.
+- The final combined build (including Reload and audio racks) exposed a late
+  backend latency callback during session teardown. Both latency entry points
+  now check lifecycle state before accessing the released anticipation helper.
+  A processor-destructor callback covers this deterministically. Final native
+  hierarchy/audio runs with this check passed in 1.03/1.30 seconds.
 - Tests retain a nine-second deadline; build/app startup is separate.
 
 Original grouping validation:
