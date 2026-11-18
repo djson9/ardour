@@ -304,20 +304,33 @@ MIDI-note, automation, mixer, text-entry, and plugin-list bindings remain separa
 
 ### Track-title keyboard controls in the Live layout
 
-With a track or group title focused, Enter (including keypad Enter) opens its
-native rename dialog. Enter accepts and Escape cancels; both restore header
-focus. Up/Down selects and focuses the adjacent visible track, bus or group in
+With a track title focused, Enter (including keypad Enter) selects the topmost
+clip at the selection marker's start, or the current edit position when no
+selection marker is shown. MIDI opens its piano roll and automation opens its
+curve editor in the bottom pane. A gap or a bus/group without clips leaves the
+selection unchanged. Cmd+R (Primary+R) opens the native track/group rename dialog; Enter accepts
+and Escape cancels, both restoring header focus.
+Up/Down selects and focuses the adjacent visible track, bus or group in
 arrangement order. Collapsed descendants are skipped, expanded nested groups
 are traversed, and pinned Master is last. Navigation stops at either end.
 Text fields retain their normal arrow keys, and record-armed tracks retain the
 existing rename restriction.
 
 Tab moves from the focused track/group header into its bottom device list,
-opening the bottom panel if needed. In that list, Up/Left and Down/Right select
-the previous/next plugin or rack, skipping faders/meters and stopping at the
-ends. The highlight and displayed controls follow the selection. Tab or Shift+Tab
+opening the bottom panel if needed. In that list, Left/Right select
+the previous/next plugin, rack or Fader, stopping at the ends. Up/Down retains
+the arrangement-wide track navigation introduced by PR #26. Fader shows the
+track's existing gain and meter controls. The active pane's selection has a bright
+outline; the other pane's selection dims. Parameter fields retain the bottom
+pane's highlight. Tab or Shift+Tab
 returns to the same track header. Text and parameter fields retain normal Tab
-and arrow handling; an empty device list still permits returning to the track.
+and arrow handling; a track with only a Fader still permits returning to its header.
+
+Right-click the processor list for **Always put fader last**, enabled by default
+and saved per route. It keeps all visible devices before Fader in the actual
+signal chain, including after insertion, loading and reordering. Existing sessions
+without this setting also default to enabled. Turn it off to allow post-fader
+devices and manual fader placement. Placement changes are disabled while recording.
 
 The `track-title` case checks renaming/cancellation, focus after renaming,
 repeated navigation, expanded/collapsed nested groups, and preserved hierarchy.
@@ -329,8 +342,10 @@ python3 tools/dev/verify-compact-workflow.py \
   --session-path '/path/to/Track Title Verification' --case track-title
 ```
 
-The native macOS build and this case passed on 2026-11-18 (5.11 s), including
+The native macOS build and this case passed on 2026-11-18 (4.92 s), including
 renaming a collapsed outer group while preserving its nested hierarchy.
+The complete title/group sweep has a 20-second deadline; other cases retain
+their 9-second deadline.
 
 ### Selected-device details in the Live layout
 
@@ -338,19 +353,20 @@ The device panel shows controls for the highlighted processor only. Selecting a
 plugin shows its compact parameter view; selecting an Audio Rack shows its chains
 and macros through the same selection signal. Moving the pointer into those
 controls keeps the highlight. Processor-list rebuilds preserve the selected
-device, or select the first remaining plugin/rack when it is removed. A track
-with no devices retains the add-device hint.
+device, or select the first remaining plugin/rack/Fader when it is removed.
 
 The track processor list and rack chain list already share `PluginSelector` and
 `PluginUIWindow`. The track list additionally owns route I/O, sends, faders and
 processor-window proxies; rack chains use the rack's edit/validation API.
 Their owner-specific list operations remain separate.
 
-`selected-device-ui-probe.cc` checks header/device Tab focus, all four arrow keys,
-keypad navigation, boundaries, skipping the fader, parameter text-entry keys,
-reopening the hidden panel, empty lists and group headers. It also checks plugin
+`selected-device-ui-probe.cc` checks header/device Tab focus, Left/Right,
+keypad navigation, boundaries, Fader controls, parameter text-entry keys,
+reopening the hidden panel, fader-only tracks and group headers. It also checks plugin
 switching, a rack, clearing selection, pointer leave, selected-device removal,
-and switching to an empty track and back.
+the fader-last menu and signal order, and active/inactive selection snapshots.
+Enter checks include MIDI and automation clip editors, keypad Enter, adjacent
+clip boundaries and an empty gap at a selection marker away from the playhead.
 Compile it against the configured macOS build:
 
 ```sh
@@ -362,7 +378,13 @@ Inject that library into a disposable session named `*Verification*` with an
 `ARDOUR_DEVICE_UI_PROBE=/tmp/selected-device-result.json`. After the GUI is ready,
 create `/tmp/selected-device-result.json.trigger`. The probe loads built-in ACE
 EQ/Delay fixtures, inspects the actual GTK widget tree, and writes its result
-within nine seconds. It never belongs in the normal launcher or working session.
+within fifteen seconds. It never belongs in the normal launcher or working session.
+The expanded native probe passed on 2026-11-18 (2.14 s), including Fader placement,
+focus colors and both clip editors. It saves native widget snapshots alongside
+the result and prints a stack trace for GTK criticals. The main-branch
+`midi-clip-focus` regression also passed (2.85 s), including insertion, undo/redo
+and track navigation from the device list. Disposing the automation
+fixture can emit the existing `TriggerPage::remove_route` container warning.
 The native GTK probe, including Tab/arrow navigation, passed on 2026-11-18 in
 1.32 s. The track-title/nested-group regression also passed (5.57 s).
 

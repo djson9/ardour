@@ -149,6 +149,7 @@ public:
 	Gtk::Widget& widget ();
 	std::string drag_text () const;
 	void set_visual_state (Gtkmm2ext::VisualState, bool);
+	void set_selection_focus (bool focused) { _button.set_selection_focus (focused); }
 
 	bool is_selectable() const {return _selectable;}
 	void set_selectable(bool s) { _selectable = s; }
@@ -437,6 +438,7 @@ public:
 	void set_route (std::shared_ptr<ARDOUR::Route>);
 	void set_width (Width);
 	bool focus_processors ();
+	void set_focus_highlight (bool);
 	bool processor_list_key_press (GdkEventKey*);
 
 	bool processor_operation (ProcessorOperation);
@@ -495,6 +497,7 @@ private:
 	ProcessorBox (ProcessorBox const &);
 
 	std::shared_ptr<ARDOUR::Route>  _route;
+	bool _focus_highlight = false;
 	std::weak_ptr<ARDOUR::Processor> _rack_drop_target;
 	void begin_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);
 	void end_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);

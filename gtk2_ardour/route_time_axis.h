@@ -150,6 +150,7 @@ public:
 	void hide_all_automation (bool apply_to_selection = false);
 
 protected:
+	void update_header_focus () override;
 	friend class StreamView;
 
 	struct ProcessorAutomationNode {

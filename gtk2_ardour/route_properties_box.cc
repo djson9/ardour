@@ -28,6 +28,7 @@
 #include "ardour/audio_rack.h"
 #include "ardour/port_insert.h"
 #include "ardour/route.h"
+#include "ardour/amp.h"
 #include "ardour/session.h"
 
 #include "gtkmm2ext/gui_thread.h"
@@ -37,6 +38,7 @@
 
 #include "ardour_ui.h"
 #include "audio_rack_ui.h"
+#include "gain_meter.h"
 #include "mixer_ui.h"
 #include "plugin_selector.h"
 #include "plugin_ui.h"
@@ -168,6 +170,34 @@ RoutePropertiesBox::RoutePropertiesBox ()
 
 RoutePropertiesBox::~RoutePropertiesBox ()
 {
+	_focus_connection.disconnect ();
+	drop_plugin_uis ();
+}
+
+void
+RoutePropertiesBox::on_map ()
+{
+	Gtk::HBox::on_map ();
+	_focus_connection.disconnect ();
+	if (auto window = dynamic_cast<Gtk::Window*> (get_toplevel ())) {
+		_focus_connection = window->signal_set_focus ().connect (sigc::mem_fun (*this, &RoutePropertiesBox::update_focus_highlight));
+		update_focus_highlight (window->get_focus ());
+	}
+}
+
+void
+RoutePropertiesBox::on_unmap ()
+{
+	_focus_connection.disconnect ();
+	update_focus_highlight (nullptr);
+	Gtk::HBox::on_unmap ();
+}
+
+void
+RoutePropertiesBox::update_focus_highlight (Gtk::Widget* focus)
+{
+	while (focus && focus != this) focus = focus->get_parent ();
+	if (_insert_box) _insert_box->set_focus_highlight (focus == this);
 }
 
 void
@@ -295,7 +325,7 @@ RoutePropertiesBox::update_processor_box_visibility ()
 {
 	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
 	_empty_device_hint.set_text (_has_devices ? _("Select a plugin or rack to view its controls") : _("Double-click the empty processor list to add a device"));
-	_empty_device_hint.set_visible (live_layout && (_proc_uis.empty () && _rack_uis.empty ()));
+	_empty_device_hint.set_visible (live_layout && _proc_uis.empty () && _rack_uis.empty () && !_fader_ui);
 	_show_insert = !ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-mixer"))->get_active ();
 	/* In the compact layout the processor list is also the entry point for
 	 * adding the first device to an empty track. */
@@ -309,12 +339,12 @@ RoutePropertiesBox::update_processor_box_visibility ()
 	if (_show_insert || !(_proc_uis.empty () && _rack_uis.empty ())) {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
 		int height = (live_layout ? 180 : 365) * ui_scale;
-		if (live_layout && !_rack_uis.empty ()) {
+		if (live_layout && (!_rack_uis.empty () || _fader_ui)) {
 			int width, content_height;
 			_box.get_size_request (width, content_height);
 			// Neighboring plugin cards can be taller than the rack. The device
 			// scroller has no vertical scrollbar, so reserve their full height.
-			height = std::max<int> (270 * ui_scale, content_height + 12 * ui_scale);
+			height = std::max<int> ((_fader_ui ? 180 : 270) * ui_scale, content_height + 12 * ui_scale);
 		}
 		set_size_request (-1, height);
 	} else {
@@ -346,6 +376,7 @@ RoutePropertiesBox::drop_route ()
 void
 RoutePropertiesBox::drop_plugin_uis ()
 {
+	_fader_update.disconnect ();
 	std::list<Gtk::Widget*> children = _box.get_children ();
 	for (auto const& child : children) {
 		child->hide ();
@@ -362,12 +393,31 @@ RoutePropertiesBox::drop_plugin_uis ()
 	_proc_uis.clear ();
 	for (auto ui : _rack_uis) delete ui;
 	_rack_uis.clear ();
+	delete _fader_ui;
+	_fader_ui = nullptr;
 }
 
 void
 RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 {
 	std::shared_ptr<Processor> p = w.lock ();
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && p == _route->amp ()) {
+		_fader_ui = new GainMeter (_session, 100);
+		_fader_ui->set_controls (_route, _route->peak_meter (), _route->amp (), _route->gain_control ());
+		_fader_ui->set_width (Wide, 100);
+		_fader_ui->setup_meters (100);
+		auto frame = new Gtk::Frame (_("Fader"));
+		frame->add (*_fader_ui);
+		_box.pack_start (*frame, false, false);
+		frame->show_all ();
+		_fader_update = Timers::super_rapid_connect ([this] () {
+			if (_fader_ui && _fader_ui->get_mapped ()) {
+				_fader_ui->update_meters ();
+				_fader_ui->effective_gain_display ();
+			}
+		});
+		return;
+	}
 	if (auto rack = std::dynamic_pointer_cast<AudioRack> (p)) {
 		auto ui = new AudioRackUI (rack); _rack_uis.push_back (ui);
 		auto frame = new Gtk::Frame (rack->name ()); frame->add (*ui);
@@ -444,11 +494,12 @@ RoutePropertiesBox::refill_processors ()
 	} else {
 		_route->foreach_processor (sigc::mem_fun (*this, &RoutePropertiesBox::add_processor_to_display));
 	}
-	if ((_proc_uis.empty () && _rack_uis.empty ())) {
+	if (_proc_uis.empty () && _rack_uis.empty () && !_fader_ui) {
 		_scroller.hide ();
 	} else {
 		float ui_scale = std::max<float> (1.f, UIConfiguration::instance().get_ui_scale());
 		int h = (_rack_uis.empty () ? 100 : 250) * ui_scale;
+		if (_fader_ui) h = std::max<int> (h, _fader_ui->size_request ().height + 34 * ui_scale);
 		for (auto const& ui : _proc_uis) {
 			h = std::max<int> (h, ui->get_preferred_height () + /* frame label */ 34 * ui_scale);
 		}

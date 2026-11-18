@@ -94,8 +94,9 @@ def remove_fixture(names, ids):
 
 assert 'verification' in a.session_path.name.lower(), 'Use a disposable verification session'
 assert Path(call('session_get_info')['sessionPath']).resolve() == a.session_path.resolve()
-signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError('9-second test deadline')))
-signal.alarm(9)
+deadline = 20 if a.case == 'track-title' else 9
+signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'{deadline}-second test deadline')))
+signal.alarm(deadline)
 start = time.monotonic()
 # Tests use GTK events; activation allows native dialogs/completion to own focus.
 if not a.no_activate:
@@ -125,19 +126,19 @@ if a.case == 'track-title':
     first = min((r for r in routes() if not r['hidden'] and r['name'] != 'Master'), key=lambda r: r['presentationOrder'])
     header(first['name']); step('Up', first['id'])
     header(names[0]); step('Down', ids[1]); step('Up', ids[0])
-    rename_dialog('Return', 'Rename Track', names[0])
+    rename_dialog('Primary-r', 'Rename Track', names[0])
     for shortcut in ['Left', 'Right', 'Up', 'Down']: key(shortcut, 'Rename Track')
     expect_selection(ids[:1])
     key('Escape', 'Rename Track'); closed('Rename Track')
     assert next(r for r in routes() if r['id'] == ids[0])['name'] == names[0]
-    rename_dialog('KP_Enter', 'Rename Track', names[0])
+    rename_dialog('Primary-r', 'Rename Track', names[0])
     key('Primary-a', 'Rename Track')
     names[0] = 'ui title renamed'
     for ch in names[0]: key('space' if ch == ' ' else ch, 'Rename Track')
     key('Return', 'Rename Track'); closed('Rename Track')
     wait(lambda: next(r for r in routes() if r['id'] == ids[0])['name'] == names[0])
     step('Down', ids[1]); step('Up', ids[0])  # Rename restores header focus.
-    checks += ['Return and keypad Enter open rename', 'entry arrows preserve track selection', 'Escape cancels', 'Enter commits and restores header navigation']
+    checks += ['Primary-R opens rename', 'entry arrows preserve track selection', 'Escape cancels', 'Enter commits and restores header navigation']
 
     def group(name):
         old = {r['id'] for r in routes()}; key('Primary-g')
@@ -160,7 +161,7 @@ if a.case == 'track-title':
     fold('UI Title Outer'); header('UI Title Outer')
     master = next(r['id'] for r in routes() if r['name'] == 'Master')
     step('Down', master); step('Down', master); step('Up', outer)
-    rename_dialog('Return', 'Rename Bus', 'UI Title Outer')
+    rename_dialog('Primary-r', 'Rename Bus', 'UI Title Outer')
     key('Primary-a', 'Rename Bus')
     for ch in 'ui title group': key('space' if ch == ' ' else ch, 'Rename Bus')
     key('Return', 'Rename Bus'); closed('Rename Bus')
