@@ -119,6 +119,7 @@ public:
 	virtual bool non_gtk_gui() const { return false; }
 
 	sigc::signal<void,bool> KeyboardFocused;
+	bool toggle_keyboard_capture () { if (!_focus_button.get_parent ()) { return false; } return focus_toggled (nullptr); }
 
 protected:
 	std::shared_ptr<ARDOUR::PlugInsertBase> _pib;
@@ -377,6 +378,7 @@ public:
 
 	bool on_key_press_event (GdkEventKey*);
 	bool on_key_release_event (GdkEventKey*);
+	bool on_focus_out_event (GdkEventFocus*);
 	void on_show ();
 	void on_hide ();
 
@@ -388,6 +390,7 @@ private:
 	Gtk::VBox vbox;
 	bool was_visible;
 	bool _keyboard_focused;
+	bool _capture_shortcut_down;
 #ifdef AUDIOUNIT_SUPPORT
 	int pre_deactivate_x;
 	int pre_deactivate_y;

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <memory>
 #include <set>
 #include <string>
 
@@ -40,6 +41,7 @@
 #include "instrument_selector.h"
 
 class PluginUIWindow;
+class BrowserAudioPreview;
 
 class TriggerClipPicker : public Gtk::VBox, public ARDOUR::SessionHandlePtr
 {
@@ -84,6 +86,10 @@ private:
 	void audition_show_plugin_ui ();
 	void stop_audition ();
 	void autoplay_toggled ();
+	void normalize_toggled ();
+	void preview_file (std::string const&);
+	void preview_ready ();
+	void preview_seek (double);
 	void refresh_library ();
 	void open_library ();
 	bool seek_button_press (GdkEventButton*);
@@ -132,6 +138,11 @@ private:
 	ArdourWidgets::ArdourButton  _show_plugin_btn;
 	Gtk::HScale                  _seek_slider;
 	Gtk::CheckButton             _autoplay_btn;
+	Gtk::CheckButton             _normalize_btn;
+	std::unique_ptr<BrowserAudioPreview> _audio_preview;
+	std::string                 _pending_audition;
+	bool                        _preview_playing = false;
+	double                      _preview_start = -1;
 	Gdk::Color                   _color_foreground;
 	Gdk::Color                   _color_auditioned;
 

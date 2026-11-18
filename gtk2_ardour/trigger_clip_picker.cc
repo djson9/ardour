@@ -54,6 +54,7 @@
 #include "ardour_ui.h"
 #include "ardour_dialog.h"
 #include "browser_file_filter.h"
+#include "browser_audio_preview.h"
 #include "keyboard.h"
 #include "plugin_ui.h"
 #include "timers.h"
@@ -72,6 +73,8 @@ TriggerClipPicker::TriggerClipPicker ()
 	: _fcd (_("Open Browser Folder"), FILE_CHOOSER_ACTION_SELECT_FOLDER)
 	, _seek_slider (0, 1000, 1)
 	, _autoplay_btn (_("Auto-play"))
+	, _normalize_btn (_("Normalize"))
+	, _audio_preview (new BrowserAudioPreview)
 	, _auditioner_combo (InstrumentSelector::ForAuditioner)
 	, _clip_library_listed (false)
 	, _ignore_list_dir (false)
@@ -104,6 +107,17 @@ TriggerClipPicker::TriggerClipPicker ()
 
 	/* Audition */
 	 _autoplay_btn.set_active (UIConfiguration::instance ().get_autoplay_clips ());
+	_normalize_btn.set_name ("browser-normalize");
+	_normalize_btn.set_active (UIConfiguration::instance ().get_normalize_browser_audio ());
+	_normalize_btn.set_can_focus (false);
+	_normalize_btn.set_sensitive (false);
+	_normalize_btn.signal_toggled ().connect (sigc::mem_fun (*this, &TriggerClipPicker::normalize_toggled));
+	_audio_preview->set_normalized (_normalize_btn.get_active ());
+	_audio_preview->Ready.connect (sigc::mem_fun (*this, &TriggerClipPicker::preview_ready));
+	_audio_preview->Seek.connect (sigc::mem_fun (*this, &TriggerClipPicker::preview_seek));
+	ArdourWidgets::set_tooltip (_normalize_btn, _("Match preview loudness to -18 LUFS, capped at -1 dB true peak. Very short clips use peak normalization. Source files are unchanged."));
+	ArdourWidgets::set_tooltip (*_audio_preview, _("Click or drag to seek in the audio preview"));
+	_seek_slider.set_no_show_all ();
 
 	_seek_slider.set_draw_value (false);
 
@@ -182,7 +196,9 @@ TriggerClipPicker::TriggerClipPicker ()
 	_auditable.attach (_play_btn,         0, 1, r,r+1, SHRINK, SHRINK);
 	_auditable.attach (_stop_btn,         1, 2, r,r+1, SHRINK, SHRINK);
 	_auditable.attach (_gain_control,     2, 3, r,r+1, SHRINK, SHRINK);
-	_auditable.attach (_autoplay_btn,     3, 4, r,r+1, EXPAND | FILL, SHRINK); r++;
+	_auditable.attach (_autoplay_btn,     3, 4, r,r+1, EXPAND | FILL, SHRINK);
+	_auditable.attach (_normalize_btn,    4, 5, r,r+1, SHRINK, SHRINK); r++;
+	_auditable.attach (*_audio_preview,   0, 5, r,r+1, EXPAND | FILL, SHRINK); r++;
 	_auditable.attach (_seek_slider,      0, 5, r,r+1, EXPAND | FILL, SHRINK);  r++;
 	_auditable.attach (_midi_prop_table,  0, 5, r,r+1, EXPAND | FILL, SHRINK);
 	_auditable.set_border_width (4);
@@ -327,6 +343,9 @@ TriggerClipPicker::parameter_changed (std::string const& p)
 		if (BrowserFileFilter::parse (UIConfiguration::instance ().get_browser_file_extensions (), _file_extensions)) {
 			refresh_library ();
 		}
+	} else if (p == "normalize-browser-audio") {
+		_normalize_btn.set_active (UIConfiguration::instance ().get_normalize_browser_audio ());
+		_audio_preview->set_normalized (_normalize_btn.get_active ());
 	}
 }
 
@@ -570,22 +589,25 @@ TriggerClipPicker::drag_begin (Glib::RefPtr<Gdk::DragContext> const& context)
 void
 TriggerClipPicker::drag_end (Glib::RefPtr<Gdk::DragContext> const&)
 {
-	_session->cancel_audition ();
+	stop_audition ();
 }
 
 void
 TriggerClipPicker::cursor_changed ()
 {
-	if (!_session || !_autoplay_btn.get_active ()) {
+	if (!_session) {
 		return;
 	}
-
-	_session->cancel_audition ();
 
 	TreeModel::Path p;
 	TreeViewColumn* col = NULL;
 	_view.get_cursor (p, col);
 	TreeModel::iterator i = _model->get_iter (p);
+	preview_file (i && (*i)[_columns.file] ? std::string ((*i)[_columns.path]) : "");
+	if (!_autoplay_btn.get_active ()) { return; }
+	_pending_audition.clear ();
+	_preview_start = 0;
+	_session->cancel_audition ();
 	/* This also plays the file if the cursor change deselects the row.
 	 * However, checking if `i` is _view.get_selection () does not reliably work from this context.
 	 */
@@ -603,10 +625,12 @@ TriggerClipPicker::row_selected ()
 	}
 
 	if (!_autoplay_btn.get_active ()) {
+		_pending_audition.clear ();
 		_session->cancel_audition ();
 	}
 
 	if (_view.get_selection ()->count_selected_rows () < 1) {
+		preview_file ("");
 		_play_btn.set_sensitive (false);
 		_midi_prop_table.hide();
 	} else {
@@ -616,6 +640,7 @@ TriggerClipPicker::row_selected ()
 		_play_btn.set_sensitive ((*i)[_columns.file] && !_autoplay_btn.get_active ());
 
 		std::string path = (*i)[_columns.path];
+		preview_file ((*i)[_columns.file] ? path : "");
 		if (SMFSource::valid_midi_file (path)) {
 			/* TODO: if it's a really big file, we could skip this check */
 			std::shared_ptr<SMFSource> ms;
@@ -966,6 +991,10 @@ TriggerClipPicker::open_library ()
 void
 TriggerClipPicker::set_session (Session* s)
 {
+	_pending_audition.clear ();
+	_preview_playing = false;
+	_preview_start = -1;
+	_audio_preview->clear ();
 	SessionHandlePtr::set_session (s);
 
 	_play_btn.set_sensitive (false);
@@ -998,8 +1027,70 @@ TriggerClipPicker::autoplay_toggled ()
 }
 
 void
+TriggerClipPicker::preview_file (std::string const& path)
+{
+ bool const midi = !path.empty () && SMFSource::safe_midi_file_extension (path);
+ std::string audio = midi ? "" : path;
+ if (_audio_preview->path () != audio) {
+  _pending_audition.clear ();
+  _preview_playing = false;
+  _preview_start = -1;
+ }
+ _audio_preview->set_file (audio);
+ _normalize_btn.set_sensitive (!audio.empty ());
+ if (midi) { _seek_slider.show (); _audio_preview->hide (); }
+ else { _seek_slider.hide (); _audio_preview->show (); }
+}
+
+void
+TriggerClipPicker::preview_ready ()
+{
+ auto data = _audio_preview->analysis ();
+ if (!data || !_session) return;
+ if (!data->error.empty ()) {
+  _pending_audition.clear ();
+  _stop_btn.set_sensitive (false);
+  return;
+ }
+ if (!_pending_audition.empty () && _pending_audition == _audio_preview->path ()) {
+  std::string path = _pending_audition;
+  audition (path);
+ }
+}
+
+void
+TriggerClipPicker::normalize_toggled ()
+{
+ bool enabled = _normalize_btn.get_active ();
+ if (UIConfiguration::instance ().get_normalize_browser_audio () == enabled) return;
+ UIConfiguration::instance ().set_normalize_browser_audio (enabled);
+ UIConfiguration::instance ().save_state ();
+ if (_session && (_preview_playing || !_pending_audition.empty ())) {
+  _preview_start = _audio_preview->position ();
+  audition (_audio_preview->path ());
+ }
+}
+
+void
+TriggerClipPicker::preview_seek (double fraction)
+{
+ if (!_session || _audio_preview->path ().empty ()) return;
+ if (_preview_playing && _session->is_auditioning ()) {
+  _session->the_auditioner ()->seek_to_percent (100 * fraction);
+ } else {
+  _preview_start = fraction;
+  audition (_audio_preview->path ());
+ }
+}
+
+void
 TriggerClipPicker::stop_audition ()
 {
+	_pending_audition.clear ();
+	_preview_start = -1;
+	_preview_playing = false;
+	_stop_btn.set_sensitive (false);
+	_audio_preview->set_position (0);
 	if (_session) {
 		_session->cancel_audition ();
 	}
@@ -1013,17 +1104,23 @@ TriggerClipPicker::audition_active (bool active)
 	_seek_slider.set_sensitive (active);
 
 	if (!active) {
+		_preview_playing = false;
+		_audio_preview->set_position (0);
 		_seek_slider.set_value (0);
 		_seeking = false;
+	} else if (_preview_playing && _preview_start >= 0 && _session) {
+		_session->the_auditioner ()->seek_to_percent (100 * _preview_start);
+		_preview_start = -1;
 	}
 }
 
 void
 TriggerClipPicker::audition_progress (ARDOUR::samplecnt_t pos, ARDOUR::samplecnt_t len)
 {
-	if (!_seeking) {
+	if (!_seeking && len > 0) {
 		_seek_slider.set_value (1000.0 * pos / len);
 		_seek_slider.set_sensitive (true);
+		if (_preview_playing) { _audio_preview->set_position (double (pos) / len); }
 	}
 }
 
@@ -1046,6 +1143,7 @@ TriggerClipPicker::seek_button_release (GdkEventButton*)
 void
 TriggerClipPicker::audition_selected ()
 {
+	_preview_start = 0;
 	if (_view.get_selection ()->count_selected_rows () < 1) {
 		return;
 	}
@@ -1101,6 +1199,8 @@ TriggerClipPicker::audition (std::string const& path)
 		return;
 	}
 	_session->cancel_audition ();
+	_pending_audition.clear ();
+	_preview_playing = false;
 
 	if (!Glib::file_test (path, Glib::FILE_TEST_EXISTS)) {
 		warning << string_compose (_("Could not read file: %1 (%2)."), path, strerror (errno)) << endmsg;
@@ -1124,6 +1224,14 @@ TriggerClipPicker::audition (std::string const& path)
 		assert (r);
 
 	} else {
+		preview_file (path);
+		auto analysis = _audio_preview->analysis ();
+		if (_normalize_btn.get_active () && !analysis) {
+			_pending_audition = path;
+			_stop_btn.set_sensitive (true);
+			return;
+		}
+		if (_normalize_btn.get_active () && !analysis->error.empty ()) { return; }
 		SourceList                         srclist;
 		std::shared_ptr<AudioFileSource> afs;
 		bool                               old_sbp = AudioSource::get_build_peakfiles ();
@@ -1171,6 +1279,10 @@ TriggerClipPicker::audition (std::string const& path)
 		plist.add (ARDOUR::Properties::layer, 0);
 
 		r = std::dynamic_pointer_cast<AudioRegion> (RegionFactory::create (srclist, plist, false));
+		if (r && _normalize_btn.get_active ()) {
+			std::dynamic_pointer_cast<AudioRegion> (r)->set_scale_amplitude (analysis->gain);
+		}
+		_preview_playing = true;
 	}
 
 	r->set_position (timepos_t ());
