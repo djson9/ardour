@@ -1,3 +1,4 @@
+#include "ardour/automation_clip_source.h"
 /*
  * Copyright (C) 2006-2014 David Robillard <d@drobilla.net>
  * Copyright (C) 2007-2009 Taybin Rutkin <taybin@taybin.com>
@@ -180,6 +181,10 @@ SourceFactory::create (Session& s, const XMLNode& node, bool defer_peaks)
 	}
 
 	if (type == DataType::AUDIO) {
+		if (node.property ("automation-clip")) {
+			auto ret = std::make_shared<AutomationClipSource> (s, node);
+			SourceCreated (ret); return ret;
+		}
 		/* it could be nested */
 
 		if (node.property ("playlist") != 0) {

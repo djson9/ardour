@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "output": "AutomationClipTest::timeline: [WARNING]: Falling back to Reasonable Synth for Midi Audition\n: [WARNING]: Falling back to Reasonable Synth for Midi Audition\n : OK\nSProv @ 0x14fbce470 kep SProv @ 0x14fbeb270 kep SProv @ 0x14fc12870 kep SProv @ 0x14fc55070 kep OK (1)\n",
+  "seconds": 1.007493459
+}

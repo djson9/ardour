@@ -194,7 +194,7 @@ This mode provides many different operations on both regions and control points,
 
 ;; MIDDLE ROW
 
-@trans|Transport/solo-selection|                                       a|solo selection
+@vis|Editor/toggle-automation-clips|                                   a|toggle automation clips
 @select|Editor/select-all-objects|                          <@PRIMARY@>a|select all objects
 @aep|Region/align-regions-end|                            <@SECONDARY@>a|align end(s)
 @aep|Region/align-regions-sync|                            <@TERTIARY@>a|align sync points

@@ -263,6 +263,9 @@ Editor::register_actions ()
 	reg_sens (editor_actions, "select-next-stripable", _("Select Next Strip"), sigc::bind (sigc::mem_fun(*this, &Editor::select_next_stripable), false));
 	reg_sens (editor_actions, "select-prev-stripable", _("Select Previous Strip"), sigc::bind (sigc::mem_fun(*this, &Editor::select_prev_stripable), false));
 
+	reg_sens (editor_actions, "edit-automation-clip-targets", _("Automation Clip Targets..."), sigc::mem_fun (*this, &Editor::edit_selected_automation_targets));
+	reg_sens (editor_actions, "toggle-automation-clips", _("Toggle Automation Clips"), sigc::mem_fun (*this, &Editor::toggle_automation_clips));
+	reg_sens (editor_actions, "add-automation-track", _("Add Automation Track"), sigc::mem_fun (*this, &Editor::add_automation_track));
 	reg_sens (editor_actions, "toggle-all-existing-automation", _("Toggle All Existing Automation"), sigc::mem_fun (*this, &Editor::toggle_all_existing_automation));
 	reg_sens (editor_actions, "toggle-layer-display", _("Toggle Layer Display"), sigc::mem_fun (*this, &Editor::toggle_layer_display));
 

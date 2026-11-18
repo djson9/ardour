@@ -1,0 +1,22 @@
+{
+  "before": "a0 0\na564474120 0.99998958333333332\n",
+  "after": "a0 0\na289013760 0.92226890756302526\na564474120 0.99998958333333332\n",
+  "events": [
+    {
+      "delivered": true,
+      "handled": false
+    },
+    {
+      "delivered": true,
+      "handled": true
+    },
+    {
+      "delivered": true,
+      "handled": true
+    }
+  ],
+  "x": 24,
+  "y": 89,
+  "canvas_height": 528,
+  "point_added": true
+}

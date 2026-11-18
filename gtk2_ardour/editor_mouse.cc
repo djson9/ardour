@@ -1,3 +1,4 @@
+#include "ardour/automation_clip.h"
 /*
  * Copyright (C) 2005-2006 Taybin Rutkin <taybin@taybin.com>
  * Copyright (C) 2005-2018 Paul Davis <paul@linuxaudiosystems.com>
@@ -2612,6 +2613,13 @@ Editor::rb_click (GdkEvent* event, timepos_t const & where)
 	} else if ((atv = dynamic_cast<AutomationTimeAxisView*> (clicked_axisview)) != 0) {
 		atv->add_automation_event (event, where, event->button.y, false);
 		do_deselect = false;
+	}
+
+	if (auto arv = dynamic_cast<AudioRegionView*> (clicked_regionview)) {
+		if (AutomationClips::is_clip(arv->audio_region())) {
+			arv->add_gain_point_event (&arv->fx_line()->grab_item(), event, false);
+			do_deselect = false;
+		}
 	}
 
 	return do_deselect;
