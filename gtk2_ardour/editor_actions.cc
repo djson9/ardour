@@ -513,6 +513,10 @@ Editor::register_actions ()
 	ActionManager::route_selection_sensitive_actions.push_back (act);
 	act = reg_sens (editor_actions, "remove-track", _("Remove Selected Track(s)"), (sigc::mem_fun(*this, &Editor::remove_tracks)));
 	ActionManager::stripable_selection_sensitive_actions.push_back (act);
+	act = reg_sens (editor_actions, "group-selected-tracks", _("Group Selected Tracks"), sigc::mem_fun (*this, &Editor::group_selected_tracks));
+	ActionManager::route_selection_sensitive_actions.push_back (act);
+	act = reg_sens (editor_actions, "ungroup-selected-tracks", _("Ungroup Selected Tracks"), sigc::mem_fun (*this, &Editor::ungroup_selected_tracks));
+	ActionManager::route_selection_sensitive_actions.push_back (act);
 
 	act = reg_sens (editor_actions, "fit-selection", _("Fit Selection (Vertical)"), sigc::mem_fun(*this, &Editor::fit_selection));
 	ActionManager::stripable_selection_sensitive_actions.push_back (act);

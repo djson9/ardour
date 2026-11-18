@@ -140,6 +140,11 @@ remove_hidden_toolbar_shortcuts ()
 		Gtkmm2ext::KeyboardKey::make_key ("Primary-l", loop);
 		if (editor->is_bound (loop, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);
 		editor->replace (loop, Bindings::Press, "Editor/loop-selection", false);
+		for (auto const& shortcut : {std::make_pair ("Primary-g", "Editor/group-selected-tracks"), std::make_pair ("Primary-Tertiary-g", "Editor/ungroup-selected-tracks")}) {
+			Gtkmm2ext::KeyboardKey key; Gtkmm2ext::KeyboardKey::make_key (shortcut.first, key);
+			if (editor->is_bound (key, Bindings::Press, &previous)) editor->remove (Bindings::Press, previous, false);
+			editor->replace (key, Bindings::Press, shortcut.second, false);
+		}
 	}
 
 	for (const char* group : {"Editor", "Global"}) {
