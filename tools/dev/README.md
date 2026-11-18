@@ -657,7 +657,7 @@ python3 tools/dev/prepare-browser-ui-probe.py artifacts/browser-ui-probe.dylib
 # Once the GUI is ready:
 python3 tools/dev/test-browser-ui.py /absolute/private/browser-test
 # Native window keyboard dispatch, including tree navigation and selection:
-python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --keys
+python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --keys --pid PRIVATE_GUI_PID
 # Restart that same private app, then verify saved directory/filter restoration:
 python3 tools/dev/test-browser-ui.py /absolute/private/browser-test --restore
 ```

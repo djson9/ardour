@@ -27,6 +27,10 @@ static GtkWidget *top(const char *title) {
 }
 static void finish(const char *error) {
  FILE *f=fopen(result,"w");if(f){fprintf(f,"{\"passed\":%s,\"stage\":%d,\"elapsed\":%.3f,\"error\":\"%s\"}\n",error?"false":"true",stage,(g_get_monotonic_time()-started)/1000000.,error?error:"");fclose(f);}
+ if(error && browser) {
+  GtkTreeSelection *selection=gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files")));
+  g_printerr("BROWSER KEY FAILURE stage=%d selected=%d focus=%s\n",stage,gtk_tree_selection_count_selected_rows(selection),gtk_widget_get_name(gtk_window_get_focus(GTK_WINDOW(gtk_widget_get_toplevel(browser)))));
+ }
  active=0;
 }
 static gboolean click_idle(gpointer data) {
@@ -206,7 +210,14 @@ static gboolean tick(gpointer unused) {
   key(GDK_Up,0);stage=58;break;
  case 58:
   if(!cursor("..")){finish("Top boundary changed browser cursor");break;}
-  select_row("Bass.flac");key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
+  key(GDK_End,0);stage=63;break;
+ case 63:
+  key(GDK_Up,0);stage=64;break;
+ case 64:
+  key(GDK_Up,0);stage=65;break;
+ case 65:
+  if(!cursor("Bass.flac")){finish("Keyboard selection anchor");break;}
+  key(GDK_Down,GDK_SHIFT_MASK);stage=59;break;
  case 59:
   if(gtk_tree_selection_count_selected_rows(gtk_tree_view_get_selection(GTK_TREE_VIEW(find(browser,"browser-files"))))!=2){finish("Shift-Down did not extend file selection");break;}
   select_row("Nested");key(GDK_Return,0);stage=60;break;
