@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <ytkmm/stock.h>
+#include <ytkmm/entry.h>
 
 #include "pbd/basename.h"
 #include "pbd/file_utils.h"
@@ -51,6 +52,8 @@
 #include "widgets/ardour_icon.h"
 
 #include "ardour_ui.h"
+#include "ardour_dialog.h"
+#include "browser_file_filter.h"
 #include "plugin_ui.h"
 #include "timers.h"
 #include "trigger_clip_picker.h"
@@ -65,7 +68,7 @@ using namespace ARDOUR;
 #define PX_SCALE(px) std::max((float)px, rintf((float)px * UIConfiguration::instance().get_ui_scale()))
 
 TriggerClipPicker::TriggerClipPicker ()
-	: _fcd (_("Select clip folder"), FILE_CHOOSER_ACTION_SELECT_FOLDER)
+	: _fcd (_("Open Browser Folder"), FILE_CHOOSER_ACTION_SELECT_FOLDER)
 	, _seek_slider (0, 1000, 1)
 	, _autoplay_btn (_("Auto-play"))
 	, _auditioner_combo (InstrumentSelector::ForAuditioner)
@@ -74,6 +77,10 @@ TriggerClipPicker::TriggerClipPicker ()
 	, _seeking (false)
 	, _audition_plugnui (0)
 {
+	set_name ("file-browser");
+	if (!BrowserFileFilter::parse (UIConfiguration::instance ().get_browser_file_extensions (), _file_extensions)) {
+		BrowserFileFilter::parse (BrowserFileFilter::defaults (), _file_extensions);
+	}
 	/* Setup Dropdown / File Browser */
 #ifdef __APPLE__
 	try {
@@ -122,6 +129,19 @@ TriggerClipPicker::TriggerClipPicker ()
 	_refresh_btn.set_name ("generic button");
 	_refresh_btn.set_icon (ArdourWidgets::ArdourIcon::TransportLoop);
 	_refresh_btn.signal_clicked.connect (sigc::mem_fun (*this, &TriggerClipPicker::refresh_library));
+	_refresh_btn.set_name ("browser-refresh");
+	_open_folder_btn.set_text (_("Open Folder…"));
+	_open_folder_btn.set_name ("browser-open-folder");
+	_open_folder_btn.signal_clicked.connect (sigc::mem_fun (*this, &TriggerClipPicker::open_dir));
+	_file_types_btn.set_text (_("File Types…"));
+	_file_types_btn.set_name ("browser-file-types");
+	_file_types_btn.signal_clicked.connect (sigc::mem_fun (*this, &TriggerClipPicker::edit_file_types));
+	_directory_label.set_name ("browser-directory");
+	_directory_label.set_alignment (0, 0.5);
+	_directory_label.set_ellipsize (Pango::ELLIPSIZE_START);
+	_browser_status.set_name ("browser-status");
+	_browser_status.set_alignment (0, 0.5);
+	_browser_status.set_line_wrap (true);
 
 	_show_plugin_btn.set_name ("generic button");
 	_show_plugin_btn.set_icon (ArdourWidgets::ArdourIcon::PsetBrowse);
@@ -176,13 +196,20 @@ TriggerClipPicker::TriggerClipPicker ()
 	dir_table->attach (_clip_dir_menu,    0, 1, 0, 1, EXPAND | FILL, SHRINK);
 	dir_table->attach (_open_library_btn, 1, 2, 0, 1, SHRINK, SHRINK);
 	dir_table->attach (_refresh_btn,      2, 3, 0, 1, SHRINK, SHRINK);
+	dir_table->attach (_directory_label, 0, 3, 1, 2, FILL | EXPAND, SHRINK);
+	Gtk::HBox* browser_actions = manage (new Gtk::HBox (false, 4));
+	browser_actions->pack_start (_open_folder_btn, true, true);
+	browser_actions->pack_start (_file_types_btn, false, false);
+	dir_table->attach (*browser_actions, 0, 3, 2, 3, FILL | EXPAND, SHRINK);
 
 	pack_start (*dir_table, false, false);
 	pack_start (_scroller);
+	pack_start (_browser_status, false, false);
 	pack_start (_auditable, false, false);
 
 	/* TreeView */
 	_model = TreeStore::create (_columns);
+	_view.set_name ("browser-files");
 	_view.set_model (_model);
 	_view.append_column (_("File Name"), _columns.name);
 	_view.set_headers_visible (false);  //TODO: show headers when we have size/tags/etc
@@ -233,7 +260,12 @@ TriggerClipPicker::TriggerClipPicker ()
 	_auditable.show ();
 
 	/* fill treeview with data */
-	_clip_dir_menu.items ().front ().activate ();
+	std::string saved_directory = UIConfiguration::instance ().get_browser_directory ();
+	if (!saved_directory.empty () && Glib::file_test (saved_directory, Glib::FILE_TEST_IS_DIR)) {
+		list_dir (saved_directory);
+	} else {
+		_clip_dir_menu.items ().front ().activate ();
+	}
 }
 
 TriggerClipPicker::~TriggerClipPicker ()
@@ -260,6 +292,54 @@ TriggerClipPicker::parameter_changed (std::string const& p)
 		refill_dropdown ();
 	} else if (p == "highlight-auditioned-clips") {
 		reset_audition_marks (true);
+	} else if (p == "browser-file-extensions") {
+		if (BrowserFileFilter::parse (UIConfiguration::instance ().get_browser_file_extensions (), _file_extensions)) {
+			refresh_library ();
+		}
+	}
+}
+
+void
+TriggerClipPicker::edit_file_types ()
+{
+	ArdourDialog dialog (_("Browser File Types"), true);
+	if (auto* parent = dynamic_cast<Gtk::Window*> (get_toplevel ())) { dialog.set_transient_for (*parent); }
+	Gtk::Label help (_("Show files with these extensions (comma or space separated).\nFolders are always shown. An empty list hides all files.\nAdding an extension does not add support for its file format."));
+	help.set_alignment (0, 0.5);
+	Gtk::Entry entry;
+	entry.set_name ("browser-extension-entry");
+	entry.set_width_chars (58);
+	entry.set_text (UIConfiguration::instance ().get_browser_file_extensions ());
+	entry.set_activates_default (true);
+	Gtk::Label error;
+	error.set_name ("browser-filter-error");
+	dialog.get_vbox ()->set_border_width (12);
+	dialog.get_vbox ()->set_spacing (8);
+	dialog.get_vbox ()->pack_start (help, false, false);
+	dialog.get_vbox ()->pack_start (entry, false, false);
+	dialog.get_vbox ()->pack_start (error, false, false);
+	dialog.add_button (_("Reset to Audio + MIDI"), RESPONSE_APPLY);
+	dialog.add_button (Stock::CANCEL, RESPONSE_CANCEL);
+	dialog.add_button (Stock::APPLY, RESPONSE_OK);
+	dialog.set_default_response (RESPONSE_OK);
+	dialog.show_all ();
+	entry.grab_focus ();
+	for (;;) {
+		int response = dialog.run ();
+		if (response == RESPONSE_APPLY) {
+			entry.set_text (BrowserFileFilter::defaults ());
+			error.set_text ("");
+			continue;
+		}
+		if (response != RESPONSE_OK) { break; }
+		std::set<std::string> extensions;
+		if (!BrowserFileFilter::parse (entry.get_text (), extensions)) {
+			error.set_text (_("Use extensions such as wav, .flac or *.mid; no paths or wildcards."));
+			continue;
+		}
+		UIConfiguration::instance ().set_browser_file_extensions (BrowserFileFilter::serialize (extensions));
+		UIConfiguration::instance ().save_state ();
+		break;
 	}
 }
 
@@ -273,8 +353,7 @@ TriggerClipPicker::clip_added (std::string const& path, void* src)
 	if (src == this) {
 		list_dir (clip_library_dir ());
 	} else {
-		_current_path = Glib::path_get_dirname (path);
-		list_dir (_current_path);
+		list_dir (Glib::path_get_dirname (path));
 	}
 }
 
@@ -668,18 +747,6 @@ TriggerClipPicker::drag_data_received (Glib::RefPtr<Gdk::DragContext> const& con
  * Dir Listing
  */
 
-static bool
-audio_midi_suffix (const std::string& str)
-{
-	if (AudioFileSource::safe_audio_file_extension (str)) {
-		return true;
-	}
-	if (SMFSource::safe_midi_file_extension (str)) {
-		return true;
-	}
-	return false;
-}
-
 void
 TriggerClipPicker::open_downloader ()
 {
@@ -697,6 +764,9 @@ TriggerClipPicker::open_dir ()
 	}
 #endif
 
+	if (!_current_path.empty () && Glib::file_test (_current_path, Glib::FILE_TEST_IS_DIR)) {
+		_fcd.set_current_folder (_current_path);
+	}
 	int result = _fcd.run ();
 	_fcd.hide ();
 
@@ -738,7 +808,8 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 	PBD::Unwinder<bool> uw (_ignore_list_dir, true);
 
 	if (!Glib::file_test (path, Glib::FILE_TEST_IS_DIR)) {
-		assert (0);
+		_browser_status.set_text (_("Folder is unavailable. Choose another folder."));
+		_browser_status.show ();
 		return;
 	}
 
@@ -746,14 +817,17 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 		_view.set_model (Glib::RefPtr<Gtk::TreeStore>(0));
 		_model->clear ();
 		_clip_dir_menu.set_active (display_name (path));
-	}
-
-	_current_path = path;
-
-	if (_clip_library_dir == path) {
-		_open_library_btn.show ();
-	} else {
-		_open_library_btn.hide ();
+		bool const navigated = _current_path != path;
+		_current_path = path;
+		_directory_label.set_text (path);
+		ArdourWidgets::set_tooltip (_directory_label, path);
+		if (navigated) {
+			UIConfiguration::instance ().set_browser_directory (path);
+			UIConfiguration::instance ().save_state ();
+		}
+		if (_clip_library_dir == path) { _open_library_btn.show (); }
+		else { _open_library_btn.hide (); }
+		_browser_status.set_text ("");
 	}
 
 	std::vector<std::string> dirs;
@@ -774,11 +848,12 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 				continue;
 			}
 
-			if (audio_midi_suffix (fullpath)) {
+			if (Glib::file_test (fullpath, Glib::FILE_TEST_IS_REGULAR) && BrowserFileFilter::matches (basename, _file_extensions)) {
 				files.push_back (*i);
 			}
 		}
 	} catch (Glib::FileError const& err) {
+		_browser_status.set_text (_("Could not read folder. Check that it is accessible."));
 	}
 
 	std::sort (dirs.begin (), dirs.end (), [](const std::string a, const std::string b) {
@@ -831,13 +906,16 @@ TriggerClipPicker::list_dir (std::string const& path, Gtk::TreeNodeChildren cons
 
 	if (!pc) {
 		_view.set_model (_model);
+		if (_browser_status.get_text ().empty () && files.empty ()) {
+			_browser_status.set_text (_file_extensions.empty () ? _("No file types enabled. Edit File Types to show files.") : _("No matching files in this folder."));
+		}
 	}
 }
 
 void
 TriggerClipPicker::refresh_library ()
 {
-	list_dir(_current_path);
+	if (!_current_path.empty ()) { list_dir (_current_path); }
 }
 
 void
