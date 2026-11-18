@@ -18,6 +18,7 @@
 #include "ardour_window.h"
 #include "plugin_interest.h"
 
+namespace ARDOUR { class Route; }
 class PluginSelector;
 class PluginUIWindow;
 class AutomationController;
@@ -66,8 +67,18 @@ public:
 	explicit AudioRackUI (std::shared_ptr<ARDOUR::AudioRack>);
 	~AudioRackUI ();
 	bool use_plugins (SelectedPlugins const&);
+	static void drag_data (Gtk::SelectionData&, std::shared_ptr<ARDOUR::PluginInsert>, std::shared_ptr<ARDOUR::AudioRack> = {});
+	static bool drop_plugin (ARDOUR::Session&, Gtk::SelectionData const&, ARDOUR::Route&,
+	                         std::shared_ptr<ARDOUR::AudioRack>, size_t chain, size_t position,
+	                         std::shared_ptr<ARDOUR::Processor> before = {});
 	std::shared_ptr<ARDOUR::AudioRack> rack () const { return _rack; }
 private:
+	void plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&);
+	void plugin_drag_data (Glib::RefPtr<Gdk::DragContext> const&, Gtk::SelectionData&, guint, guint);
+	void plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&);
+	bool drag_motion (Glib::RefPtr<Gdk::DragContext> const&, int, int, guint, bool chains);
+	void drag_received (Glib::RefPtr<Gdk::DragContext> const&, int, int, Gtk::SelectionData const&, guint, guint, bool chains);
+	std::weak_ptr<ARDOUR::PluginInsert> _drag_plugin;
 	Gtk::Window& parent_window ();
 	void schedule_rebuild ();
 	void rebuild_plugins ();

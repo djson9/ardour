@@ -8,7 +8,7 @@
 #include <stdio.h>
 static GtkWidget *rack, *capturing, *content, *offscreen, *original_parent;
 static const char *capture_name;
-static int stage, ticks;
+static int stage, ticks, dragged;
 static GtkWidget* top (const char* title) {
  GList* list=gtk_window_list_toplevels(); GtkWidget* result=NULL;
  for(GList* p=list;p;p=p->next) {
@@ -43,7 +43,7 @@ static void finish_capture(void) {
 }
 static void find_named (GtkWidget* w,gpointer arg) {
  struct Search* s=arg;if(s->result)return;
- if(!strcmp(gtk_widget_get_name(w),s->text)){s->result=w;return;}
+ if(gtk_widget_get_mapped(w)&&!strcmp(gtk_widget_get_name(w),s->text)){s->result=w;return;}
  if(GTK_IS_CONTAINER(w))gtk_container_foreach(GTK_CONTAINER(w),find_named,s);
 }
 static void find_menu (GtkWidget* w,gpointer arg) {
@@ -74,6 +74,7 @@ static int touch_parameter(GtkWidget* w) {
  return 1;
 }
 static GtkWidget* named(GtkWidget* w,const char* name) {
+ if(!w)return NULL;
  struct Search s={name,NULL};find_named(w,&s);return s.result;
 }
 static int select_row(GtkWidget* view,int index) {
@@ -110,8 +111,34 @@ static int select_delay(GtkWidget* w,int keyboard) {
  else gtk_tree_view_row_activated(GTK_TREE_VIEW(s.result),path,gtk_tree_view_get_column(GTK_TREE_VIEW(s.result),1));
  gtk_tree_path_free(path);return 1;
 }
+static int drag_request(int id, GtkWidget* source, int source_row, GtkWidget* destination, int destination_row, int cancel) {
+ if(!source||!destination||!gtk_widget_get_mapped(source)||!gtk_widget_get_mapped(destination))return 0;
+ gtk_window_present(GTK_WINDOW(gtk_widget_get_toplevel(source)));
+ GtkWidget* widgets[]={source,destination}; int rows[]={source_row,destination_row}; int x[2],y[2];
+ for(int i=0;i<2;++i) {
+  if(GTK_IS_TREE_VIEW(widgets[i])&&rows[i]>=0) {
+   GtkTreePath* path=gtk_tree_path_new_from_indices(rows[i],-1);GdkRectangle rect;
+   gtk_tree_view_get_cell_area(GTK_TREE_VIEW(widgets[i]),path,NULL,&rect);gtk_tree_path_free(path);
+   gdk_window_get_origin(gtk_tree_view_get_bin_window(GTK_TREE_VIEW(widgets[i])),&x[i],&y[i]);
+   x[i]+=30;y[i]+=rect.y+(i==1&&widgets[i]==named(rack,"AudioRackPluginList")?2:rect.height/2);
+  } else {
+   GtkWidget* top=gtk_widget_get_toplevel(widgets[i]);int dx,dy;GtkAllocation a;
+   gdk_window_get_origin(gtk_widget_get_window(top),&x[i],&y[i]);
+   gtk_widget_translate_coordinates(widgets[i],top,0,0,&dx,&dy);gtk_widget_get_allocation(widgets[i],&a);
+   x[i]+=dx+25;y[i]+=dy+(rows[i]==-2?2:a.height/2);
+  }
+ }
+ char path[4096],temp[4096];snprintf(path,sizeof(path),"%s/drag-request.json",getenv("ARDOUR_RACK_UI_PROBE"));
+ snprintf(temp,sizeof(temp),"%s/drag-request.tmp",getenv("ARDOUR_RACK_UI_PROBE"));
+ FILE* f=fopen(temp,"w");if(!f)return 0;fprintf(f,"{\"id\":%d,\"from\":[%d,%d],\"to\":[%d,%d],\"cancel\":%d}",id,x[0],y[0],x[1],y[1],cancel);fclose(f);rename(temp,path);return 1;
+}
+static int drag_done(int id) {
+ char path[4096];snprintf(path,sizeof(path),"%s/drag-done",getenv("ARDOUR_RACK_UI_PROBE"));
+ FILE* f=fopen(path,"r");int value=0;if(f){fscanf(f,"%d",&value);fclose(f);}return value==id;
+}
+static GtkWidget* editor_window(void) {GtkWidget* w=top("*Rack Verification - Ardour");return w?w:top("Rack Verification - Ardour");}
 static gboolean probe(gpointer unused) {
- if(++ticks>150){g_printerr("RACK PROBE FAILED: timeout stage %d\n",stage);return FALSE;}
+ if(++ticks>210){g_printerr("RACK PROBE FAILED: timeout stage %d\n",stage);return FALSE;}
  if(stage==0) { GtkWidget* warning=top("Pre-Release Warning");if(warning){gtk_dialog_response(GTK_DIALOG(warning),GTK_RESPONSE_OK);return TRUE;} }
  if(ticks%5==0)g_printerr("RACK PROBE stage %d\n",stage);
  if(stage==0 && ticks%5==0) {
@@ -207,8 +234,41 @@ static gboolean probe(gpointer unused) {
   } else capture(rack,"rack-selected-chain");
   stage=35;break;
  case 35:
+  if(getenv("ARDOUR_RACK_UI_DRAG")&&!dragged){select_chain(0);stage=40;break;}
   if(getenv("ARDOUR_RACK_UI_EMBEDDED")){g_printerr("RACK PROBE READY: select empty track\n");stage=36;break;}
   g_printerr("RACK PROBE PASSED: floating rack, macros, learned controls, chain selection, insertion, reorder and removal\n");return FALSE;
+ case 40:
+  if(!drag_request(1,named(rack,"AudioRackPluginList"),0,named(rack,"AudioRackChainList"),1,0))return TRUE;
+  stage=41;break;
+ case 41:
+  if(!drag_done(1))return TRUE;
+  if(plugin_count()!=2||!plugin_name(0,"ACE EQ")||!plugin_name(1,"Rack test")){g_printerr("RACK PROBE FAILED: mouse drag between chains (count=%d, first_eq=%d, second_rack=%d)\n",plugin_count(),plugin_name(0,"ACE EQ"),plugin_name(1,"Rack test"));return FALSE;}
+  if(!drag_request(2,named(rack,"AudioRackPluginList"),1,named(rack,"AudioRackPluginList"),0,0))return TRUE;
+  stage=42;break;
+ case 42:
+  if(!drag_done(2))return TRUE;
+  if(!plugin_name(0,"Rack test")||!plugin_name(1,"ACE EQ")){g_printerr("RACK PROBE FAILED: mouse reorder\n");return FALSE;}
+  if(!drag_request(3,named(rack,"AudioRackPluginList"),0,named(editor_window(),"ProcessorList"),-2,0))return TRUE;
+  stage=43;break;
+ case 43:
+  if(!drag_done(3))return TRUE;
+  rack=named(editor_window(),"AudioRackControls");if(!rack)return TRUE;
+  select_chain(1);
+  if(plugin_count()!=1||!plugin_name(0,"ACE EQ")){g_printerr("RACK PROBE FAILED: mouse move out of rack\n");return FALSE;}
+  select_chain(0);
+  if(plugin_count()!=0){g_printerr("RACK PROBE FAILED: source chain after move\n");return FALSE;}
+  if(!drag_request(4,named(named(editor_window(),"ProcessorList"),"processor prefader"),-1,named(rack,"AudioRackPluginList"),-1,0))return TRUE;
+  stage=44;break;
+ case 44:
+  if(!drag_done(4))return TRUE;
+  rack=named(editor_window(),"AudioRackControls");if(!rack)return TRUE;select_chain(0);
+  if(plugin_count()!=1||!plugin_name(0,"Rack test")){g_printerr("RACK PROBE FAILED: mouse move into empty chain\n");return FALSE;}
+  if(!drag_request(5,named(rack,"AudioRackPluginList"),0,named(rack,"AudioRackChainList"),1,1))return TRUE;
+  stage=45;break;
+ case 45:
+  if(!drag_done(5))return TRUE;
+  if(plugin_count()!=1||!plugin_name(0,"Rack test")){g_printerr("RACK PROBE FAILED: cancelled drag changed chain\n");return FALSE;}
+  dragged=1;g_printerr("RACK PROBE PASSED: native mouse drags between chains, reorder, out to track, into empty chain, cancel\n");stage=35;break;
  case 36:
   w=top("*Rack Verification - Ardour");if(!w)w=top("Rack Verification - Ardour");
   if(!w||named(w,"AudioRackControls"))return TRUE;

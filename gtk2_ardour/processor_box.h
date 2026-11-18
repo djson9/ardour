@@ -492,6 +492,10 @@ private:
 	ProcessorBox (ProcessorBox const &);
 
 	std::shared_ptr<ARDOUR::Route>  _route;
+	std::weak_ptr<ARDOUR::Processor> _rack_drop_target;
+	void begin_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);
+	void end_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);
+	void restore_drag_selection ();
 	MixerStrip*         _parent_strip; // null if in RouteParamsUI
 	bool                _owner_is_mixer;
 	bool                 ab_direction;

@@ -20,7 +20,7 @@ if not args.prepare_gui:
   result=subprocess.run(['/bin/bash','-c',command],env=env,stdout=log,stderr=subprocess.STDOUT,timeout=90)
  print((out/'engine-tests.log').read_text());raise SystemExit(result.returncode)
 log=(out/'engine-tests.log').read_text()
-assert 'OK (4)' in log, 'Run and pass the engine tests first'
+assert 'OK (5)' in log, 'Run and pass the engine tests first'
 source=pathlib.Path(next(line.split('Rack fixture: ',1)[1] for line in log.splitlines() if 'Rack fixture: ' in line))/'test_session.ardour'
 fixture=out/'Rack Verification';fixture.mkdir(exist_ok=True)
 tree=ET.parse(source);session=tree.getroot();session.set('name','Rack Verification')
@@ -37,7 +37,7 @@ ET.SubElement(ui,'Window',{'name':f"P-{route.get('id')}-{rack.get('id')}",'visib
 editor=ET.SubElement(ui,'Editor');editor.set('show-editor-props','1')
 tree.write(fixture/'Rack Verification.ardour',encoding='UTF-8',xml_declaration=True)
 config=ET.Element('Ardour');options=ET.SubElement(config,'Config')
-for name,value in {'check-announcements':'0','show-splash':'0','discover-plugins-on-start':'0','default-session-parent-dir':str(out),'anticipative-processing':'0'}.items(): ET.SubElement(options,'Option',name=name,value=value)
+for name,value in {'check-announcements':'0','show-splash':'0','discover-plugins-on-start':'0','default-session-parent-dir':str(out),'anticipative-processing':'0','hide-dummy-backend':'0'}.items(): ET.SubElement(options,'Option',name=name,value=value)
 protocols=ET.SubElement(config,'ControlProtocols');ET.SubElement(protocols,'Protocol',name='MCP HTTP Server (Experimental)',active='1',port='4838',config='')
 states=ET.SubElement(ET.SubElement(ET.SubElement(config,'Extra'),'AudioMIDISetup'),'EngineStates')
 ET.SubElement(states,'State',{'backend':'None (Dummy)','driver':'Realtime','device':'Silence','input-device':'Silence','output-device':'Silence','sample-rate':session.get('sample-rate','48000'),'buffer-size':'256','n-periods':'2','input-latency':'0','output-latency':'0','active':'1','use-buffered-io':'0','midi-option':'None','lru':'1'})

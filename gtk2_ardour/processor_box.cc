@@ -341,6 +341,10 @@ ProcessorEntry::can_copy_state (Gtkmm2ext::DnDVBoxChild* o) const
 bool
 ProcessorEntry::drag_data_get (Glib::RefPtr<Gdk::DragContext> const, Gtk::SelectionData &data)
 {
+	if (data.get_target () == "x-ardour/rack-plugin") {
+		AudioRackUI::drag_data (data, std::dynamic_pointer_cast<PluginInsert> (_processor));
+		return true;
+	}
 	if (data.get_target() == "x-ardour/plugin.preset") {
 		std::shared_ptr<PluginInsert> pi = std::dynamic_pointer_cast<PluginInsert> (_processor);
 
@@ -1933,6 +1937,7 @@ static std::list<Gtk::TargetEntry> drop_targets()
 {
 	std::list<Gtk::TargetEntry> tmp;
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/processor", Gtk::TARGET_SAME_APP)); // from processor-box to processor-box
+	tmp.push_back (Gtk::TargetEntry ("x-ardour/rack-plugin", Gtk::TARGET_SAME_APP)); // from rack chain
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.info", Gtk::TARGET_SAME_APP)); // from plugin-manager
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.favorite", Gtk::TARGET_SAME_APP)); // from sidebar
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/route.template", Gtk::TARGET_SAME_APP)); // from sidebar
@@ -1943,6 +1948,7 @@ static std::list<Gtk::TargetEntry> drag_targets()
 {
 	std::list<Gtk::TargetEntry> tmp;
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/processor", Gtk::TARGET_SAME_APP)); // to processor-box (copy)
+	tmp.push_back (Gtk::TargetEntry ("x-ardour/rack-plugin", Gtk::TARGET_SAME_APP)); // to rack chain
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.preset", Gtk::TARGET_SAME_APP)); // to sidebar (optional preset)
 	return tmp;
 }
@@ -1979,8 +1985,16 @@ ProcessorBox::ProcessorBox (ARDOUR::Session* sess, std::function<PluginSelector*
 	set_widget_bindings (processor_display, *bindings, ARDOUR_BINDING_KEY);
 	processor_display.SelectionAdded.connect (sigc::mem_fun (*this, &ProcessorBox::selection_added));
 	processor_display.SelectionChanged.connect ([this] () {
+		// Changing the bottom panel on mouse-down can move the source row out
+		// from under the pointer before GTK reaches its drag threshold.
+		GdkEvent* event = gtk_get_current_event ();
+		const bool pressed = event && event->type == GDK_BUTTON_PRESS && event->button.button == 1;
+		if (event) gdk_event_free (event);
+		if (pressed && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") return;
 		auto selected = processor_display.selection ();
-		ProcessorSelected (selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ());
+		auto p = selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ();
+		if (std::dynamic_pointer_cast<AudioRack> (p)) _rack_drop_target = p;
+		ProcessorSelected (p);
 	});
 
 	_width = Wide;
@@ -2046,6 +2060,7 @@ ProcessorBox::set_route (std::shared_ptr<Route> r)
 	/* new route: any existing block on processor redisplay must be meaningless */
 	no_processor_redisplay = false;
 	_route = r;
+	_rack_drop_target.reset ();
 
 	_route->processors_changed.connect (
 		_route_connections, invalidator (*this), std::bind (&ProcessorBox::route_processors_changed, this, _1), gui_context()
@@ -2171,6 +2186,13 @@ ProcessorBox::plugin_drop (Gtk::SelectionData const &data, ProcessorEntry* posit
 	std::shared_ptr<Processor> p = find_drop_position (position);
 	Route::ProcessorList pl;
 
+	if (data.get_target () == "x-ardour/rack-plugin") {
+		if (!AudioRackUI::drop_plugin (*_session, data, *_route, {}, 0, 0, p)) {
+			MessageDialog dialog (_("Cannot move this plugin here. Check the track's channel configuration and stop recording before moving plugins."));
+			dialog.run ();
+		}
+		return;
+	}
 	if (data.get_target() == "x-ardour/plugin.info") {
 		_drop_plugin (data, pl);
 	}
@@ -2775,7 +2797,7 @@ ProcessorBox::processor_button_press_event (GdkEventButton *ev, ProcessorEntry* 
 
 	} else if (processor && ev->button == 1 && selected) {
 		// this is purely informational but necessary for route params UI
-		ProcessorSelected (processor); // emit
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") ProcessorSelected (processor); // emit
 
 	} else if (!processor && ev->button == 1 && ev->type == GDK_2BUTTON_PRESS) {
 
@@ -2789,6 +2811,7 @@ ProcessorBox::processor_button_press_event (GdkEventButton *ev, ProcessorEntry* 
 bool
 ProcessorBox::processor_button_release_event (GdkEventButton *ev, ProcessorEntry* child)
 {
+	if (ev->button == 1 && Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") restore_drag_selection ();
 	std::shared_ptr<Processor> processor;
 	if (child) {
 		processor = child->processor ();
@@ -3270,9 +3293,40 @@ ProcessorBox::add_processor_to_display (std::weak_ptr<Processor> p)
 		 )
 	{
 		processor_display.add_child (e, drag_targets());
+		e->action_widget ().signal_drag_begin ().connect (sigc::mem_fun (*this, &ProcessorBox::begin_plugin_drag));
+		e->action_widget ().signal_drag_end ().connect (sigc::mem_fun (*this, &ProcessorBox::end_plugin_drag));
 	} else {
 		processor_display.add_child (e, drag_targets_noplugin());
 	}
+}
+
+void
+ProcessorBox::begin_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&)
+{
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !_route) return;
+	auto target = _rack_drop_target.lock ();
+	if (target && _route->processor_by_id (target->id ()) != target) target.reset ();
+	if (!target) _route->foreach_processor ([&target] (std::weak_ptr<Processor> weak) {
+		if (!target) target = std::dynamic_pointer_cast<AudioRack> (weak.lock ());
+	});
+	// Preview the rack as a drop destination without changing the source list's
+	// selection (ordinary track-to-track dragging still needs that selection).
+	if (target) ProcessorSelected (target);
+}
+
+void
+ProcessorBox::end_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&)
+{
+	Glib::signal_idle ().connect_once (sigc::mem_fun (*this, &ProcessorBox::restore_drag_selection));
+}
+
+void
+ProcessorBox::restore_drag_selection ()
+{
+	auto selected = processor_display.selection ();
+	auto p = selected.empty () ? std::shared_ptr<Processor> () : selected.back ()->processor ();
+	if (std::dynamic_pointer_cast<AudioRack> (p)) _rack_drop_target = p;
+	ProcessorSelected (p);
 }
 
 void

@@ -73,6 +73,7 @@ class RouteCommentEditor;
 namespace ARDOUR {
 
 class Amp;
+class AudioRack;
 class BeatBox;
 class DelayLine;
 class Delivery;
@@ -336,6 +337,12 @@ public:
 	 * @param need_process_lock if locking is required (set to true, unless called from RT context with lock)
 	 * @returns 0 on success
 	 */
+	/** Move an existing audio effect atomically, retaining its controls and identity.
+	 * Null racks mean the route processor list; position is before removal. */
+	bool move_rack_plugin (std::shared_ptr<PluginInsert>, std::shared_ptr<AudioRack> source,
+	                       std::shared_ptr<AudioRack> destination, size_t chain, size_t position,
+	                       std::shared_ptr<Processor> before = {});
+
 	int remove_processor (std::shared_ptr<Processor> proc, ProcessorStreams* err = 0, bool need_process_lock = true);
 	/** replace plugin/processor with another
 	 *

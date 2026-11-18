@@ -1,0 +1,17 @@
+{
+  "native_mouse_drag": true,
+  "drag_identity_and_mapping_checks": true,
+  "bottom_panel": true,
+  "floating_editor": false,
+  "selected_chain_lists": true,
+  "insertion_reorder_removal": true,
+  "track_switch_lifecycle": true,
+  "saved_chain_plugins": [
+    [
+      "Rack test"
+    ],
+    [
+      "ACE EQ"
+    ]
+  ]
+}

@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <algorithm>
 #include <cmath>
+#include <sstream>
+#include "ardour/route.h"
 #include <ytkmm/checkbutton.h>
 #include <ytkmm/dialog.h>
 #include <ytkmm/entry.h>
@@ -201,6 +203,20 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_plugin_view.append_column (_("Plugins in selected chain"), _list_columns.name);
 	_plugin_view.get_selection ()->signal_changed ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_selected));
 	_plugin_view.signal_row_activated ().connect ([this] (TreeModel::Path const&, TreeViewColumn*) { if (auto p = selected_plugin ()) open_plugin (p, true); });
+	std::vector<TargetEntry> targets {TargetEntry ("x-ardour/rack-plugin", TARGET_SAME_APP)};
+	_plugin_view.enable_model_drag_source (targets, Gdk::BUTTON1_MASK, Gdk::ACTION_COPY | Gdk::ACTION_MOVE);
+	_plugin_view.signal_drag_begin ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_begin));
+	_plugin_view.signal_drag_data_get ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_data));
+	_plugin_view.signal_drag_end ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_end));
+	for (bool chains : {false, true}) {
+		auto& view = chains ? _chain_view : _plugin_view;
+		view.drag_dest_set (targets, DEST_DEFAULT_DROP, Gdk::ACTION_COPY | Gdk::ACTION_MOVE);
+		view.signal_drag_motion ().connect (sigc::bind (sigc::mem_fun (*this, &AudioRackUI::drag_motion), chains), false);
+		view.signal_drag_data_received ().connect (sigc::bind (sigc::mem_fun (*this, &AudioRackUI::drag_received), chains));
+		view.signal_drag_leave ().connect ([&view] (Glib::RefPtr<Gdk::DragContext> const&, guint) { gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE); });
+	}
+	_plugin_view.set_tooltip_text (_("Drag plugins to reorder them, into another chain, or back to the track's plugin list."));
+	_chain_view.set_tooltip_text (_("Drop an audio effect on a chain to move it there."));
 	_plugin_toolbar.set_spacing (3);
 	for (auto b : {&_add_plugin, &_open_plugin, &_parameters, &_up, &_down, &_remove_plugin}) _plugin_toolbar.pack_start (*b, false, false);
 	_add_plugin.signal_clicked ().connect (sigc::mem_fun (*this, &AudioRackUI::add_plugin));
@@ -314,6 +330,82 @@ void AudioRackUI::update_chain () {
 	_rebuilding = false;
 	if (!ok) { failed (_("Cannot edit a rack while recording.")); schedule_rebuild (); }
 	else if (auto row = _chain_view.get_selection ()->get_selected ()) (*row)[_list_columns.name] = _chain_name.get_text ();
+}
+void AudioRackUI::drag_data (SelectionData& data, std::shared_ptr<PluginInsert> plugin, std::shared_ptr<AudioRack> rack)
+{
+	auto route = plugin ? dynamic_cast<Route*> (plugin->owner ()) : nullptr;
+	if (!route) return;
+	data.set (data.get_target (), route->id ().to_s () + " " + (rack ? rack->id ().to_s () : "-") + " " + plugin->id ().to_s ());
+}
+bool AudioRackUI::drop_plugin (Session& session, SelectionData const& data, Route& route,
+                              std::shared_ptr<AudioRack> rack, size_t chain, size_t position, std::shared_ptr<Processor> before)
+{
+	if (data.get_target () != "x-ardour/rack-plugin" || data.get_length () <= 0) return false;
+	std::istringstream payload (data.get_data_as_string ()); std::string route_id, rack_id, plugin_id, extra;
+	if (!(payload >> route_id >> rack_id >> plugin_id) || payload >> extra) return false;
+	auto source_route = session.route_by_id (PBD::ID (route_id)); if (!source_route) return false;
+	std::shared_ptr<AudioRack> source;
+	std::shared_ptr<PluginInsert> plugin;
+	if (rack_id != "-") {
+		source = std::dynamic_pointer_cast<AudioRack> (source_route->processor_by_id (PBD::ID (rack_id)));
+		if (!source) return false;
+		for (auto const& c : source->chains ()) for (auto const& p : c->plugins) if (p->id ().to_s () == plugin_id) plugin = p;
+	} else plugin = std::dynamic_pointer_cast<PluginInsert> (source_route->processor_by_id (PBD::ID (plugin_id)));
+	if (!plugin || (rack && chain >= rack->chains ().size ())) return false;
+	auto destination = session.route_by_id (route.id ());
+	auto target_chain = rack ? rack->chains ()[chain] : nullptr;
+	// Route notifications can destroy both the drag source and this panel.
+	// Wait until GTK has finished tearing down its drag context.
+	Glib::signal_idle ().connect_once ([plugin, source, source_route, rack, destination, target_chain, position, before] () {
+		size_t index = rack ? std::distance (rack->chains ().begin (), std::find (rack->chains ().begin (), rack->chains ().end (), target_chain)) : 0;
+		if (source_route->session ().route_by_id (source_route->id ()) != source_route ||
+		    destination->session ().route_by_id (destination->id ()) != destination ||
+		    !destination->move_rack_plugin (plugin, source, rack, index, position, before)) {
+			MessageDialog dialog (_("Cannot move this plugin here. Racks accept compatible audio effects without MIDI or external sidechains; moves are disabled while recording."));
+			dialog.run ();
+		}
+	});
+	return true;
+}
+void AudioRackUI::plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&) { _drag_plugin = selected_plugin (); }
+void AudioRackUI::plugin_drag_data (Glib::RefPtr<Gdk::DragContext> const&, SelectionData& data, guint, guint)
+{
+	if (auto p = _drag_plugin.lock ()) drag_data (data, p, _rack);
+}
+void AudioRackUI::plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&) { _drag_plugin.reset (); }
+bool AudioRackUI::drag_motion (Glib::RefPtr<Gdk::DragContext> const& context, int x, int y, guint time, bool chains)
+{
+	auto& view = chains ? _chain_view : _plugin_view;
+	if (view.drag_dest_find_target (context, view.drag_dest_get_target_list ()) != "x-ardour/rack-plugin") return false;
+	TreeModel::Path path; TreeViewDropPosition position;
+	if (view.get_dest_row_at_pos (x, y, path, position)) {
+		if (chains) position = TREE_VIEW_DROP_INTO_OR_BEFORE;
+		else position = (position == TREE_VIEW_DROP_AFTER || position == TREE_VIEW_DROP_INTO_OR_AFTER) ? TREE_VIEW_DROP_AFTER : TREE_VIEW_DROP_BEFORE;
+		view.set_drag_dest_row (path, position);
+	} else gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	context->drag_status (Gdk::ACTION_COPY, time); // The receiver moves it; GTK must never delete the source.
+	return true;
+}
+void AudioRackUI::drag_received (Glib::RefPtr<Gdk::DragContext> const& context, int x, int y, SelectionData const& data, guint, guint time, bool chains)
+{
+	auto& view = chains ? _chain_view : _plugin_view;
+	TreeModel::Path path; TreeViewDropPosition position;
+	size_t chain = selected_chain_index (), index = 0;
+	bool row = view.get_dest_row_at_pos (x, y, path, position);
+	if (chains) {
+		if (!row) { context->drag_finish (false, false, time); return; }
+		chain = path[0];
+	}
+	bool ok = false;
+	if (chain < _rack->chains ().size ()) {
+		index = _rack->chains ()[chain]->plugins.size ();
+		if (!chains && row) index = path[0] + ((position == TREE_VIEW_DROP_AFTER || position == TREE_VIEW_DROP_INTO_OR_AFTER) ? 1 : 0);
+		if (auto route = dynamic_cast<Route*> (_rack->owner ())) ok = drop_plugin (_rack->session (), data, *route, _rack, chain, index);
+		if (ok) { _selected_chain = _rack->chains ()[chain]; failed (""); }
+	}
+	if (!ok) failed (_("Cannot move this plugin here. Racks accept compatible audio effects without MIDI or external sidechains; moves are disabled while recording."));
+	gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	context->drag_finish (ok, false, time);
 }
 void AudioRackUI::add_plugin () {
 	_adding_chain = _selected_chain; failed ("");
