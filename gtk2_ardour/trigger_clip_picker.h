@@ -58,6 +58,7 @@ private:
 	void open_dir ();
 	void open_downloader ();
 	void edit_path ();
+	void edit_file_types ();
 	bool refill_dropdown ();
 	void parameter_changed (std::string const&);
 	void clip_added (std::string const&, void*);
@@ -122,6 +123,11 @@ private:
 	ArdourWidgets::ArdourButton  _stop_btn;
 	ArdourWidgets::ArdourKnob    _gain_control;
 	ArdourWidgets::ArdourButton  _open_library_btn;
+	ArdourWidgets::ArdourButton  _open_folder_btn;
+	ArdourWidgets::ArdourButton  _file_types_btn;
+	Gtk::Label                  _directory_label;
+	Gtk::Label                  _browser_status;
+	std::set<std::string>        _file_extensions;
 	ArdourWidgets::ArdourButton  _refresh_btn;
 	ArdourWidgets::ArdourButton  _show_plugin_btn;
 	Gtk::HScale                  _seek_slider;

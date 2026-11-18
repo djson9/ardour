@@ -44,6 +44,7 @@
 #include "editing.h"
 #include "editing_convert.h"
 #include "utils.h"
+#include "browser_file_filter.h"
 
 class UIConfiguration : public Gtkmm2ext::UIConfigurationBase
 {
