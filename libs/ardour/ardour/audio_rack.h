@@ -74,6 +74,7 @@ public:
 protected:
 	XMLNode& state () const;
 private:
+	friend class Route;
 	bool configure_chain (Chain&, ChanCount);
 	bool editable () const;
 	void changed ();

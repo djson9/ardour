@@ -42,6 +42,7 @@ class AudioRackTest : public TestNeedingSession {
  CPPUNIT_TEST (mapping);
  CPPUNIT_TEST (latency);
  CPPUNIT_TEST (session_roundtrip);
+ CPPUNIT_TEST (transfers);
  CPPUNIT_TEST_SUITE_END ();
 public:
  void tearDown () override { AudioEngine::instance ()->set_session (nullptr); TestNeedingSession::tearDown (); }
@@ -149,6 +150,85 @@ end
   CPPUNIT_ASSERT (restored); CPPUNIT_ASSERT_EQUAL (std::string("Saved macro"),restored->macros ()[0].name);
   CPPUNIT_ASSERT_EQUAL (size_t(1),restored->macros ()[0].mappings.size ());
   CPPUNIT_ASSERT_EQUAL (size_t(1),restored->chains ()[0]->plugins.size ());
+ }
+ void transfers () {
+  auto a = _session->new_audio_route (1,1,{},1,"Transfer source",PresentationInfo::AudioBus,0).front ();
+  auto b = _session->new_audio_route (2,2,{},1,"Transfer destination",PresentationInfo::AudioBus,0).front ();
+  auto rack = std::make_shared<AudioRack> (*_session,*a);
+  auto other = std::make_shared<AudioRack> (*_session,*b);
+  CPPUNIT_ASSERT_EQUAL (0,a->add_processor (rack,PreFader));
+  CPPUNIT_ASSERT_EQUAL (0,b->add_processor (other,PreFader));
+  CPPUNIT_ASSERT (rack->add_chain ("Second"));
+  auto p = plugin (*rack), q = plugin (*rack);
+  CPPUNIT_ASSERT (rack->add_plugin (0,p)); CPPUNIT_ASSERT (rack->add_plugin (0,q));
+  auto control = p->automation_control (Evoral::Parameter (PluginAutomation,0,0));
+  control->set_value (.73,Controllable::NoGroup);
+  p->deactivate ();
+  auto learned = new XMLNode ("LearnedParameters"); learned->add_child ("Parameter")->set_property ("id",0); p->add_extra_xml (*learned);
+  const auto id = p->id ();
+  CPPUNIT_ASSERT (rack->map_parameter (0,p,0));
+  control->set_value (.73,Controllable::NoGroup);
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,rack,rack,1,0));
+  CPPUNIT_ASSERT (rack->chains ()[1]->plugins.front () == p);
+  CPPUNIT_ASSERT (rack->chains ()[0]->plugins.front () == q);
+  CPPUNIT_ASSERT_EQUAL (size_t(1),rack->macros ()[0].mappings.size ());
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,rack,rack,0,0));
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,rack,rack,0,2));
+  CPPUNIT_ASSERT (rack->chains ()[0]->plugins[1] == p);
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,rack,rack,0,2)); // no-op end drop
+  CPPUNIT_ASSERT (!a->move_rack_plugin (p,rack,rack,7,0));
+  CPPUNIT_ASSERT (!a->move_rack_plugin (p,rack,rack,0,99));
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,rack,{},0,0,rack));
+  CPPUNIT_ASSERT (a->processor_by_id (id) == p);
+  CPPUNIT_ASSERT (rack->macros ()[0].mappings.empty ());
+  CPPUNIT_ASSERT (p->automation_control (Evoral::Parameter (PluginAutomation,0,0)) == control);
+  CPPUNIT_ASSERT (p->extra_xml ("LearnedParameters"));
+  CPPUNIT_ASSERT (!p->active ());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL (.73,control->get_value (),1e-6);
+  const double value = control->get_value ();
+  CPPUNIT_ASSERT (a->move_rack_plugin (p,{},rack,1,0));
+  CPPUNIT_ASSERT (!a->processor_by_id (id));
+  CPPUNIT_ASSERT (rack->map_parameter (0,p,0));
+  control->set_value (value,Controllable::NoGroup);
+  CPPUNIT_ASSERT (b->move_rack_plugin (p,rack,other,0,0));
+  CPPUNIT_ASSERT (other->contains (p)); CPPUNIT_ASSERT (!rack->contains (p));
+  CPPUNIT_ASSERT (rack->macros ()[0].mappings.empty ());
+  CPPUNIT_ASSERT (p->owner () == b.get ());
+  CPPUNIT_ASSERT (b->move_rack_plugin (p,other,{},0,0,other));
+  CPPUNIT_ASSERT (p->time_domain_parent () == b.get ());
+  CPPUNIT_ASSERT_EQUAL (0,b->remove_processor (other)); other.reset ();
+  CPPUNIT_ASSERT (p->id () == id); CPPUNIT_ASSERT (p->automation_control (Evoral::Parameter (PluginAutomation,0,0)) == control);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL (value, control->get_value (), 1e-6);
+  // Force a plugin configuration failure on the mono destination. A failed reconfiguration must restore both routes.
+  std::string stereo = script;
+  auto config = stereo.find ("audio_in = 1, audio_out = 1"); stereo.replace (config,std::string ("audio_in = 1, audio_out = 1").size (),"audio_in = -1, audio_out = -1");
+  stereo += "\nfunction dsp_configure (ins, outs) assert(ins:n_audio() == 2) end\n";
+  auto stereo_plugin = std::make_shared<LuaProc> (*AudioEngine::instance (),*_session,stereo);
+  auto incompatible = std::make_shared<PluginInsert> (*_session,*b,stereo_plugin);
+  CPPUNIT_ASSERT_EQUAL (0,b->add_processor (incompatible,p));
+  CPPUNIT_ASSERT (!a->move_rack_plugin (incompatible,{},rack,0,0));
+  CPPUNIT_ASSERT (b->processor_by_id (incompatible->id ()) == incompatible);
+  CPPUNIT_ASSERT (!rack->contains (incompatible));
+  CPPUNIT_ASSERT (incompatible->owner () == b.get ());
+  CPPUNIT_ASSERT_EQUAL (size_t(1),rack->chains ()[0]->plugins.size ());
+  CPPUNIT_ASSERT_EQUAL (0,_session->save_state (""));
+  std::unique_ptr<XMLNode> saved (&b->get_state ());
+  bool found = false;
+  for (auto node : saved->children ()) if (node->name () == "Processor") {
+   std::string saved_id; if (node->get_property ("id",saved_id) && saved_id == id.to_s ()) found = true;
+  }
+  CPPUNIT_ASSERT (found);
+  const std::string session_path = _session->path ();
+  p.reset (); q.reset (); rack.reset (); a.reset (); b.reset (); control.reset (); incompatible.reset (); stereo_plugin.reset ();
+  AudioEngine::instance ()->set_session (nullptr); delete _session;
+  _session = load_session (session_path,"test_session");
+  std::shared_ptr<PluginInsert> restored;
+  for (auto const& route : *_session->get_routes ()) {
+   if (auto candidate = std::dynamic_pointer_cast<PluginInsert> (route->processor_by_id (id))) restored = candidate;
+  }
+  CPPUNIT_ASSERT (restored); CPPUNIT_ASSERT (restored->extra_xml ("LearnedParameters"));
+  CPPUNIT_ASSERT (!restored->active ());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL (value,restored->automation_control (Evoral::Parameter (PluginAutomation,0,0))->get_value (),1e-6);
  }
  void mapping () {
   auto route = _session->new_audio_route (1,1,{},1,"Mapping",PresentationInfo::AudioBus,0).front ();

@@ -341,6 +341,10 @@ ProcessorEntry::can_copy_state (Gtkmm2ext::DnDVBoxChild* o) const
 bool
 ProcessorEntry::drag_data_get (Glib::RefPtr<Gdk::DragContext> const, Gtk::SelectionData &data)
 {
+	if (data.get_target () == "x-ardour/rack-plugin") {
+		AudioRackUI::drag_data (data, std::dynamic_pointer_cast<PluginInsert> (_processor));
+		return true;
+	}
 	if (data.get_target() == "x-ardour/plugin.preset") {
 		std::shared_ptr<PluginInsert> pi = std::dynamic_pointer_cast<PluginInsert> (_processor);
 
@@ -1933,6 +1937,7 @@ static std::list<Gtk::TargetEntry> drop_targets()
 {
 	std::list<Gtk::TargetEntry> tmp;
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/processor", Gtk::TARGET_SAME_APP)); // from processor-box to processor-box
+	tmp.push_back (Gtk::TargetEntry ("x-ardour/rack-plugin", Gtk::TARGET_SAME_APP)); // from rack chain
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.info", Gtk::TARGET_SAME_APP)); // from plugin-manager
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.favorite", Gtk::TARGET_SAME_APP)); // from sidebar
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/route.template", Gtk::TARGET_SAME_APP)); // from sidebar
@@ -1943,6 +1948,7 @@ static std::list<Gtk::TargetEntry> drag_targets()
 {
 	std::list<Gtk::TargetEntry> tmp;
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/processor", Gtk::TARGET_SAME_APP)); // to processor-box (copy)
+	tmp.push_back (Gtk::TargetEntry ("x-ardour/rack-plugin", Gtk::TARGET_SAME_APP)); // to rack chain
 	tmp.push_back (Gtk::TargetEntry ("x-ardour/plugin.preset", Gtk::TARGET_SAME_APP)); // to sidebar (optional preset)
 	return tmp;
 }
@@ -2167,6 +2173,13 @@ ProcessorBox::plugin_drop (Gtk::SelectionData const &data, ProcessorEntry* posit
 	std::shared_ptr<Processor> p = find_drop_position (position);
 	Route::ProcessorList pl;
 
+	if (data.get_target () == "x-ardour/rack-plugin") {
+		if (!AudioRackUI::drop_plugin (*_session, data, *_route, {}, 0, 0, p)) {
+			MessageDialog dialog (_("Cannot move this plugin here. Check the track's channel configuration and stop recording before moving plugins."));
+			dialog.run ();
+		}
+		return;
+	}
 	if (data.get_target() == "x-ardour/plugin.info") {
 		_drop_plugin (data, pl);
 	}

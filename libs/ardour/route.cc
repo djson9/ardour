@@ -1653,6 +1653,105 @@ Route::is_internal_processor (std::shared_ptr<Processor> p) const
 	return false;
 }
 
+bool
+Route::move_rack_plugin (std::shared_ptr<PluginInsert> plugin, std::shared_ptr<AudioRack> source,
+                        std::shared_ptr<AudioRack> destination, size_t chain, size_t position,
+                        std::shared_ptr<Processor> before)
+{
+	Route* from = plugin ? dynamic_cast<Route*> (plugin->owner ()) : nullptr;
+	if (!from || &from->session () != &_session || _session.actively_recording () ||
+	    !plugin->plugin () || plugin->is_instrument () || plugin->has_sidechain () ||
+	    plugin->sidechain_input_pins ().n_total () || plugin->natural_input_streams ().n_midi () ||
+	    plugin->natural_output_streams ().n_midi () || (!source && !destination)) return false;
+
+	{
+		PBD::Mutex::Lock process (AudioEngine::instance ()->process_lock ());
+		if (_session.actively_recording ()) return false;
+		_session.retire_anticipation_for_edit ();
+		for (Route* r : {from, this}) {
+			if (r->_pending_process_reorder.load () || r->_pending_listen_change.load ()) r->apply_processor_changes_rt ();
+		}
+		auto present = [] (Route* r, std::shared_ptr<Processor> p) {
+			return std::find (r->_processors.begin (), r->_processors.end (), p) != r->_processors.end ();
+		};
+		if ((source && (!present (from, source) || !source->contains (plugin))) ||
+		    (!source && !present (from, plugin)) ||
+		    (destination && (!present (this, destination) || chain >= destination->_chains.size () || position > destination->_chains[chain]->plugins.size ())) ||
+		    (!destination && before && (!present (this, before) || before == plugin))) return false;
+
+		std::shared_ptr<AudioRack::Chain> source_chain;
+		if (source) for (auto const& c : source->_chains) {
+			if (std::find (c->plugins.begin (), c->plugins.end (), plugin) != c->plugins.end ()) { source_chain = c; break; }
+		}
+		auto target_chain = destination ? destination->_chains[chain] : nullptr;
+		const auto source_plugins = source_chain ? source_chain->plugins : std::vector<std::shared_ptr<PluginInsert>> ();
+		const auto target_plugins = target_chain ? target_chain->plugins : std::vector<std::shared_ptr<PluginInsert>> ();
+		ProcessorState from_state (from), to_state (this);
+		const bool strict = plugin->strict_io ();
+		{
+			PBD::RWLock::WriterLock lock (from->_processor_lock);
+			if (source_chain) {
+				auto i = std::find (source_chain->plugins.begin (), source_chain->plugins.end (), plugin);
+				if (source_chain == target_chain && size_t (i - source_chain->plugins.begin ()) < position) --position;
+				source_chain->plugins.erase (i);
+			} else from->_processors.remove (plugin);
+		}
+		{
+			PBD::RWLock::WriterLock lock (_processor_lock);
+			if (target_chain) target_chain->plugins.insert (target_chain->plugins.begin () + position, plugin);
+			else _processors.insert (std::find (_processors.begin (), _processors.end (), before), plugin);
+		}
+		plugin->set_strict_io (destination ? true : _strict_io);
+		auto configure = [] (Route* r) {
+			PBD::RWLock::WriterLock lock (r->_processor_lock);
+			return r->configure_processors_unlocked (nullptr, &lock) == 0;
+		};
+		if (!configure (from) || (from != this && !configure (this))) {
+			{
+				PBD::RWLock::WriterLock lock (from->_processor_lock);
+				from_state.restore (); if (source_chain) source_chain->plugins = source_plugins;
+			}
+			{
+				PBD::RWLock::WriterLock lock (_processor_lock);
+				if (from != this) to_state.restore ();
+				if (target_chain) target_chain->plugins = target_plugins;
+			}
+			plugin->set_strict_io (strict);
+			configure (from); if (from != this) configure (this);
+			return false;
+		}
+		plugin->set_owner (this);
+		// A plugin created inside a rack must not keep a time-domain pointer to
+		// that rack after it leaves (the rack can subsequently be deleted).
+		plugin->set_time_domain_parent (*this);
+		if (source && source != destination) source->forget_plugin (plugin);
+		if (source) source->update_latency ();
+		if (destination && source != destination) destination->update_latency ();
+		for (Route* r : {from, this}) {
+			r->_have_internal_generator = false;
+			for (auto const& processor : r->_processors) {
+				auto insert = std::dynamic_pointer_cast<PluginInsert> (processor);
+				if (insert && insert->has_no_inputs ()) { r->_have_internal_generator = true; break; }
+			}
+			if (from == this) break;
+		}
+	}
+	// Listen for bypass changes even if the original owning rack/route is deleted.
+	plugin->ActiveChanged.connect_same_thread (*this, std::bind (&Session::queue_latency_recompute, &_session));
+	// No DropReferences: moves retain automation, editors and learned controls.
+	if (source) source->Changed ();
+	if (destination && source != destination) destination->Changed ();
+	for (Route* r : {from, this}) {
+		r->reset_instrument_info ();
+		r->set_processor_positions ();
+		if ((r == from && !source) || (r == this && !destination))
+			r->processors_changed (RouteProcessorChange (RouteProcessorChange::GeneralChange, false));
+		if (from == this) break;
+	}
+	_session.set_dirty (); _session.queue_latency_recompute ();
+	return true;
+}
+
 int
 Route::remove_processor (std::shared_ptr<Processor> processor, ProcessorStreams* err, bool need_process_lock)
 {

@@ -20,7 +20,7 @@ if not args.prepare_gui:
   result=subprocess.run(['/bin/bash','-c',command],env=env,stdout=log,stderr=subprocess.STDOUT,timeout=90)
  print((out/'engine-tests.log').read_text());raise SystemExit(result.returncode)
 log=(out/'engine-tests.log').read_text()
-assert 'OK (4)' in log, 'Run and pass the engine tests first'
+assert 'OK (5)' in log, 'Run and pass the engine tests first'
 source=pathlib.Path(next(line.split('Rack fixture: ',1)[1] for line in log.splitlines() if 'Rack fixture: ' in line))/'test_session.ardour'
 fixture=out/'Rack Verification';fixture.mkdir(exist_ok=True)
 tree=ET.parse(source);session=tree.getroot();session.set('name','Rack Verification')

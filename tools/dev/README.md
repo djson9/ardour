@@ -668,3 +668,29 @@ rows, case-insensitive audio/MIDI filtering, lazy expansion, root-preserving
 refresh, invalid input, Cancel, empty filters, Reset, and startup restoration.
 The injection waits for a trigger and refuses to operate on non-Verification
 windows. Keep it out of production launch environments.
+
+## Dragging plugins through audio racks
+
+Drag an existing audio effect from the track's processor list onto a chain row
+or into the selected chain's plugin list. Drop between plugin rows to reorder,
+on another chain to append there, or back on the track processor list to move
+out of the rack. Empty chains accept drops. The same operation works between
+racks and tracks. Each drag moves the plugin under the pointer.
+
+Moves retain the plugin instance, parameter controls, learned controls, and
+bypass state. Macro mappings survive moves within a rack; leaving that rack
+removes its mappings to the plugin. Incompatible effects and moves during
+recording are rejected without removing the source. GTK drag completion is
+allowed to finish before rebuilding processor widgets.
+
+```sh
+python3 tools/dev/verify-audio-racks.py
+python3 tools/dev/verify-rack-bottom-panel.py --drag
+```
+
+The first command checks transfer identity, mapping cleanup, rollback, and
+session reopening. The second runs native macOS mouse drags in a disposable
+session, including between chains, reordering, moving out to the track, moving
+back into an empty chain, and Escape cancellation. It needs Accessibility
+permission for the test runner's native input helper. It does not operate on
+the user's session.
