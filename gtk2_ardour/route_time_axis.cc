@@ -52,11 +52,13 @@
 #include "evoral/Parameter.h"
 
 #include "ardour/amp.h"
+#include "ardour/dB.h"
 #include "ardour/meter.h"
 #include "ardour/midi_track.h"
 #include "ardour/pan_controllable.h"
 #include "ardour/pannable.h"
 #include "ardour/panner.h"
+#include "ardour/panner_shell.h"
 #include "ardour/plugin_insert.h"
 #include "ardour/processor.h"
 #include "ardour/profile.h"
@@ -82,6 +84,7 @@
 #include "enums_convert.h"
 #include "route_time_axis.h"
 #include "automation_time_axis.h"
+#include "automation_controller.h"
 #include "enums.h"
 #include "gui_thread.h"
 #include "item_counts.h"
@@ -124,7 +127,7 @@ RouteTimeAxisView::RouteTimeAxisView (PublicEditor& ed, Session* sess, ArdourCan
 	, route_group_menu (0)
 	, overlaid_menu_item (0)
 	, stacked_menu_item (0)
-	, gm (sess, true, 75, 14)
+	, gm (sess, true, Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" ? 48 : 75, 14)
 	, _ignore_set_layer_display (false)
 	, pan_automation_item(NULL)
 {
@@ -153,7 +156,9 @@ RouteTimeAxisView::setup_live_header ()
 	live_monitor_in.set_data ("compact-track-control", const_cast<char*> ("monitor-in"));
 	live_monitor_auto.set_data ("compact-track-control", const_cast<char*> ("monitor-auto"));
 	live_monitor_off.set_data ("compact-track-control", const_cast<char*> ("monitor-off"));
-	gm.gain_display.set_data ("compact-track-control", const_cast<char*> ("gain"));
+	mute_button->set_data ("compact-track-control", const_cast<char*> ("activator"));
+	solo_button->set_data ("compact-track-control", const_cast<char*> ("solo"));
+	rec_enable_button->set_data ("compact-track-control", const_cast<char*> ("record"));
 	/* Repack native controls: their routing dialogs, automation, grouping,
 	 * record safety and metering continue using Ardour's existing paths. */
 	controls_table.remove (name_label);
@@ -185,21 +190,22 @@ RouteTimeAxisView::setup_live_header ()
 	live_name_column.show ();
 	live_name_box.show ();
 
-	live_io_box.set_spacing (2);
+	live_io_box.set_spacing (1);
 	live_io_box.set_border_width (2);
-	live_io_box.set_size_request (116 * UIConfiguration::instance().get_ui_scale (), -1);
-	controls_vbox.set_size_request (92 * UIConfiguration::instance().get_ui_scale (), -1);
+	live_io_box.set_size_request (78 * UIConfiguration::instance().get_ui_scale (), -1);
+	controls_vbox.set_size_request (108 * UIConfiguration::instance().get_ui_scale (), -1);
 	for (auto* button : {&live_input, &live_output}) {
-		button->set_sizing_text ("External Input");
-		button->set_size_request (112 * UIConfiguration::instance().get_ui_scale (), -1);
+		button->set_sizing_text ("Input 1/2");
+		button->set_size_request (74 * UIConfiguration::instance().get_ui_scale (), -1);
 		button->set_route (_route, this);
 	}
 	live_io_box.pack_start (live_input, false, false);
+	live_io_box.pack_start (live_output, false, false);
 	if (is_track ()) {
-		live_monitor_box.set_spacing (2);
+		live_monitor_box.set_spacing (1);
 		auto add = [this] (ArdourButton& button, MonitorChoice mode) {
 			button.set_name ("monitor button");
-			button.set_tweaks (ArdourButton::TrackHeader);
+			button.set_width_padding (0.6);
 			button.signal_clicked.connect ([this, mode] { _session->set_control (track()->monitoring_control (), mode, Controllable::UseGroup); });
 			live_monitor_box.pack_start (button, true, true);
 		};
@@ -213,26 +219,100 @@ RouteTimeAxisView::setup_live_header ()
 		track()->monitoring_control()->Changed.connect (*this, invalidator (*this), std::bind (&RouteTimeAxisView::update_live_monitor, this), gui_context());
 		update_live_monitor ();
 	}
-	live_io_box.pack_start (live_output, false, false);
 	top_hbox.pack_start (live_io_box, false, false);
 	top_hbox.reorder_child (live_io_box, 1);
 
 	for (auto* child : controls_table.get_children ()) controls_table.remove (*child);
-	controls_table.attach (number_label, 0, 1, 0, 1, FILL, SHRINK);
-	controls_table.attach (*mute_button, 1, 2, 0, 1, SHRINK, SHRINK);
-	if (!_route->is_master ()) controls_table.attach (*solo_button, 2, 3, 0, 1, SHRINK, SHRINK);
-	if (is_track ()) controls_table.attach (*rec_enable_button, 3, 4, 0, 1, SHRINK, SHRINK);
-	gm.gain_display.set_width_chars (7);
-	gm.gain_display.set_alignment (0.5);
-	if (_route->is_master ()) controls_table.attach (gm.gain_display, 2, 4, 0, 1, FILL|EXPAND, SHRINK);
-	else controls_table.attach (gm.gain_display, 0, 4, 1, 2, FILL|EXPAND, SHRINK);
-	controls_table.attach (gm.get_gain_slider (), 0, 4, 2, 3, FILL|EXPAND, SHRINK);
-	gm.gain_display.show ();
+	controls_table.set_spacings (1);
+	controls_table.attach (*mute_button, 0, 1, 0, 1, FILL|EXPAND, SHRINK);
+	set_tooltip (*mute_button, _("Track on/off (mute)"));
+	if (_route->is_master ()) {
+		controls_table.attach (live_gain_box, 1, 2, 0, 1, FILL|EXPAND, SHRINK);
+	} else {
+		auto* buttons = manage (new HBox (false, 1));
+		buttons->pack_start (*solo_button, false, false);
+		if (_route->recordable ()) {
+			buttons->pack_start (*rec_enable_button, false, false);
+		}
+		controls_table.attach (*buttons, 1, 2, 0, 1, FILL|EXPAND, SHRINK);
+		buttons->show ();
+		controls_table.attach (live_gain_box, 0, 1, 1, 2, FILL|EXPAND, FILL|SHRINK);
+	}
+	setup_live_gain ();
+	label_view ();
 	live_io_box.show_all ();
 	set_height (current_height ());
 	update_track_number_visibility ();
 	route_color_changed ();
 	update_group_header ();
+}
+
+void
+RouteTimeAxisView::setup_live_gain ()
+{
+	auto& slider = static_cast<HSliderController&> (*gm.gain_slider);
+	slider.set_data ("compact-track-control", const_cast<char*> ("gain"));
+	set_tooltip (slider, _("Drag to adjust gain. Double-click to enter a value."));
+	live_gain_box.pack_start (slider, true, true);
+	live_gain_box.pack_start (gm.gain_display, true, true);
+	gm.gain_display.set_no_show_all ();
+	gm.gain_display.set_width_chars (4);
+	slider.OnExpose.connect ([this, &slider] {
+		const bool unity = gm._data_type == DataType::AUDIO && gm._control->get_value () == GAIN_COEFF_UNITY;
+		slider.set_text (unity ? "0" : gm.gain_display.get_text ().raw (), true, false);
+	});
+	/* The fader finishes its touch gesture before handing focus to the entry. */
+	slider.signal_event_after ().connect ([this] (GdkEvent* ev) {
+		if (ev->type == GDK_2BUTTON_PRESS && ev->button.button == 1) {
+			gm.get_gain_slider ().hide ();
+			gm.gain_display.show ();
+			gm.gain_display.grab_focus ();
+			gm.gain_display.select_region (0, -1);
+		}
+	});
+	gm.gain_display.signal_activate ().connect (sigc::mem_fun (*this, &RouteTimeAxisView::end_live_gain_edit));
+	gm.gain_display.signal_focus_out_event ().connect ([this] (GdkEventFocus*) {
+		end_live_gain_edit ();
+		return false;
+	});
+}
+
+void
+RouteTimeAxisView::end_live_gain_edit ()
+{
+	gm.gain_display.hide ();
+	gm.show_gain ();
+	gm.get_gain_slider ().show ();
+}
+
+void
+RouteTimeAxisView::update_live_pan ()
+{
+	if (_route->is_master ()) {
+		return;
+	}
+	auto pan = _route->pan_azimuth_control ();
+	if (pan && (_route->panner ()->out ().n_audio () != 2 || _route->panner_shell ()->bypassed ())) {
+		pan.reset ();
+	}
+	if (live_pan && live_pan->controllable () == pan) {
+		return;
+	}
+	live_pan.reset ();
+	if (!pan) {
+		return;
+	}
+	live_pan = AutomationController::create (pan->parameter (), pan->desc (), pan);
+	auto* bar = static_cast<AutomationBarController*> (live_pan->widget ());
+	bar->use_compact_pan_label ();
+	auto& slider = dynamic_cast<HSliderController&> (bar->event_widget ());
+	slider.set_default_value (pan->normal ());
+	slider.set_fg (UIConfiguration::instance ().color ("generic button: fill"));
+	slider.set_data ("compact-track-control", const_cast<char*> ("pan"));
+	live_pan->disable_vertical_scroll ();
+	set_tooltip (slider, _("Drag to pan. Shift-click to center."));
+	controls_table.attach (*live_pan, 1, 2, 1, 2, FILL|EXPAND, SHRINK);
+	live_pan->set_visible (live_gain_box.get_visible ());
 }
 
 void
@@ -589,7 +669,10 @@ RouteTimeAxisView::label_view ()
 	if (track_number == 0) {
 		number_label.set_text ("");
 	} else {
-		number_label.set_text (PBD::to_string (abs(_route->track_number ())));
+		number_label.set_text (PBD::to_string (abs (track_number)));
+	}
+	if (live_header) {
+		mute_button->set_text (track_number ? number_label.get_text () : _("Main"));
 	}
 }
 
@@ -597,7 +680,7 @@ void
 RouteTimeAxisView::update_track_number_visibility ()
 {
 	DisplaySuspender ds;
-	bool show_label = live_header || _session->config.get_track_name_number();
+	bool show_label = live_header ? !_route->active () : _session->config.get_track_name_number();
 
 	if (_route && _route->is_master()) {
 		show_label = false;
@@ -1271,11 +1354,19 @@ RouteTimeAxisView::set_height (uint32_t h, TrackHeightMode m, bool from_idle)
 	}
 
 	if (live_header) {
-		const bool details = height >= preset_height (HeightNormal);
-		live_input.set_visible (details);
+		const uint32_t row_height = live_input.size_request ().height;
+		/* Before realization GTK can request a taller fallback font. Normal
+		 * height already reserves room for the full header. */
+		const bool full = height >= preset_height (HeightNormal);
+		const bool details = full || height >= row_height * 2 + 8;
+		live_input.show ();
 		live_output.set_visible (details);
-		live_monitor_box.set_visible (details && is_track ());
-		gm.gain_display.set_visible (details || (_route && _route->is_master ()));
+		live_monitor_box.set_visible (is_track () && (full || height >= row_height * 3 + 8));
+		live_gain_box.set_visible (details || _route->is_master ());
+		if (live_pan) {
+			live_pan->set_visible (details);
+		}
+		gm.get_gain_slider ().set_visible (!gm.gain_display.get_visible ());
 	}
 
 	if (height_changed && !no_redraw) {
@@ -1294,13 +1385,17 @@ RouteTimeAxisView::route_color_changed ()
 	number_label.set_fixed_colors (gdk_color_to_rgba (color()), gdk_color_to_rgba (color()));
 	if (live_header) {
 		const auto c = color ();
+		mute_button->set_fixed_colors (UIConfiguration::instance ().color ("generic button: fill"),
+		                               UIConfiguration::instance ().color ("generic button: fill active"));
 		live_name_box.modify_bg (Gtk::STATE_NORMAL, c);
 		Gdk::Color text;
 		text.set ((c.get_red_p () * .299 + c.get_green_p () * .587 + c.get_blue_p () * .114) > .5 ? "#172126" : "#f2f5f6");
 		name_label.modify_fg (Gtk::STATE_NORMAL, text);
 	}
 
-	if (!is_master() && UIConfiguration::instance().get_use_route_color_widely()) {
+	if (live_header) {
+		gm.set_fader_fg (HSV (UIConfiguration::instance ().color ("theme:contrasting")).darker (0.45).color ());
+	} else if (!is_master() && UIConfiguration::instance().get_use_route_color_widely()) {
 		gm.set_fader_fg (gdk_color_to_rgba (route_color_tint ()));
 	} else {
 		gm.unset_fader_fg ();
@@ -1769,6 +1864,9 @@ RouteTimeAxisView::update_pan_track_visibility ()
 void
 RouteTimeAxisView::ensure_pan_views (bool show)
 {
+	if (live_header) {
+		update_live_pan ();
+	}
 	bool changed = false;
 	for (list<std::shared_ptr<AutomationTimeAxisView> >::iterator i = pan_tracks.begin(); i != pan_tracks.end(); ++i) {
 		changed = true;
@@ -2641,7 +2739,9 @@ RouteTimeAxisView::set_button_names ()
 		solo_button->set_text (S_("Solo|S"));
 		set_tooltip (*solo_button, _("Solo"));
 	}
-	mute_button->set_text (S_("Mute|M"));
+	if (!live_header) {
+		mute_button->set_text (S_("Mute|M"));
+	}
 }
 
 Gtk::CheckMenuItem*

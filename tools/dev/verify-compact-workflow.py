@@ -205,6 +205,15 @@ elif a.case == 'groups':
         wait(lambda: group_id not in {r['id'] for r in routes()})
     header(names[0]); header(names[1], primary=True)
     inner = group('UI Group Inner')
+    group_target = 'TrackControl:UI Group Inner|'
+    for role in ['activator', 'solo', 'gain', 'pan']:
+        pointer(group_target + role, 'move', 2, 2)
+    try:
+        pointer(group_target + 'record', 'move', 2, 2)
+    except AssertionError as error:
+        assert 'Invalid canvas' in str(error), error
+    else:
+        raise AssertionError('Group bus exposes record arm')
     assert parent(ids[0]) == inner and parent(ids[1]) == inner
     state = saved_routes()
     assert int(state[inner].find('PresentationInfo').get('order')) < int(state[ids[0]].find('PresentationInfo').get('order'))
@@ -390,12 +399,41 @@ elif a.case == 'track-info':
         return root.find(".//Route[@id='" + route_id + "']/Controllable[@name='monitor']").get('value')
     for role, value in [('monitor-in', '1'), ('monitor-off', '2'), ('monitor-auto', '0')]:
         control(role); wait(lambda: monitor_value() == value)
-    control('gain')
+    def info(): return call('track_get_info', id=route_id)
+    for role, field in [('activator', 'mute'), ('solo', 'solo'), ('record', 'recEnabled')]:
+        initial = info()[field]
+        control(role)
+        wait(lambda: info()[field] != initial)
+        control(role)
+        wait(lambda: info()[field] == initial)
+    checks += ['number toggles native mute, solo and record arm toggle independently']
+    target = 'TrackControl:' + name + '|'
+    def geometry(role): return pointer(target + role, 'move', 2, 2)
+    activator, solo, record = map(geometry, ['activator', 'solo', 'record'])
+    assert activator['xRoot'] < solo['xRoot'] < record['xRoot']
+    assert activator['yRoot'] == solo['yRoot'] == record['yRoot']
+    gain, pan = map(geometry, ['gain', 'pan'])
+    assert gain['yRoot'] > activator['yRoot'] and gain['xRoot'] < pan['xRoot']
+    assert abs(gain['yRoot'] - pan['yRoot']) <= 2
+    def drag(role):
+        pointer(target + role, 'press', 8, 8)
+        pointer(target + role, 'move', 22, 8, down=True)
+        pointer(target + role, 'release', 22, 8)
+    before = info()['pan']['position']
+    drag('pan')
+    wait(lambda: abs(info()['pan']['position'] - before) > 0.01)
+    for event in ['press', 'release']:
+        pointer(target + 'pan', event, 8, 8, shift=True)
+    wait(lambda: abs(info()['pan']['position'] - 0.5) < 0.001)
+    before = info()['fader']['db']
+    drag('gain')
+    wait(lambda: abs(info()['fader']['db'] - before) > 0.1)
+    pointer(target + 'gain', 'doublePress', 10, 8)
     wait(lambda: main()['textEntry'])
     key('Primary-a'); key('minus'); key('6'); key('Return')
     wait(lambda: abs(call('track_get_info', id=route_id)['fader']['db'] + 6) < .02)
     assert not call('session_get_info')['transport']['rolling']
-    checks += ['In/Auto/Off writes native monitor control', 'numeric gain edits native fader without transport shortcut']
+    checks += ['In/Auto/Off writes native monitor control', 'gain and pan drag, double-click gain for numeric entry']
     for role in ['input', 'output']:
         control(role, button=3)
         title = name + ' ' + role

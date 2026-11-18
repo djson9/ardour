@@ -61,7 +61,11 @@ AutomationBarController::AutomationBarController (
 std::string
 AutomationBarController::get_label (double& xpos)
 {
-	xpos = 0.5;
+	if (_compact_pan_label) {
+		xpos = 0.5;
+		int offset = std::lround ((_controllable->get_value () - 0.5) * 100);
+		return offset == 0 ? S_("Pan|C") : string_compose (offset < 0 ? _("%1L") : _("%1R"), std::abs (offset));
+	}
 	return _controllable->get_user_string();
 }
 

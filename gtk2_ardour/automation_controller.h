@@ -53,8 +53,10 @@ public:
 	AutomationBarController(std::shared_ptr<ARDOUR::AutomationControl> ac,
 	                        Gtk::Adjustment*                             adj);
 	~AutomationBarController();
+	void use_compact_pan_label () { _compact_pan_label = true; }
 private:
 	std::string get_label (double&);
+	bool _compact_pan_label = false;
 	std::shared_ptr<ARDOUR::AutomationControl> _controllable;
 };
 
