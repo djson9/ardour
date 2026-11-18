@@ -513,7 +513,23 @@ AnticipativeProcess::begin_cycle ()
 			if (track->monitoring_state () & MonitoringInput) { reason |= Monitoring; }
 		}
 		node.reason.store (reason, std::memory_order_relaxed);
-		if (reason) { _work[tail++] = i; }
+	}
+	/* Eligibility can change before DSP ownership does. Keep dependencies live
+	 * while a source is still live or offering its cursor to an unscheduled
+	 * worker. The source itself remains eligible to claim the offer. Seed all
+	 * reasons before building the work list so each node is enqueued once. */
+	for (auto const& source : _nodes) {
+		auto state = source->queue->state ();
+		if (state != Queue::State::Live && state != Queue::State::Offered &&
+		    state != Queue::State::Draining && state != Queue::State::Drained) { continue; }
+		for (size_t target : source->downstream) {
+			if (_nodes[target]->reason.load (std::memory_order_relaxed) == Predictable) {
+				_nodes[target]->reason.store (UpstreamLive, std::memory_order_relaxed);
+			}
+		}
+	}
+	for (size_t i = 0; i < _nodes.size (); ++i) {
+		if (_nodes[i]->reason.load (std::memory_order_relaxed)) { _work[tail++] = i; }
 	}
 	while (head < tail) {
 		for (size_t target : _nodes[_work[head++]]->downstream) {

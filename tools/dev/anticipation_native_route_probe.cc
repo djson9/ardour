@@ -43,6 +43,23 @@ static void add_effects(Session& s,std::shared_ptr<Route> route,bool generator){
  }
 }
 #ifndef ANTICIPATION_NATIVE_HELPERS_ONLY
+#ifdef __APPLE__
+#include <mach/mach.h>
+struct WorkerIdentity : Processor {
+ std::atomic<thread_t> port{MACH_PORT_NULL};
+ WorkerIdentity(Session& s):Processor(s,"Fixture worker identity",s){}
+ bool can_support_io_configuration(const ChanCount& in,ChanCount& out)override{out=in;return true;}
+ void run(BufferSet&,samplepos_t,samplepos_t,double speed,pframes_t,bool)override{
+  if(speed==1&&!AudioEngine::instance()->in_process_thread())port.store(pthread_mach_thread_np(pthread_self()));
+ }
+};
+struct PausedRouteWorker {
+ thread_t port=MACH_PORT_NULL;bool held=false;
+ void pause(thread_t p){port=p;need(port!=MACH_PORT_NULL&&thread_suspend(port)==KERN_SUCCESS,"pause native fixture worker");held=true;}
+ void resume(){if(held){auto result=thread_resume(port);held=false;need(result==KERN_SUCCESS,"resume native fixture worker");}}
+ ~PausedRouteWorker(){if(held)thread_resume(port);}
+};
+#endif
 int main(int argc,char** argv){try{
  need(argc==2,"path");need(ARDOUR::init(true,"/tmp"),"init");Temporal::reset();if(getenv("ARDOUR_PROBE_RT_THREADS"))Config->set_processor_usage(std::stoi(getenv("ARDOUR_PROBE_RT_THREADS")));auto ui=std::make_unique<TestUI>();
  auto* engine=AudioEngine::create();auto backend=engine->set_backend("None (Dummy)","NativeAnticipation","");
@@ -50,9 +67,14 @@ int main(int argc,char** argv){try{
  need(bool(backend)&&backend->set_driver(getenv("ARDOUR_PROBE_DRIVER")?getenv("ARDOUR_PROBE_DRIVER"):"Realtime")==0&&backend->set_sample_rate(48000)==0&&backend->set_buffer_size(block)==0&&engine->start()==0,"engine");
  auto* s=new NativeSession(*engine,argv[1],"native-anticipation",nullptr,"",true);engine->set_session(nullptr);
  if(getenv("ARDOUR_PROBE_DISK_READER")){Config->set_buffering_preset(Custom);Config->set_audio_playback_buffer_seconds(.5);DiskReader::set_chunk_samples(8192);}
- double error=0,peak=0;uint64_t handoffs=0,misses=0;
+ double error=0,peak=0;uint64_t handoffs=0,misses=0;unsigned delayed_demotion_frames=0;
  {
   auto a=s->new_audio_track(2,2,{},1,"Native A",0,Normal,false).front();
+#ifdef __APPLE__
+  bool delay_demotion=getenv("ARDOUR_PROBE_DELAY_DEMOTION")&&!getenv("ARDOUR_PROBE_NO_HANDOFF");
+  auto identity=std::make_shared<WorkerIdentity>(*s);PausedRouteWorker paused;unsigned paused_frame=0;
+  if(delay_demotion)need(a->add_processor(identity,PreFader)==0,"worker identity");
+#endif
   auto ra=s->new_audio_track(2,2,{},1,"Reference A",0,Normal,false).front();
   auto b=s->new_audio_route(2,2,{},1,"Native B",PresentationInfo::AudioBus,0).front();
   auto rb=s->new_audio_route(2,2,{},1,"Reference B",PresentationInfo::AudioBus,0).front();
@@ -101,16 +123,27 @@ int main(int argc,char** argv){try{
   until=Clock::now()+std::chrono::seconds(30);bool armed=false,released=bool(getenv("ARDOUR_PROBE_NO_HANDOFF"));
   while(Clock::now()<until){unsigned k;{PBD::Mutex::Lock lock(engine->process_lock());k=tap->k;}
    if(k>=total_blocks)break;if(!getenv("ARDOUR_PROBE_NO_HANDOFF")&&!armed&&k>=arm_block){a->rec_enable_control()->set_value(1,PBD::Controllable::NoGroup);armed=true;}
-   if(armed&&!released&&k>=demote_block){a->rec_enable_control()->set_value(0,PBD::Controllable::NoGroup);released=true;}
+   if(armed&&!released&&k>=demote_block){
+#ifdef __APPLE__
+    if(delay_demotion){PBD::Mutex::Lock lock(engine->process_lock());need(an.queue->state()==AnticipationQueue::State::Live&&bn.queue->state()==AnticipationQueue::State::Live,"pause after live dependency handoff");paused.pause(identity->port.load());paused_frame=tap->frames;}
+#endif
+    a->rec_enable_control()->set_value(0,PBD::Controllable::NoGroup);released=true;
+   }
+#ifdef __APPLE__
+   if(paused.held&&k*block>=paused_frame+1536)paused.resume();
+#endif
    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
+#ifdef __APPLE__
+  if(delay_demotion){need(paused_frame&&!paused.held,"completed native scheduler pause");need(an.queue->state()==AnticipationQueue::State::Ahead&&bn.queue->state()==AnticipationQueue::State::Ahead,"native anticipation resumed after scheduler pause");delayed_demotion_frames=1536;}
+#endif
   engine->set_session(nullptr);plan.stop();need(tap->k==total_blocks&&reference->k==total_blocks,"complete");
   unsigned first=tap->captured.size();for(unsigned i=0;i<tap->captured.size();++i){auto d=double(std::abs(tap->captured[i]-reference->captured[i]));error=std::max(error,d);if(d>1e-7&&first==tap->captured.size())first=i;}
   peak=tap->peak;handoffs=an.queue->live_handoffs()+bn.queue->live_handoffs();misses=an.queue->underruns()+bn.queue->underruns();
   std::cerr<<"NATIVE ROUTES error="<<error<<" first="<<first<<" peak="<<peak<<" handoffs="<<handoffs<<" misses="<<misses<<" faults="<<an.queue->discontinuities()<<","<<bn.queue->discontinuities()<<std::endl;
   need(error==0&&peak>1e-4&&handoffs==(getenv("ARDOUR_PROBE_NO_HANDOFF")?0u:2u)&&misses==0&&released,"native route equivalence");plan.clear();
  }
- delete s;engine->stop();std::cout<<"RESULT {\"passed\":true,\"original_registered_route_dsp\":true,\"cached_bus\":true,\"automatic_arm_handoffs\":"<<handoffs<<",\"block\":"<<block<<",\"max_sample_error\":"<<error<<",\"cache_underruns\":"<<misses<<"}"<<std::endl;
+ delete s;engine->stop();std::cout<<"RESULT {\"passed\":true,\"original_registered_route_dsp\":true,\"cached_bus\":true,\"automatic_arm_handoffs\":"<<handoffs<<",\"block\":"<<block<<",\"max_sample_error\":"<<error<<",\"cache_underruns\":"<<misses<<",\"worker_unavailable_frames\":"<<delayed_demotion_frames<<"}"<<std::endl;
  ui.reset();ARDOUR::cleanup();return 0;
 }catch(std::exception const& e){std::cerr<<"FAIL "<<e.what()<<std::endl;return 1;}}
 

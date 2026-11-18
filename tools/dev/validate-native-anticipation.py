@@ -13,7 +13,7 @@ args=parser.parse_args();build=args.build.resolve()
 cases=[('queue-contracts',{},'anticipation_queue_contract_probe.cc'),('plan-eligibility',{},'anticipation_plan_probe.cc')]
 for block in (64,128):
  common=dict(BLOCK=block,AUTOMATIC=1,DISK_READER=1,SEND=1,SIDECHAIN=1,LOOP=1,PDC=1)
- cases += [(f'full-routing-{block}',common,'anticipation_native_route_probe.cc'),
+ cases += [(f'full-routing-{block}',dict(common,DELAY_DEMOTION=1),'anticipation_native_route_probe.cc'),
            (f'gain-automation-{block}',dict(common,GAIN_AUTOMATION=1,NO_HANDOFF=1),'anticipation_native_route_probe.cc'),
            (f'monitor-{block}',dict(BLOCK=block),'anticipation_native_monitor_probe.cc'),
            (f'midi-{block}',dict(BLOCK=block),'anticipation_native_midi_probe.cc'),
