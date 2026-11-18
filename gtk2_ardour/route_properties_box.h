@@ -38,6 +38,7 @@ namespace ARDOUR {
 }
 
 class GenericPluginUI;
+class AudioRackUI;
 class ProcessorBox;
 
 class RoutePropertiesBox : public Gtk::HBox, public ARDOUR::SessionHandlePtr
@@ -70,6 +71,7 @@ private:
 
 	std::shared_ptr<ARDOUR::Route> _route;
 	std::vector <GenericPluginUI*> _proc_uis;
+	std::vector<AudioRackUI*> _rack_uis;
 
 	ArdourWidgets::Frame _insert_frame;
 	ProcessorBox*        _insert_box;

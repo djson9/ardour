@@ -1,0 +1,15 @@
+{
+  "bottom_panel": false,
+  "floating_editor": true,
+  "selected_chain_lists": true,
+  "insertion_reorder_removal": true,
+  "track_switch_lifecycle": false,
+  "saved_chain_plugins": [
+    [
+      "Rack test"
+    ],
+    [
+      "ACE EQ"
+    ]
+  ]
+}
