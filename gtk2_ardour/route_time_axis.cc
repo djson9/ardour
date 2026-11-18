@@ -305,7 +305,7 @@ RouteTimeAxisView::update_live_pan ()
 	live_pan = AutomationController::create (pan->parameter (), pan->desc (), pan);
 	auto* bar = static_cast<AutomationBarController*> (live_pan->widget ());
 	bar->use_compact_pan_label ();
-	auto& slider = static_cast<HSliderController&> (bar->event_widget ());
+	auto& slider = dynamic_cast<HSliderController&> (bar->event_widget ());
 	slider.set_default_value (pan->normal ());
 	slider.set_data ("compact-track-control", const_cast<char*> ("pan"));
 	live_pan->disable_vertical_scroll ();
