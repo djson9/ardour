@@ -346,6 +346,25 @@ renaming a collapsed outer group while preserving its nested hierarchy.
 The complete title/group sweep has a 20-second deadline; other cases retain
 their 9-second deadline.
 
+### Rack keyboard navigation in the Live layout
+
+Select an Audio Rack in the track's plugin list and press Enter to focus its
+chains. Up/Down (or Left/Right) selects a chain. Enter moves into that chain's
+plugin list, where arrows select plugins and Enter opens the selected plugin.
+Keypad Enter and keypad arrows work too. Empty chains still receive focus.
+
+Escape moves back one level: chain plugins → chains → track plugin list → track
+header. The selected rack and chain stay selected when moving back or reentering.
+Name fields and other editable controls retain their normal typing behavior.
+
+`selected-device-ui-probe.cc` exercises this path through the main window's
+keyboard dispatch, including Enter before a queued panel build, nonempty and
+empty chains, selection boundaries, and repeated Enter/Escape navigation.
+Set `ARDOUR_DEVICE_UI_PROBE_RACK_KEYS=1` in the disposable probe process to stop
+after the rack keyboard and text-entry checks. The macOS arm64 build and this
+check passed on 2026-11-18; keyboard execution took 0.87 seconds. See
+[audio-rack-evidence/keyboard-result.json](audio-rack-evidence/keyboard-result.json).
+
 ### Selected-device details in the Live layout
 
 The device panel shows controls for the highlighted processor only. Selecting a

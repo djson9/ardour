@@ -472,6 +472,7 @@ public:
 	sigc::signal<void,std::shared_ptr<ARDOUR::Processor> > ProcessorSelected;
 	sigc::signal<void,std::shared_ptr<ARDOUR::Processor> > ProcessorUnselected;
 	sigc::signal<bool> TrackFocusRequested;
+	sigc::signal<void, std::shared_ptr<ARDOUR::Processor>> RackFocusRequested;
 
 	static Glib::RefPtr<Gtk::ActionGroup> processor_box_actions;
 	static Gtkmm2ext::Bindings* bindings;

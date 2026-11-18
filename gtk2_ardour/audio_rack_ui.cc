@@ -18,6 +18,7 @@
 #include "audio_rack_ui.h"
 #include "automation_controller.h"
 #include "gui_thread.h"
+#include "keyboard.h"
 #include "plugin_selector.h"
 #include "plugin_ui.h"
 #include "pbd/i18n.h"
@@ -185,6 +186,7 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_chain_toolbar.set_spacing (3); _chain_toolbar.pack_start (_add_chain); _chain_toolbar.pack_start (_remove_chain);
 	_chain_scroll.set_policy (POLICY_NEVER, POLICY_AUTOMATIC); _chain_scroll.set_size_request (185, 90); _chain_scroll.add (_chain_view);
 	_chain_view.set_name ("AudioRackChainList"); _chain_view.set_headers_visible (false);
+	_chain_view.set_data ("audio-rack-ui", this);
 	_chain_model = ListStore::create (_list_columns); _chain_view.set_model (_chain_model);
 	_chain_view.append_column (_("Chain"), _list_columns.name); _chain_view.append_column (_("Plugins"), _list_columns.detail);
 	_chain_view.get_selection ()->signal_changed ().connect (sigc::mem_fun (*this, &AudioRackUI::chain_selected));
@@ -201,6 +203,7 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_plugin_scroll.set_policy (POLICY_NEVER, POLICY_AUTOMATIC); _plugin_scroll.set_size_request (380, 90); _plugin_scroll.add (_plugin_view);
 	_plugin_view.set_name ("AudioRackPluginList"); _plugin_model = ListStore::create (_list_columns); _plugin_view.set_model (_plugin_model);
 	_plugin_view.append_column (_("Plugins in selected chain"), _list_columns.name);
+	_plugin_view.set_data ("audio-rack-ui", this);
 	_plugin_view.get_selection ()->signal_changed ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_selected));
 	_plugin_view.signal_row_activated ().connect ([this] (TreeModel::Path const&, TreeViewColumn*) { if (auto p = selected_plugin ()) open_plugin (p, true); });
 	std::vector<TargetEntry> targets {TargetEntry ("x-ardour/rack-plugin", TARGET_SAME_APP)};
@@ -240,6 +243,50 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	rebuild (); show_all_children ();
 }
 AudioRackUI::~AudioRackUI () { _idle.disconnect (); }
+bool AudioRackUI::focus_list (TreeView& view) {
+	if (!view.get_mapped () || !view.is_sensitive ()) return false;
+	auto row = view.get_selection ()->get_selected ();
+	if (!row) row = view.get_model ()->children ().begin ();
+	if (row) view.set_cursor (view.get_model ()->get_path (row));
+	view.grab_focus ();
+	return view.is_focus ();
+}
+bool AudioRackUI::focus_chains () { return focus_list (_chain_view); }
+bool AudioRackUI::list_key_press (GdkEventKey* event) {
+	if (!Gtkmm2ext::Keyboard::modifier_state_equals (event->state, 0)) return false;
+	bool chains = _chain_view.is_focus ();
+	if (!chains && !_plugin_view.is_focus ()) return false;
+	switch (event->keyval) {
+	case GDK_Return: case GDK_KP_Enter:
+		if (chains) focus_list (_plugin_view);
+		else if (auto p = selected_plugin ()) open_plugin (p, true);
+		return true;
+	case GDK_Escape:
+		if (!chains) return focus_chains ();
+		return !ParentFocusRequested.empty () && ParentFocusRequested ();
+	default: break;
+	}
+	bool previous;
+	switch (event->keyval) {
+	case GDK_Up: case GDK_KP_Up: case GDK_Left: case GDK_KP_Left:
+		previous = true; break;
+	case GDK_Down: case GDK_KP_Down: case GDK_Right: case GDK_KP_Right:
+		previous = false; break;
+	default: return false;
+	}
+	auto& view = chains ? _chain_view : _plugin_view;
+	auto model = view.get_model ();
+	auto rows = model->children ();
+	if (rows.empty ()) return true;
+	auto row = view.get_selection ()->get_selected ();
+	if (!row) row = previous ? std::prev (rows.end ()) : rows.begin ();
+	else if (previous && row != rows.begin ()) --row;
+	else if (!previous && std::next (row) != rows.end ()) ++row;
+	auto path = model->get_path (row);
+	view.set_cursor (path);
+	view.scroll_to_row (path);
+	return true;
+}
 Window& AudioRackUI::parent_window () { return *dynamic_cast<Window*> (get_toplevel ()); }
 void AudioRackUI::failed (std::string const& text) { _status.set_text (text); _status.set_visible (!text.empty ()); }
 void AudioRackUI::schedule_rebuild () { if (!_rebuilding && !_idle.connected ()) _idle = Glib::signal_idle ().connect ([this] () { rebuild (); return false; }); }

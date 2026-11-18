@@ -72,7 +72,11 @@ public:
 	                         std::shared_ptr<ARDOUR::AudioRack>, size_t chain, size_t position,
 	                         std::shared_ptr<ARDOUR::Processor> before = {});
 	std::shared_ptr<ARDOUR::AudioRack> rack () const { return _rack; }
+	bool focus_chains ();
+	bool list_key_press (GdkEventKey*);
+	sigc::signal<bool> ParentFocusRequested;
 private:
+	bool focus_list (Gtk::TreeView&);
 	void plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&);
 	void plugin_drag_data (Glib::RefPtr<Gdk::DragContext> const&, Gtk::SelectionData&, guint, guint);
 	void plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&);

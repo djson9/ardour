@@ -37,6 +37,7 @@
 #endif
 
 #include "ardour_ui.h"
+#include "audio_rack_ui.h"
 #include "debug.h"
 #include "keyboard.h"
 #include "public_editor.h"
@@ -78,6 +79,10 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 	/* Let focused lists handle their own keys before arrangement bindings
 	 * and the computer-keyboard piano. */
 	GtkWidget* focus = gtk_window_get_focus (event_window->gobj ());
+	if (ev->type == GDK_KEY_PRESS && focus) {
+		auto* rack = static_cast<AudioRackUI*> (g_object_get_data (G_OBJECT (focus), "audio-rack-ui"));
+		if (rack && rack->list_key_press (ev)) return true;
+	}
 	if (ev->type == GDK_KEY_PRESS && focus && std::string (gtk_widget_get_name (focus)) == "PluginParameterList" &&
 	    gtk_widget_event (focus, reinterpret_cast<GdkEvent*> (ev))) {
 		return true;
