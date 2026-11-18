@@ -164,6 +164,7 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_scroll.set_policy (POLICY_AUTOMATIC, POLICY_AUTOMATIC); _scroll.add (_chains);
 	_selector.reset (new PluginSelector (PluginManager::instance ()));
 	_selector->set_session (&rack->session ());
+	_selector->set_transient_for (*this);
 	_add_chain.signal_clicked ().connect ([this] () { if (!_rack->add_chain (string_compose (_("Chain %1"), _rack->chains ().size () + 1))) failed (_("Cannot edit a rack while recording.")); });
 	for (size_t i = 0; i < 8; ++i) _learn_macro.append_text (string_compose (_("Macro %1"), i + 1));
 	_learn_macro.set_active (0);
@@ -215,7 +216,14 @@ void AudioRackUI::rebuild () {
 			if (!ok) { failed (_("Cannot edit a rack while recording.")); schedule_rebuild (); }
 		};
 		name->signal_activate ().connect (update); gain->signal_value_changed ().connect (update); mute->signal_toggled ().connect (update); solo->signal_toggled ().connect (update);
-		button (*row, _("Add plugin…"), [this, c] () { _adding_chain = c; _selector->set_interested_object (*this); _selector->show_all (); _selector->present (); });
+		button (*row, _("Add plugin…"), [this, c] () {
+			_adding_chain = c;
+			_status.set_text ("");
+			_selector->set_interested_object (*this);
+			// PluginSelector processes Insert/Cancel and clears its queue in run().
+			// Use the same entry point as the route's processor list.
+			_selector->show_manager ();
+		});
 		auto remove = button (*row, _("Remove chain"), [this, i, c] () {
 			if (!c->plugins.empty ()) { MessageDialog confirm (*this, _("Remove this chain and its plugins?"), false, MESSAGE_QUESTION, BUTTONS_OK_CANCEL); if (confirm.run () != RESPONSE_OK) return; }
 			_rack->remove_chain (i);
