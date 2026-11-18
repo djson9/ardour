@@ -169,6 +169,18 @@ ARDOUR_UI::key_press_focus_accelerator_handler (Gtk::Window& window, GdkEventKey
 	const guint mask = (Keyboard::RelevantModifierKeyMask & ~(Gdk::SHIFT_MASK|Gdk::LOCK_MASK));
 	bool cutcopypaste = false;
 
+	if ((ev->keyval == GDK_Left || ev->keyval == GDK_Right) && Keyboard::modifier_state_equals (ev->state, 0) &&
+	    focus && std::string (gtk_widget_get_name (focus)) == "EditorMainCanvas" &&
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && editor && !editor->internal_editing () &&
+	    !editor->get_selection ().regions.empty ()) {
+		if (ev->keyval == GDK_Right) {
+			editor->nudge_forward (false, false);
+		} else {
+			editor->nudge_backward (false, false);
+		}
+		return true;
+	}
+
 	const bool up = ev->keyval == GDK_Up || ev->keyval == GDK_KP_Up;
 	const bool down = ev->keyval == GDK_Down || ev->keyval == GDK_KP_Down;
 	if ((up || down) && Keyboard::modifier_state_equals (ev->state, 0) &&

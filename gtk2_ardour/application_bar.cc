@@ -1248,6 +1248,13 @@ ApplicationBar::setup_live_bar ()
 }
 
 void
+ApplicationBar::add_live_editor_controls (Gtk::Widget& controls)
+{
+	_live_bar.pack_start (controls, false, false, 4);
+	controls.show_all ();
+}
+
+void
 ApplicationBar::set_count_in_bars (uint32_t bars)
 {
 	if (!_session) { return; }

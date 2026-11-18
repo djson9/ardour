@@ -2349,7 +2349,12 @@ Editor::set_state (const XMLNode& node, int version)
 		set_visible_track_count (cnt);
 	}
 
-	set_common_editing_state (node);
+	set_common_editing_state (node, live_layout ? GridTypeBeat : GridTypeNone);
+	if (live_layout) {
+		int denominator = 4;
+		node.get_property ("live-nudge-denominator", denominator);
+		set_live_nudge_size (denominator);
+	}
 
 	double y_origin;
 	if (node.get_property ("y-origin", y_origin)) {
@@ -2531,6 +2536,9 @@ Editor::get_state () const
 
 	node->add_child_nocopy (selection->get_state ());
 
+	if (live_nudge_denominator) {
+		node->set_property ("live-nudge-denominator", live_nudge_denominator);
+	}
 	node->set_property ("nudge-clock-value", nudge_clock->current_duration());
 
 	node->add_child_nocopy (_locations->get_state ());
@@ -2928,7 +2936,10 @@ Editor::setup_toolbar ()
 
 	edit_point_selector.set_name ("mouse mode button");
 
-	pack_snap_box ();
+	const bool live_layout = Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1";
+	if (!live_layout) {
+		pack_snap_box ();
+	}
 
 	/* Nudge */
 
@@ -2939,9 +2950,28 @@ Editor::setup_toolbar ()
 	nudge_forward_button.signal_button_release_event().connect (sigc::mem_fun(*this, &Editor::nudge_forward_release), false);
 	nudge_backward_button.signal_button_release_event().connect (sigc::mem_fun(*this, &Editor::nudge_backward_release), false);
 
-	nudge_box->pack_start (nudge_backward_button, false, false);
-	nudge_box->pack_start (*nudge_clock, false, false);
-	nudge_box->pack_start (nudge_forward_button, false, false);
+	if (live_layout) {
+		nudge_hbox.set_spacing (3);
+		nudge_hbox.pack_start (*manage (new Label (_("Grid"))), false, false);
+		nudge_hbox.pack_start (grid_type_selector, false, false);
+		nudge_hbox.pack_start (*manage (new Label (_("Nudge"))), false, false, 2);
+		for (int denominator : {1, 2, 4, 8, 16, 32, 64}) {
+			live_nudge_selector.add_menu_elem (Menu_Helpers::MenuElem (string_compose ("1/%1", denominator),
+			    sigc::bind (sigc::mem_fun (*this, &Editor::set_live_nudge_size), denominator)));
+		}
+		live_nudge_selector.set_sizing_text ("1/64");
+		live_nudge_selector.disable_scrolling ();
+		set_live_nudge_size (4);
+		set_tooltip (live_nudge_selector, _("Distance to move a selected clip with Left or Right"));
+		nudge_hbox.pack_start (live_nudge_selector, false, false);
+		nudge_hbox.pack_start (nudge_backward_button, false, false);
+		nudge_hbox.pack_start (nudge_forward_button, false, false);
+		_application_bar.add_live_editor_controls (nudge_hbox);
+	} else {
+		nudge_box->pack_start (nudge_backward_button, false, false);
+		nudge_box->pack_start (*nudge_clock, false, false);
+		nudge_box->pack_start (nudge_forward_button, false, false);
+	}
 
 	stretch_marker_cb.set_label (_("Adjust Markers"));
 	stretch_marker_cb.set_active (true);
@@ -3003,7 +3033,7 @@ Editor::setup_toolbar ()
 	_grid_box_spacer.set_no_show_all ();
 
 	toolbar_hbox.show_all ();
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+	if (live_layout) {
 		toolbar_hbox.set_no_show_all ();
 		toolbar_hbox.hide ();
 		spacer->set_no_show_all ();
@@ -3604,12 +3634,35 @@ Editor::get_paste_offset (Temporal::timepos_t const & pos, unsigned paste_count,
 	return pos.distance (snap_pos);
 }
 
+void
+Editor::set_live_nudge_size (int denominator)
+{
+	if (denominator < 1 || denominator > 64 || (denominator & (denominator - 1))) {
+		denominator = 4;
+	}
+	live_nudge_denominator = denominator;
+	live_nudge_selector.set_text (string_compose ("1/%1", denominator));
+	instant_save ();
+}
+
 timecnt_t
 Editor::get_nudge_distance (timepos_t const & pos, timecnt_t& next) const
 {
-	timecnt_t ret;
+	return directional_nudge_distance (pos, next, true);
+}
 
-	ret = nudge_clock->current_duration (pos);
+timecnt_t
+Editor::directional_nudge_distance (timepos_t const& pos, timecnt_t& next, bool forward) const
+{
+	if (live_nudge_denominator) {
+		const Beats length = Beats::ticks (4 * Beats::PPQN / live_nudge_denominator);
+		/* Audio-time moves must measure the interval on the correct side of a tempo change. */
+		const timepos_t start = forward ? pos : timepos_t (std::max (Beats (), pos.beats () - length));
+		next = timecnt_t (length, start);
+		return next;
+	}
+
+	timecnt_t ret = nudge_clock->current_duration (pos);
 	next = ret + timepos_t::smallest_step (pos.time_domain()); /* FIX ME ... not sure this is how to compute "next" */
 
 	return ret;

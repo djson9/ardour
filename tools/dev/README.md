@@ -428,9 +428,13 @@ The playlist core rebuild/deploy/restart measured 18.05 seconds with development
 
 With `ARDOUR_LIVE_LAYOUT=1`, the top bar contains BPM, meter, metronome,
 count-in (Off/1/2/4 bars), session key/scale, position, play/stop/record,
-Automation visibility, and the native computer-keyboard Piano toggle. The
-secondary editing toolbar is hidden. Its mode, snap/grid, edit-point and nudge
-keyboard bindings are removed at startup and after live key-file reloads.
+Automation visibility, the native computer-keyboard Piano toggle, and independent
+Grid and Nudge sizes. New sessions start both at 1/4 note. Grid controls the
+arrangement lines and snapping. With a clip selected on the timeline, Left and
+Right move it by the Nudge size. The buttons beside Nudge and the keypad −/+
+shortcuts also move the selection. The secondary editing toolbar is hidden.
+Its mode, snap/grid and edit-point shortcuts are removed at startup and after
+live key-file reloads.
 Menus retain those actions. Existing session themes and device panels are reused.
 
 Plain clicks on clips or empty arrangement space locate to the nearest visible

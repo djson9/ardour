@@ -789,6 +789,11 @@ ARDOUR_UI::build_session_stage_two (std::string const& path, std::string const& 
 	if (n) {
 		n->set_property (X_("playhead"), X_("0"));
 		n->set_property (X_("left-frame"), X_("0"));
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1") {
+			n->set_property ("grid-type", Editing::GridTypeBeat);
+			n->set_property ("pre-internal-grid-type", Editing::GridTypeBeat);
+			n->set_property ("live-nudge-denominator", 4);
+		}
 	}
 
 	new_session->config.set_default_time_domain(domain);

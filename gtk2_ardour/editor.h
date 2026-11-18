@@ -2030,7 +2030,10 @@ private:
 	ArdourWidgets::ArdourButton      nudge_forward_button;
 	ArdourWidgets::ArdourButton      nudge_backward_button;
 	Gtk::HBox        nudge_hbox;
-	Gtk::VBox        nudge_vbox;
+	ArdourWidgets::ArdourDropdown live_nudge_selector;
+	int live_nudge_denominator = 0; // Classic layout uses the nudge clock.
+	void set_live_nudge_size (int denominator);
+	Temporal::timecnt_t directional_nudge_distance (Temporal::timepos_t const&, Temporal::timecnt_t& next, bool forward) const;
 	AudioClock*       nudge_clock;
 
 	bool nudge_forward_release (GdkEventButton*);

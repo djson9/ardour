@@ -772,7 +772,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	Gtkmm2ext::BindingSet bindings;
 	Gtkmm2ext::Bindings* own_bindings;
 
-	void set_common_editing_state (XMLNode const & node);
+	void set_common_editing_state (XMLNode const & node, Editing::GridType default_grid = Editing::GridTypeNone);
 	void get_common_editing_state (XMLNode& node) const;
 
 	struct VisualChange {
