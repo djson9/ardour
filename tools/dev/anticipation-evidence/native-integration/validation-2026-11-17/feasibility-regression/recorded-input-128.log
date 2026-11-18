@@ -1,0 +1,4 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+RECORD channels=2 compared_frames=262144 file_error=0 mix_error=0 monitor_cutover=587 monitored_blocks=437 input_peak=0.69229
+RESULT {"passed":true,"normal_session_callback":true,"blocks":[128],"actual_recorded_channels":2,"recorded_sample_error":0,"monitor_cutover":587,"max_sample_error":0,"cache_underruns":0,"bridge_deadline_overruns":0,"engine_mean_us":203.309,"engine_max_us":7332,"hardware_latency_measured":false}
+

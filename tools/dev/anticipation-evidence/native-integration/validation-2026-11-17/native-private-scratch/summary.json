@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "queue-contracts",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "plan-eligibility",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "full-routing-64",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "gain-automation-64",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "monitor-64",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "midi-64",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "recording-64",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "full-routing-128",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "gain-automation-128",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "monitor-128",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "midi-128",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "recording-128",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "transport-controls-edits",
+      "exit_code": 0,
+      "passed": true
+    }
+  ]
+}

@@ -6,7 +6,13 @@ ownership and retained fan-out readers; Session owns `AnticipativeProcess`, whic
 binds the original registered route processors and their main/send/meter outputs.
 The ordinary Graph remains the audible callback graph.
 
-This branch is still experimental and default off. The engine API
+Enable the default-off feature in **Preferences → Performance → Anticipative
+Processing**. The render-ahead horizon defaults to 200 ms. The mixer strip context
+menu provides **Force Realtime Processing**, the current eligibility reason and
+cache underrun count. Global settings persist in Ardour preferences; the track
+override persists in session XML. These controls are experimental.
+
+The engine API
 `Session::set_anticipative_processing(true, milliseconds)` prepares ordinary routes
 on the Butler at playback start. It primes while backend ports are silent, then
 consumes cached ranges at the original hardware buffer size. Actual recording and
@@ -16,10 +22,17 @@ its original DSP runs live. No plugin clone or private test DSP chain is require
 
 Transport events wait asynchronously for producer cancellation before resetting
 DSP. The Butler removes bindings and the ordinary stop/locate path restores state.
-Processor/port changes have retirement hooks; pending RT reorders/meter changes are
-deferred until retirement. Structural-edit coverage, persistent UI controls and
-production capacity/lifecycle validation remain unfinished. Do not enable this in
-an installed user DAW or interpret focused tests as release certification.
+Processor/port changes, route deletion, presets, export and device changes have
+retirement hooks; pending RT reorders/meter changes and loop/playlist edits are
+deferred until retirement. A render fault stops and retires through the same path.
+Structural edits currently rebuild the whole generation with a brief global silence
+and clock hold; uninterrupted recording during these edits is not promised.
+
+The first implementation uses one worker per eligible route. Count-in, external
+transport synchronization, reverse/variable-speed transport and offline export use
+the ordinary direct path. Surround/interactive/external processing stays live.
+Hardware changes and arbitrary third-party plugin state behavior need broader
+stress testing; this is an experimental integration, not release certification.
 
 ## Native integration evidence
 
@@ -34,10 +47,24 @@ an installed user DAW or interpret focused tests as release certification.
 - `anticipation_native_transport_probe.cc`: a deliberately held producer cannot
   block callbacks or race a transport reset. Stop and seek restore normal stopped
   processing. Automatic mode additionally verifies restart, live insertion of a
-  257-sample latent processor and RT meter relocation/rebuild.
+  257-sample latent processor, RT meter relocation, global enable/disable, horizon
+  changes, realtime overrides, variable speed and restoration, loop enabling, route
+  deletion, and fault stop/restart.
+  Backend shutdown precedes Session destruction in the fixture, so its event-pool
+  trash collector remains alive while the callback thread exits.
 - `anticipation_native_midi_probe.cc`: native MidiTracks and real synth/effects,
   four held-note events across arm/disarm, and exactly-once immediate MIDI delivery
   after ownership transfer. Output matches the normal synth reference exactly.
+
+- `anticipation_native_monitor_probe.cc`: monitor on/off with original AudioTracks;
+  after handoff, output matches a normal direct monitor in the same callback while
+  upstream playback continues ahead. No extra software buffer at 64/128 frames.
+- `anticipation_native_record_probe.cc`: original DiskWriter capture compared with
+  an independent raw-input oracle while another real DiskReader track anticipates.
+- `validate-native-anticipation.py`: thirteen native cases, including both buffer
+  sizes and combined disk/loop/PDC/send/sidechain/gain-automation comparisons.
+- `anticipation_native_capacity_probe.cc`: paired normal registered-route capacity
+  runs, without the earlier private-chain test bridge; real CoreAudio is selectable.
 
 All probes use an isolated GLib home and check that real Ardour preferences remain
 unchanged. Dummy backend evidence establishes correctness, not physical latency or
@@ -51,6 +78,52 @@ It is not a passing integration case. Native adapters capture the complete origi
 output instead. Earlier tests and the capacity evidence below describe the
 `jay/anticipation-spike` feasibility branch; its 177 insertions/24 deletions were
 host-boundary hooks, not the full engine implementation's size.
+
+## Current validation summary
+
+The complete native 13-case matrix passes on engine `188c37370e`, including 14
+queue contracts and six eligibility checks. The earlier 21-case feasibility matrix
+also passes against the integrated engine. The full GUI and test targets build,
+and the actual Preferences page was rendered and visually inspected.
+
+A 64-route / 512-effect run found that future workers exhausted Ardour's fixed
+thread-buffer pool. Queues now own preallocated scratch buffers bound through
+`ProcessThread::BufferScope`; ordinary callback threads keep their existing pool.
+The same run completes with zero cache misses. Retirement also invalidates prepared
+Amp automation pointers before that private storage is freed. The deliberate
+exception test now exercises this case with fader automation enabled.
+
+Native capacity probes use the real coordinator and original registered routes.
+After silent parameter settling, 512 playback effects plus a live source/shared bus
+reduce mean callback work from 859.944 to 113.705 microseconds at 64 frames. Both
+runs have zero cache misses. Dummy pacing has deadline outliers and backend xruns;
+this is reduced callback work, not hardware stability proof. The exact capture
+comparator records a 3.7e-20 difference in the first stereo sample and exact equality
+for the remaining 1,279,998 samples. The delay injects a 1e-20 filter bias; a direct/direct repeat differs by 5.2e-20
+in that same first stereo sample. Unsettled
+startup runs and their larger smoothing difference remain in the evidence.
+
+The final native CoreAudio attempt stalls before Session construction, including
+on another test Mac. The previously successful feasibility binary now stalls at
+the same AudioUnitSetProperty / CoreAudio IOProc call. Failed logs and sampled
+stacks are retained. No installed DAW or audio service was restarted. The successful
+CoreAudio numbers below belong to the earlier feasibility path.
+
+Evidence: `anticipation-evidence/native-integration/validation-2026-11-17/README.md`.
+Reproduce native correctness with:
+
+```sh
+python3 tools/dev/validate-native-anticipation.py .
+python3 tools/dev/run-anticipation-probe.py . anticipation_native_capacity_probe.cc
+ARDOUR_PROBE_DIRECT=1 python3 tools/dev/run-anticipation-probe.py . anticipation_native_capacity_probe.cc
+```
+
+Save each capacity result before running the other mode, then compare their capture
+files with `compare-native-capacity.py AHEAD_RESULT DIRECT_RESULT`. It requires exact
+finite equality and exits nonzero for any difference. `package-native-capacity.py`
+and `run-native-portable.py` support isolated arm64 macOS reproduction without
+installing the build; manifests verify every relocated binary and the real user
+configuration checksum is checked. The probe asserts its private GLib home.
 
 ## CoreAudio capacity breakthrough
 
@@ -354,12 +427,13 @@ virtual-device runs, not physical round-trip latency or sustained stability test
 
 ## Remaining production gates
 
-1. Move fixture orchestration into one Session-owned coordinator with safe route
-   mutation/deletion and generation retirement. Reuse the unchanged normal Graph,
-   existing Route::feeds dependencies and DiskReader/Butler APIs.
-2. Connect controls, raw capture, routing caches and measured drain handoffs to
-   normal Track lifecycle. Keep settings default-off until release validation.
-3. Validate rolling seek/edit response, dynamic latency/tempo/device changes,
-   vendor-plugin compatibility, overload recovery and session close races.
-4. Run ten-minute hardware stress, repeated transitions and physical interface
-   loopback before claiming release readiness or full REAPER behavioral parity.
+The Session coordinator, normal controls and native lifecycle integration described
+in the original feasibility gates are implemented. Remaining release validation:
+
+1. Sustained native CoreAudio/interface runs and physical monitoring loopback.
+2. Arbitrary vendor-plugin compatibility, preset/export/device-change stress, and
+   repeated session teardown under load.
+3. Larger route-count CPU scheduling measurements; one producer per eligible route
+   remains an intentional first-version limit.
+4. Evaluate the whole-generation structural-edit pause before promising seamless
+   edits during recording. Monitoring transitions use the measured drain behavior.

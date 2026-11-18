@@ -2,6 +2,7 @@
 #include "anticipation_callback_probe.cc"
 #include "ardour/anticipative_process.h"
 #include "ardour/location.h"
+#include "ardour/gain_control.h"
 
 struct NativeSession : FixtureSession {
  using FixtureSession::FixtureSession;
@@ -56,6 +57,7 @@ int main(int argc,char** argv){try{
   auto b=s->new_audio_route(2,2,{},1,"Native B",PresentationInfo::AudioBus,0).front();
   auto rb=s->new_audio_route(2,2,{},1,"Reference B",PresentationInfo::AudioBus,0).front();
   add_effects(*s,a,!getenv("ARDOUR_PROBE_DISK_READER"));add_effects(*s,ra,!getenv("ARDOUR_PROBE_DISK_READER"));add_effects(*s,b,false);add_effects(*s,rb,false);
+  if(getenv("ARDOUR_PROBE_GAIN_AUTOMATION"))for(auto route:std::vector<std::shared_ptr<Route>>{a,ra,b,rb}){auto control=route->gain_control();for(auto point:std::vector<std::pair<samplepos_t,double>>{{0,.9},{24000,.35},{48000,.75},{58000,.25},{96000,.8},{160000,.6}})control->alist()->add(timepos_t(point.first),point.second,false,false);control->alist()->set_automation_state(Play);}
   if(getenv("ARDOUR_PROBE_PDC"))for(auto route:{a,ra})need(route->add_processor(std::make_shared<NativeDelay>(*s),PreFader)==0,"native latency");
   if(getenv("ARDOUR_PROBE_DISK_READER")){auto playlist=make_disk_playlist(*s,std::string(argv[1])+"/native-source.wav");need(a->use_playlist(DataType::AUDIO,playlist)==0&&ra->use_playlist(DataType::AUDIO,playlist)==0,"native playlists");need(s->butler()->audio_playback_buffer_size()==24000,"half-second real Butler buffer");}
   if(getenv("ARDOUR_PROBE_SIDECHAIN"))for(auto pair:std::vector<std::pair<std::shared_ptr<Route>,std::shared_ptr<Route>>>{{a,b},{ra,rb}}){
@@ -96,9 +98,9 @@ int main(int argc,char** argv){try{
   }
   auto const& an=*plan.find_node(a.get());auto const& bn=*plan.find_node(b.get());
   std::cerr<<"NATIVE TIMELINE preroll="<<s->worst_latency_preroll_buffer_size_ceil()<<" source="<<an.first.project<<","<<an.first.continuous<<","<<an.first.frames<<" bus="<<bn.first.project<<","<<bn.first.continuous<<","<<bn.first.frames<<std::endl;
-  until=Clock::now()+std::chrono::seconds(30);bool armed=false,released=false;
+  until=Clock::now()+std::chrono::seconds(30);bool armed=false,released=bool(getenv("ARDOUR_PROBE_NO_HANDOFF"));
   while(Clock::now()<until){unsigned k;{PBD::Mutex::Lock lock(engine->process_lock());k=tap->k;}
-   if(k>=total_blocks)break;if(!armed&&k>=arm_block){a->rec_enable_control()->set_value(1,PBD::Controllable::NoGroup);armed=true;}
+   if(k>=total_blocks)break;if(!getenv("ARDOUR_PROBE_NO_HANDOFF")&&!armed&&k>=arm_block){a->rec_enable_control()->set_value(1,PBD::Controllable::NoGroup);armed=true;}
    if(armed&&!released&&k>=demote_block){a->rec_enable_control()->set_value(0,PBD::Controllable::NoGroup);released=true;}
    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
@@ -106,7 +108,7 @@ int main(int argc,char** argv){try{
   unsigned first=tap->captured.size();for(unsigned i=0;i<tap->captured.size();++i){auto d=double(std::abs(tap->captured[i]-reference->captured[i]));error=std::max(error,d);if(d>1e-7&&first==tap->captured.size())first=i;}
   peak=tap->peak;handoffs=an.queue->live_handoffs()+bn.queue->live_handoffs();misses=an.queue->underruns()+bn.queue->underruns();
   std::cerr<<"NATIVE ROUTES error="<<error<<" first="<<first<<" peak="<<peak<<" handoffs="<<handoffs<<" misses="<<misses<<" faults="<<an.queue->discontinuities()<<","<<bn.queue->discontinuities()<<std::endl;
-  need(error==0&&peak>1e-4&&handoffs==2&&misses==0&&released,"native route equivalence");plan.clear();
+  need(error==0&&peak>1e-4&&handoffs==(getenv("ARDOUR_PROBE_NO_HANDOFF")?0u:2u)&&misses==0&&released,"native route equivalence");plan.clear();
  }
  delete s;engine->stop();std::cout<<"RESULT {\"passed\":true,\"original_registered_route_dsp\":true,\"cached_bus\":true,\"automatic_arm_handoffs\":"<<handoffs<<",\"block\":"<<block<<",\"max_sample_error\":"<<error<<",\"cache_underruns\":"<<misses<<"}"<<std::endl;
  ui.reset();ARDOUR::cleanup();return 0;

@@ -1,0 +1,3 @@
+: [WARNING]: Falling back to Reasonable Synth for Midi Audition
+RESULT {"passed":true,"eligibility_cases":6,"existing_graph_reused":true,"actual_record_and_monitor_controls":true,"sidechain_graph_revision_checked":true,"hardware_latency_measured":false}
+

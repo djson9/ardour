@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "source_commit": "188c37370e62904dfd1b4fe5be80d7e20ee474d7",
+  "command": "PATH=/opt/homebrew/bin:/usr/bin:/bin python3 waf build -j4 --targets=libardour-tests,ardour-9.10.18,dummy_audiobackend,coreaudio_backend",
+  "logs": {
+    "ardour-native-build.log": {
+      "sha256": "879b2709672c9b92a6c5c2d53fcc0d0670dab9cd3ba656a4ad000844fb222b37",
+      "tail": [
+        "[1576/1578] Symlinking build/libs/canvas/libcanvas.dylib",
+        "[1577/1578] Symlinking build/libs/widgets/libwidgets.dylib",
+        "[1578/1578] Symlinking build/libs/waveview/libwaveview.dylib",
+        "Waf: Leaving directory `/Users/davidson/workspace/ardour-anticipation-spike/build'",
+        "'build' finished successfully (9m3.386s)"
+      ]
+    },
+    "ardour-native-scratch-build.log": {
+      "sha256": "813843f89b8cf0d4a92d049a9cc41d6d7bab8c10419eaf6f573afeae91d9c3e7",
+      "tail": [
+        "ld: warning: ignoring duplicate libraries: '-ldl', '-lfftw3f_threads', '-lfontconfig', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lgthread-2.0', '-lharfbuzz', '-lintl', '-lpango-1.0', '-lsigc-2.0'",
+        "",
+        "[1573/1578] Symlinking build/libs/ardour/libardour.dylib",
+        "Waf: Leaving directory `/Users/davidson/workspace/ardour-anticipation-spike/build'",
+        "'build' finished successfully (4m44.360s)"
+      ]
+    },
+    "ardour-native-final-build.log": {
+      "sha256": "d9b904303ddb58f0637fdc0b5080cfd59edb5cabf5e0547264fe7413fceb58c6",
+      "tail": [
+        "ld: warning: ignoring duplicate libraries: '-ldl', '-lfftw3f_threads', '-lfontconfig', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lgthread-2.0', '-lharfbuzz', '-lintl', '-lpango-1.0', '-lsigc-2.0'",
+        "",
+        "[1573/1578] Symlinking build/libs/ardour/libardour.dylib",
+        "Waf: Leaving directory `/Users/davidson/workspace/ardour-anticipation-spike/build'",
+        "'build' finished successfully (3.155s)"
+      ]
+    }
+  },
+  "binaries": {
+    "build/libs/ardour/libardour.dylib": "a066de21ac928b555a1d98027af8b206367ca4d8e908344e247c256584d0cd16",
+    "build/gtk2_ardour/ardour-9.10.18": "76b29b91eec46e845c6e1ae68e45ab48ee4784e88dd8904d84a47d9ef69f2faa"
+  }
+}
