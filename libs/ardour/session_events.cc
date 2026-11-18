@@ -246,6 +246,12 @@ SessionEventManager::merge_event (SessionEvent* ev)
 	default:
 		for (Events::iterator i = events.begin(); i != events.end(); ++i) {
 			if ((*i)->type == ev->type && (*i)->action_sample == ev->action_sample) {
+				/* Generation rebuilds can restart at a held sample before its
+				 * UI notification has fired. One identical notification suffices. */
+				if (ev->type == SessionEvent::TransportStateChange) {
+					delete ev;
+					return;
+				}
 			  error << string_compose(_("Session: cannot have two events of type %1 at the same sample (%2)."),
 						  enum_2_string (ev->type), ev->action_sample) << endmsg;
 				return;
