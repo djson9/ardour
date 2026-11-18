@@ -112,6 +112,7 @@ public:
 	std::string name () const { return name_label.get_text (); }
 	bool track_header_has_focus () const { return controls_ebox.is_focus (); }
 	void focus_track_header () { controls_ebox.grab_focus (); }
+	bool track_header_key_press (GdkEventKey*);
 	void highlight_drop (bool on) { if (on) gtk_drag_highlight (GTK_WIDGET (controls_ebox.gobj ())); else gtk_drag_unhighlight (GTK_WIDGET (controls_ebox.gobj ())); }
 
 	static PBD::Signal<void(TimeAxisView*)> CatchDeletion;

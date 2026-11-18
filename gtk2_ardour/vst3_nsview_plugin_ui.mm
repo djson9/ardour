@@ -32,6 +32,7 @@
 #include "ardour/vst3_plugin.h"
 
 #include "gtkmm2ext/gui_thread.h"
+#include "gtkmm2ext/actions.h"
 
 #include "gui_thread.h"
 #include "vst3_nsview_plugin_ui.h"
@@ -41,6 +42,36 @@
 using namespace PBD;
 using namespace ARDOUR;
 using namespace Steinberg;
+
+/* JUCE forwards unconsumed native key events to its parent NSView. Keep this
+ * fallback after the plugin's text-input handling, even when its Ardour window
+ * has keyboard capture enabled. Never synthesize another key event here.
+ */
+@interface ArdourChordGridHostView : NSView
+@end
+
+@implementation ArdourChordGridHostView
+- (BOOL)isTransportSpace:(NSEvent*)event
+{
+	const NSUInteger modifiers = NSCommandKeyMask | NSControlKeyMask | NSAlternateKeyMask | NSShiftKeyMask;
+	return [[event charactersIgnoringModifiers] isEqualToString:@" "] && !([event modifierFlags] & modifiers);
+}
+- (void)keyDown:(NSEvent*)event
+{
+	if ([self isTransportSpace:event]) {
+		if (![event isARepeat]) {
+			auto action = ActionManager::get_action ("Transport", "ToggleRoll");
+			if (action && action->get_sensitive ()) { action->activate (); }
+		}
+		return;
+	}
+	[super keyDown:event];
+}
+- (void)keyUp:(NSEvent*)event
+{
+	if (![self isTransportSpace:event]) { [super keyUp:event]; }
+}
+@end
 
 VST3PluginUI*
 create_mac_vst3_gui (std::shared_ptr<PlugInsertBase> pib, Gtk::VBox** box)
@@ -67,7 +98,8 @@ VST3NSViewPluginUI::VST3NSViewPluginUI (std::shared_ptr<PlugInsertBase> pib, std
 
 	//vst->LoadPresetProgram.connect (_program_connection, invalidator (*this), std::bind (&VST3NSViewPluginUI::set_program, this), gui_context());
 
-	_ns_view = [[NSView new] retain];
+	_ns_view = _vst3->unique_id () == "ABCDEF019182FAEB4A61797343676D69"
+		? [ArdourChordGridHostView new] : [NSView new];
 
 	IPlugView* view = _vst3->view ();
 

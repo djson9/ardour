@@ -207,6 +207,7 @@ TimeAxisView::TimeAxisView (ARDOUR::Session* sess, PublicEditor& ed, TimeAxisVie
 				  Gdk::LEAVE_NOTIFY_MASK|
 				  Gdk::SCROLL_MASK);
 	controls_ebox.set_can_focus ();
+	controls_ebox.set_data ("ardour-track-header", this);
 
 	/* note that this handler connects *before* the default handler */
 	controls_ebox.signal_scroll_event().connect (sigc::mem_fun (*this, &TimeAxisView::controls_ebox_scroll), true);
@@ -404,6 +405,59 @@ TimeAxisView::controls_ebox_scroll (GdkEventScroll* ev)
 	   headers will be on the canvas.
 	*/
 	return _editor.canvas_scroll_event (ev, false);
+}
+
+bool
+TimeAxisView::track_header_key_press (GdkEventKey* event)
+{
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1" || !track_header_has_focus () ||
+	    !Keyboard::modifier_state_equals (event->state, 0)) {
+		return false;
+	}
+	auto* route_view = dynamic_cast<RouteTimeAxisView*> (this);
+	if (!route_view) return false;
+
+	switch (event->keyval) {
+	case GDK_Return:
+	case GDK_KP_Enter:
+		if (can_edit_name ()) {
+			route_view->route_rename ();
+			focus_track_header ();
+		}
+		return true;
+	case GDK_Up:
+	case GDK_KP_Up:
+	case GDK_Down:
+	case GDK_KP_Down:
+		break;
+	default:
+		return false;
+	}
+
+	/* Follow the displayed group order, omitting folded/hidden descendants.
+	 * The Live layout pins Master below all scrolling tracks. */
+	TrackViewList visible;
+	TimeAxisView* master = nullptr;
+	for (auto* view : _editor.get_track_views ()) {
+		auto* route_view = dynamic_cast<RouteTimeAxisView*> (view);
+		if (!route_view || !view->marked_for_display ()) continue;
+		if (route_view->route ()->is_master ()) master = view;
+		else visible.push_back (view);
+	}
+	if (master) visible.push_back (master);
+
+	auto current = std::find (visible.begin (), visible.end (), this);
+	if (current == visible.end ()) return true;
+	if (event->keyval == GDK_Up || event->keyval == GDK_KP_Up) {
+		if (current == visible.begin ()) return true;
+		--current;
+	} else {
+		if (++current == visible.end ()) return true;
+	}
+	_editor.set_selected_track (**current, SelectionSet);
+	_editor.ensure_time_axis_view_is_visible (**current, false);
+	(*current)->focus_track_header ();
+	return true;
 }
 
 bool
