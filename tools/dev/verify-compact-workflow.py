@@ -7,8 +7,11 @@ from pathlib import Path
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--url', default='http://127.0.0.1:4838/mcp')
 p.add_argument('--session-path', type=Path, required=True)
-p.add_argument('--case', choices=['headers', 'search', 'scroll', 'curves'], required=True)
+p.add_argument('--case', choices=['headers', 'search', 'scroll', 'native-scroll', 'curves'], required=True)
+p.add_argument('--native-scroll-helper', type=Path)
 a = p.parse_args()
+if a.case == 'native-scroll':
+    assert a.native_scroll_helper and a.native_scroll_helper.is_file(), 'Compile tests/native-scroll.swift and pass --native-scroll-helper'
 
 def call(name, **args):
     body = dict(jsonrpc='2.0', id=1, method='tools/call', params=dict(name=name, arguments=args))
@@ -41,9 +44,14 @@ def wait(predicate):
 
 def routes(): return call('tracks_list', includeHidden=True)['tracks']
 def instant():
+    path = a.session_path / 'instant.xml'
+    modified = path.stat().st_mtime_ns if path.exists() else 0
     call('ui_activate_action', action='Common/Save')
-    time.sleep(.025)
-    return ET.parse(a.session_path / 'instant.xml').find('Editor')
+    def saved():
+        if path.stat().st_mtime_ns == modified: return None
+        try: return ET.parse(path).find('Editor')
+        except ET.ParseError: return None
+    return wait(saved)
 def selected(): return {e.get('id') for e in instant().findall('Selection/StripableView')}
 def expect_selection(ids): wait(lambda: selected() == set(ids))
 def create(shortcut, name, kind):
@@ -190,17 +198,48 @@ elif a.case == 'curves':
     checks += ['double-click opens curve editor', 'add and bend points', 'compiled playback envelope', 'undo/redo', 'point move', 'Escape cancels', 'Delete edits point only', 'arrangement curve is read-only']
     remove_fixture([name], [route['id']])
 
-elif a.case == 'scroll':
+elif a.case in ('scroll', 'native-scroll'):
     names = ['UI Scroll Fixture ' + str(i) for i in range(6)]
     assert not any(r['name'] in names for r in routes()), 'Remove prior test fixtures first'
     ids = [create('Primary-t', n, 'audio_track') for n in names]
     pointer('EditorMainCanvas', 'scroll', 100, 100, deltaY=-1000)
     time.sleep(.08)
     c = next(c for c in main()['canvases'] if c['name'] == 'EditorMainCanvas')
-    before = instant().attrib
+    before = wait(lambda: (state.attrib if float(state.get('y-origin')) == 0 else None) if (state := instant()) is not None else None)
     for delta in [3.25, 2.5, -1.0]: pointer(c['name'], 'scroll', 100, 100, deltaY=delta)
     wait(lambda: abs(float(instant().get('y-origin')) - float(before['y-origin']) - 4.75) < .01)
     checks += ['fractional pixel scroll accumulates']
+    if a.case == 'native-scroll':
+        # CGEvent -> Cocoa -> Quartz GDK -> editor (no MCP event bypass).
+        def native(dx, dy, mode='gesture', over_header=False):
+            x = c['xRoot'] + (c['width'] + 35 if over_header else 100)
+            y = c['yRoot'] + (15 if over_header else 100)
+            subprocess.run([str(a.native_scroll_helper), pid, str(x), str(y), str(dx), str(dy), mode], check=True, timeout=1)
+        baseline = float(instant().get('y-origin'))
+        expected = baseline
+        for delta in [-3, -4, 2]:
+            native(0, delta)
+            expected -= delta
+            wait(lambda: abs(float(instant().get('y-origin')) - expected) < .01)
+        native(0, -2, 'momentum')
+        expected += 2
+        wait(lambda: abs(float(instant().get('y-origin')) - expected) < .01)
+        native(0, -3, over_header=True)
+        expected += 3
+        wait(lambda: abs(float(instant().get('y-origin')) - expected) < .01)
+        old_x = int(instant().get('left-frame'))
+        native(-2, 0)
+        wait(lambda: int(instant().get('left-frame')) == old_x + 2 * int(before['zoom']))
+        native(2, 0)
+        wait(lambda: int(instant().get('left-frame')) == old_x)
+        native(0, -1, 'wheel')
+        expected += 40
+        wait(lambda: abs(float(instant().get('y-origin')) - expected) < .01)
+        native(0, 1, 'wheel')
+        expected -= 40
+        wait(lambda: abs(float(instant().get('y-origin')) - expected) < .01)
+        pointer(c['name'], 'scroll', 100, 100, deltaY=baseline - expected)
+        checks += ['native pixel increments and reversal', 'native momentum', 'native track-header scrolling', 'native horizontal pixel movement', 'legacy wheel uses pixels, not track boundaries']
     anchor = int(before['left-frame']) + 300 * int(before['zoom'])
     pointer(c['name'], 'pinch', 300, 100, magnification=.25)
     after = wait(lambda: (s if int(s['zoom']) < int(before['zoom']) else None) if (s := instant().attrib) else None)

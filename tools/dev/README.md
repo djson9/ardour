@@ -419,3 +419,37 @@ search including typing/refinement took 2.43 s, fractional scroll/pinch took
 with a worst normalized playback error of 0.00004991 in about 0.08 s. Live
 shortcut reload verification took 1.73 s. These are focused UI/curve checks,
 not evidence of sustained audio-engine stability.
+
+
+### Native macOS scrolling regression
+
+The first compact scrolling check injected GDK events directly and missed a
+Quartz build bug: `GTK_OSX_MIN` was undefined, so the preprocessor removed the
+precise-delta branch. Native trackpad/Mos events arrived as directional wheel
+steps. The translator now checks Cocoa capability at runtime. Unmodified
+legacy wheel events in the Live arrangement also move by 40 pixels rather than
+snapping to a track boundary. Modifier-based zoom controls retain their behavior.
+
+The `native-scroll` case crosses the missing boundary: CoreGraphics event →
+Cocoa → Quartz GDK → editor. It verifies small vertical increments/reversal,
+horizontal movement, momentum, header scrolling and coarse-wheel pixel steps,
+plus the existing fractional accumulation and pinch checks. Its helper requires
+event-posting access and checks the frontmost PID and target window before
+posting. Keep the mouse/keyboard idle during this disposable-session test.
+Gesture/momentum phases distinguish the input from wheel notches that tools
+such as Mos can rewrite; Mos's preferences are not changed. The helper restores
+the pointer afterward. Save-state checks wait for a fresh file rather than
+assuming an asynchronous save finishes within a fixed delay.
+
+```sh
+swiftc tools/dev/tests/native-scroll.swift -o /tmp/ardour-native-scroll-test
+python3 tools/dev/verify-compact-workflow.py \
+  --session-path '/absolute/path/Compact UI Verification' \
+  --case native-scroll --native-scroll-helper /tmp/ardour-native-scroll-test
+```
+
+On 2026-11-18 the final native regression passed in **5.19 seconds**, including
+fixture creation and confirmed removal, under the nine-second deadline.
+The macOS arm64 build, install and signature verification also passed. This
+checks native event translation and exact movement, not compositor frame pacing
+or a complete physical-trackpad usability session.

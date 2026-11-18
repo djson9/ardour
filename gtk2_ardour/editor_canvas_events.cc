@@ -85,15 +85,18 @@ Editor::track_canvas_scroll (GdkEventScroll* ev)
 
 	Duple event_coords = _track_canvas->window_to_canvas (Duple (ev->x, ev->y));
 
-	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && ev->has_deltas &&
+	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" &&
 	    direction != GDK_SCROLL_PINCH && Keyboard::modifier_state_equals (ev->state, 0) &&
 	    std::isfinite (ev->delta_x) && std::isfinite (ev->delta_y)) {
-		/* Quartz supplies pixel deltas, including trackpad momentum. Accumulate
-		 * against pending origins so events between redraws are not discarded. */
+		/* Quartz supplies pixel deltas, including trackpad momentum. Legacy
+		 * wheels move a fixed pixel distance, never to a track boundary.
+		 * Accumulate against pending origins between redraws. */
+		const double dx = ev->has_deltas ? ev->delta_x : direction == GDK_SCROLL_LEFT ? -40.0 : direction == GDK_SCROLL_RIGHT ? 40.0 : 0.0;
+		const double dy = ev->has_deltas ? ev->delta_y : direction == GDK_SCROLL_UP ? -40.0 : direction == GDK_SCROLL_DOWN ? 40.0 : 0.0;
 		const double y = (pending_visual_change.pending & VisualChange::YOrigin) ? pending_visual_change.y_origin : vertical_adjustment.get_value ();
 		const samplepos_t x = (pending_visual_change.pending & VisualChange::TimeOrigin) ? pending_visual_change.time_origin : _leftmost_sample;
-		reset_y_origin (std::max (0.0, std::min (std::max (0.0, vertical_adjustment.get_upper () - vertical_adjustment.get_page_size ()), y + ev->delta_y)));
-		reset_x_origin (std::max (0.0, std::min (double (max_samplepos - current_page_samples ()), x + ev->delta_x * samples_per_pixel)));
+		reset_y_origin (std::max (0.0, std::min (std::max (0.0, vertical_adjustment.get_upper () - vertical_adjustment.get_page_size ()), y + dy)));
+		reset_x_origin (std::max (0.0, std::min (double (max_samplepos - current_page_samples ()), x + dx * samples_per_pixel)));
 		return true;
 	}
 

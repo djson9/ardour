@@ -1600,8 +1600,10 @@ gdk_event_translate (GdkEvent *event,
 	float dx;
 	float dy;
 
-#if GTK_OSX_MIN >= 7
-	if (gdk_quartz_osx_version() >= GDK_OSX_LION &&
+	/* GTK_OSX_MIN is not defined by our build. Testing it here used to
+	 * compile out precise scrolling, turning trackpad motion into wheel
+	 * steps before it ever reached the editor. Check Cocoa capability. */
+	if ([nsevent respondsToSelector:@selector(hasPreciseScrollingDeltas)] &&
 	    [nsevent hasPreciseScrollingDeltas])
 	  {
 	    dx = [nsevent scrollingDeltaX];
@@ -1627,7 +1629,6 @@ gdk_event_translate (GdkEvent *event,
 	  }
 	else
 	  {
-#endif /* earlier than Lion */
 	    dx = [nsevent deltaX];
 	    dy = [nsevent deltaY];
 
@@ -1651,9 +1652,7 @@ gdk_event_translate (GdkEvent *event,
                 fill_scroll_event (window, event, nsevent, x, y, x_root, y_root,
                                    FALSE, fabs (dx), 0.0, direction);
               }
-#if GTK_OSX_MIN >= 7
           }
-#endif
       }
       break;
 
