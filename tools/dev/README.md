@@ -317,9 +317,8 @@ Text fields retain their normal arrow keys, and record-armed tracks retain the
 existing rename restriction.
 
 Tab moves from the focused track/group header into its bottom device list,
-opening the bottom panel if needed. In that list, Left/Right select
-the previous/next plugin, rack or Fader, stopping at the ends. Up/Down retains
-the arrangement-wide track navigation introduced by PR #26. Fader shows the
+opening the bottom panel if needed. In that list, Up or Left selects the previous device and
+Down or Right selects the next plugin, rack or Fader, stopping at either end. Fader shows the
 track's existing gain and meter controls. The active pane's selection has a bright
 outline; the other pane's selection dims. Parameter fields retain the bottom
 pane's highlight. Tab or Shift+Tab
@@ -360,7 +359,7 @@ The track processor list and rack chain list already share `PluginSelector` and
 processor-window proxies; rack chains use the rack's edit/validation API.
 Their owner-specific list operations remain separate.
 
-`selected-device-ui-probe.cc` checks header/device Tab focus, Left/Right,
+`selected-device-ui-probe.cc` checks header/device Tab focus, all four arrow keys,
 keypad navigation, boundaries, Fader controls, parameter text-entry keys,
 reopening the hidden panel, fader-only tracks and group headers. It also checks plugin
 switching, a rack, clearing selection, pointer leave, selected-device removal,
@@ -383,7 +382,7 @@ The expanded native probe passed on 2026-11-18 (2.14 s), including Fader placeme
 focus colors and both clip editors. It saves native widget snapshots alongside
 the result and prints a stack trace for GTK criticals. The main-branch
 `midi-clip-focus` regression also passed (2.85 s), including insertion, undo/redo
-and track navigation from the device list. Disposing the automation
+and track navigation after returning to the header. Disposing the automation
 fixture can emit the existing `TriggerPage::remove_route` container warning.
 The native GTK probe, including Tab/arrow navigation, passed on 2026-11-18 in
 1.32 s. The track-title/nested-group regression also passed (5.57 s).

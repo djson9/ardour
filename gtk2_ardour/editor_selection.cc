@@ -1322,6 +1322,7 @@ Editor::focus_adjacent_track (bool down)
 void
 Editor::track_selection_changed ()
 {
+	_clip_to_reopen.reset ();
 	/* Escape clears the selection. Retain the route so the next vertical
 	 * arrow can continue in displayed order even after focus leaves its header. */
 	if (!selection->tracks.empty () && selection->tracks.back ()->stripable ()) {
@@ -1806,28 +1807,76 @@ Editor::region_selection_changed ()
 }
 
 void
+Editor::open_clip_editor (RegionView& clip)
+{
+	_clip_edit_playhead = playhead_cursor_sample ();
+	show_att_bottom (true);
+	_properties_box->edit_clip_region (clip.region ());
+}
+
+bool
+Editor::edit_selected_clip ()
+{
+	TimeAxisView* track = nullptr;
+	if (!selection->regions.empty ()) {
+		track = &selection->regions.back ()->get_time_axis_view ();
+	} else if (!selection->tracks.empty ()) {
+		track = selection->tracks.back ();
+	}
+	if (!track || !track->view ()) return false;
+	edit_track_clip_at_selection (*track);
+	return true;
+}
+
+void
 Editor::edit_track_clip_at_selection (TimeAxisView& track)
 {
-	if (!_session) return;
-	timepos_t where, end;
-	if (!get_selection_extents (where, end)) {
-		where = get_preferred_edit_position (EDIT_IGNORE_NONE, false, true);
-	}
-	TrackViewList tracks;
-	tracks.push_back (&track);
-	RegionSelection regions;
-	get_regions_at (regions, where, tracks);
+	auto playlist = track.playlist ();
+	if (!_session || !playlist || !track.view ()) return;
+
+	const auto cursor = playhead_cursor_sample ();
+	const bool playhead_moved = cursor != _clip_edit_playhead;
+	const auto visible = _properties_box->visible_clip ();
+	const auto previous = _clip_to_reopen.lock ();
 	RegionView* clip = nullptr;
-	for (auto* rv : regions) {
-		if (rv->region ()->position () <= where && where < rv->region ()->end_position () &&
-		    (!clip || rv->region ()->layer () > clip->region ()->layer ())) clip = rv;
+
+	if (selection->time.empty ()) {
+		if (!selection->regions.empty ()) {
+			auto* selected = selection->regions.back ();
+			if (&selected->get_time_axis_view () == &track) {
+				if (selected->region () != visible) {
+					clip = selected;
+				} else if (!playhead_moved) {
+					return;
+				}
+			}
+		} else if (previous && !playhead_moved) {
+			clip = track.view ()->find_view (previous);
+		}
 	}
-	if (!clip) return;
-	begin_reversible_selection_op (_("Select clip at selection marker"));
-	selection->set (clip);
-	commit_reversible_selection_op ();
-	show_att_bottom (true);
-	_properties_box->edit_clip_region (clip->region ());
+
+	if (!clip) {
+		timepos_t where, end;
+		if (!selection->time.empty ()) {
+			where = selection->time.start_time ();
+		} else if ((visible || previous) && playhead_moved) {
+			/* The open clip remains selected when the playhead moves. */
+			where = timepos_t (cursor);
+		} else if (!get_selection_extents (where, end)) {
+			where = get_preferred_edit_position (EDIT_IGNORE_NONE, false, true);
+		}
+		auto region = playlist->top_region_at (where);
+		if (!region) return;
+		clip = track.view ()->find_view (region);
+		if (!clip) return;
+	}
+
+	if (selection->regions.size () != 1 || selection->regions.front () != clip) {
+		begin_reversible_selection_op (_("Select clip at selection marker"));
+		selection->set (clip);
+		commit_reversible_selection_op ();
+	}
+	open_clip_editor (*clip);
 }
 
 void

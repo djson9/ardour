@@ -150,7 +150,7 @@ bool AutomationClipEditor::release (GdkEventButton*) {
  redraw (); return true;
 }
 bool AutomationClipEditor::key (GdkEventKey* e) {
- if (e->keyval == GDK_Escape) { _dragging=false; load (); redraw (); return true; }
+ if (e->keyval == GDK_Escape && _dragging) { _dragging=false; load (); redraw (); return true; }
  if (e->keyval != GDK_Delete && e->keyval != GDK_BackSpace) return false;
  if (_selected > 0 && _selected+1 < int (_points.size ())) { _points.erase (_points.begin ()+_selected); _selected=-1; commit (); redraw (); }
  return true;

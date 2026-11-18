@@ -143,6 +143,8 @@ ARDOUR_UI::create_trigger_page ()
 void
 ARDOUR_UI::escape ()
 {
+	/* Leaving the clip consumes this press before other editing contexts deselect. */
+	if (editor && editor->leave_clip_editor ()) return;
 	Escape (); /* EMIT SIGNAL */
 }
 

@@ -2031,8 +2031,7 @@ Editor::edit_region (RegionView* rv)
 {
 	if (AutomationClips::is_clip (std::dynamic_pointer_cast<AudioRegion> (rv->region ())) ||
 	    (Glib::getenv ("ARDOUR_LIVE_LAYOUT") == "1" && dynamic_cast<MidiRegionView*> (rv))) {
-		show_att_bottom (true);
-		_properties_box->edit_clip_region (rv->region ());
+		open_clip_editor (*rv);
 		return;
 	}
 
@@ -2333,6 +2332,24 @@ Editor::start_selection_grab (ArdourCanvas::Item* /*item*/, GdkEvent* event)
 	_drags->set (new RegionMoveDrag (*this, latest_regionviews.front()->get_canvas_group(), latest_regionviews.front(), latest_regionviews, false, drag_time_domain (latest_regionviews.front()->region())), event);
 }
 
+bool
+Editor::leave_clip_editor ()
+{
+	if (!_session || track_dragging () || _drags->active () || selection->regions.empty () ||
+	    Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") return false;
+
+	auto* rv = selection->regions.back ();
+	auto region = _properties_box->visible_clip ();
+	if (!region || region != rv->region ()) return false;
+
+	auto& track = rv->get_time_axis_view ();
+	set_selected_track (track, SelectionSet);
+	track.focus_track_header ();
+	_clip_to_reopen = region;
+	_clip_edit_playhead = playhead_cursor_sample ();
+	return true;
+}
+
 void
 Editor::escape ()
 {
@@ -2344,6 +2361,7 @@ Editor::escape ()
 		_drags->abort ();
 	} else if (_session) {
 
+		_clip_to_reopen.reset ();
 		midi_action (&MidiRegionView::clear_note_selection);
 
 		selection->clear ();
