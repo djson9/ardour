@@ -305,6 +305,14 @@ RoutePropertiesBox::set_route (std::shared_ptr<Route> r, bool force_update)
 }
 
 bool
+RoutePropertiesBox::choose_new_plugin (std::shared_ptr<Route> route)
+{
+	if (!route || route != _route || !_insert_box) return false;
+	_insert_box->choose_new_plugin ();
+	return true;
+}
+
+bool
 RoutePropertiesBox::focus_processors ()
 {
 	if (!_route || !_insert_box) return false;

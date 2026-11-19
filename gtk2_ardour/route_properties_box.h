@@ -51,6 +51,7 @@ public:
 	void set_session (ARDOUR::Session*);
 	void set_route (std::shared_ptr<ARDOUR::Route>, bool force = false);
 	bool focus_processors ();
+	bool choose_new_plugin (std::shared_ptr<ARDOUR::Route>);
 
 private:
 	void on_map () override;

@@ -371,7 +371,8 @@ plugin list, where arrows select plugins and Enter opens the selected plugin.
 Keypad Enter and keypad arrows work too. Empty chains still receive focus.
 
 Escape moves back one level: chain plugins → chains → track plugin list → track
-header. The selected rack and chain stay selected when moving back or reentering.
+header. Left does the same from chain plugins and from the chain list, so Left
+from a chain returns to the track plugin list with the rack selected. The selected rack and chain stay selected when moving back or reentering.
 Name fields and other editable controls retain their normal typing behavior.
 
 `selected-device-ui-probe.cc` exercises this path through the main window's
@@ -809,8 +810,10 @@ Rack row visibility is saved in each plugin's `Extra/RackProcessorRow` state.
 Enter moves from the rack to chains and then plugins. C and Right also focus the
 selected rack’s chains. N adds and selects a new chain in the chain selector.
 Up and Down select rows, Right enters the selected chain’s plugins,
-Left returns to its chain, and Escape returns one level. N opens the plugin picker
-from either plugin list. Cmd+C and Cmd+V
+Left returns to its chain (and from the chain list, to the track plugin list),
+and Escape returns one level. N opens the plugin picker from either plugin list,
+and from a focused track header in the arrangement (the same picker as N in that
+track's plugin list). Cmd+C and Cmd+V
 copy and paste selected plugins between track and chain lists, before the selected
 row or at the end of an empty list. Shift+Down extends selection in either list.
 In the track list, Cmd+G groups adjacent audio effects in order. Right-click a

@@ -281,6 +281,7 @@ public:
 	virtual void set_selected_mixer_strip (TimeAxisView&) = 0;
 	virtual void focus_adjacent_track (bool down) = 0;
 	virtual bool focus_route_processors () = 0;
+	virtual bool choose_route_plugin (std::shared_ptr<ARDOUR::Route>) = 0;
 	virtual bool edit_selected_clip () = 0;
 	virtual bool leave_clip_editor () = 0;
 	virtual void edit_track_clip_at_selection (TimeAxisView&) = 0;

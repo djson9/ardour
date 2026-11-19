@@ -455,6 +455,9 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 	case GDK_Tab:
 		_editor.focus_route_processors ();
 		return true;
+	case GDK_n:
+		/* Same new-plugin picker as N in the track's device list. */
+		return _editor.choose_route_plugin (route_view->route ());
 	case GDK_Return:
 	case GDK_KP_Enter:
 		_editor.edit_track_clip_at_selection (*this);

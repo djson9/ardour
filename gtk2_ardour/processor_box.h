@@ -441,6 +441,7 @@ public:
 	void set_route (std::shared_ptr<ARDOUR::Route>);
 	void set_width (Width);
 	bool focus_processors ();
+	void choose_new_plugin ();
 	void set_focus_highlight (bool);
 	bool processor_list_key_press (GdkEventKey*);
 

@@ -2291,6 +2291,14 @@ Editor::set_edit_point_preference (EditPoint ep, bool force)
 }
 
 bool
+Editor::choose_route_plugin (std::shared_ptr<ARDOUR::Route> route)
+{
+	if (!_session || !_properties_box) return false;
+	ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-props"))->set_active (true);
+	return _properties_box->choose_route_plugin (route);
+}
+
+bool
 Editor::focus_route_processors ()
 {
 	if (!_session || !_properties_box) return false;

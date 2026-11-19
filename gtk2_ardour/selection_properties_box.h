@@ -58,6 +58,7 @@ public:
 	void edit_clip_region (std::shared_ptr<ARDOUR::Region>);
 	void focus_piano_roll ();
 	bool focus_route_processors ();
+	bool choose_route_plugin (std::shared_ptr<ARDOUR::Route>);
 	std::shared_ptr<ARDOUR::Region> visible_clip () const;
 
 private:

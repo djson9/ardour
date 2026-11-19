@@ -137,6 +137,12 @@ SelectionPropertiesBox::set_session (Session* s)
 }
 
 bool
+SelectionPropertiesBox::choose_route_plugin (std::shared_ptr<ARDOUR::Route> route)
+{
+	return _route_prop_box && _route_prop_box->choose_new_plugin (route);
+}
+
+bool
 SelectionPropertiesBox::focus_route_processors ()
 {
 	return _route_prop_box && _route_prop_box->get_mapped () && _route_prop_box->focus_processors ();

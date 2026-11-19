@@ -2698,6 +2698,14 @@ ProcessorBox::focus_processors ()
 	return processor_display.is_focus ();
 }
 
+void
+ProcessorBox::choose_new_plugin ()
+{
+	_placement = -1;
+	choose_plugin ();
+	_get_plugin_selector ()->show_manager ();
+}
+
 bool
 ProcessorBox::processor_list_key_press (GdkEventKey* event)
 {
@@ -2719,9 +2727,7 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	              Keyboard::modifier_state_equals (event->state, Gdk::SHIFT_MASK);
 	if (!extend && !Keyboard::modifier_state_equals (event->state, 0)) return false;
 	if (event->keyval == GDK_n) {
-		_placement = -1;
-		choose_plugin ();
-		_get_plugin_selector ()->show_manager ();
+		choose_new_plugin ();
 		return true;
 	}
 	if (event->keyval == GDK_Escape) return TrackFocusRequested ();
