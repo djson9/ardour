@@ -932,3 +932,36 @@ sidebar tab, selecting/replacing the query, first-result selection, Down,
 recursive results, rapid query replacement, no matches, Escape restoration,
 Enter-to-preview, and changing the extension whitelist while searching. Every
 runner retains a hard nine-second execution deadline.
+
+## Kick sidechain session
+
+`make-kick-sidechain-session.py` creates a ready-made session in which a kick
+ducks a pad through Jay Compressor's external sidechain, then rolls it and
+checks the result before copying it to `--out`:
+
+- **Kick**: synthesized four-on-the-floor, 8 bars at 120 BPM, with a pre-fader
+  send connected to both of the compressor's sidechain inputs.
+- **Bass Pad**: a stereo Am–F–C–G pad with Jay Compressor first in its chain:
+  External Sidechain on, threshold −26 dB, ratio 4:1, attack 1 ms,
+  release 140 ms, Makeup off.
+- The 8 bars are the session range and loop range.
+
+The test measures the pad before and after the compressor while rolling. It
+passes when gain reduction is over 10 dB on kicks and at least 8 dB more than
+between kicks, and under 1 dB with the sidechain send muted (measured: 17.0 dB,
+4.1 dB and 0.0 dB). The meters are added after saving, so the session contains
+no test processors. `--like` copies the engine hints and MCP server settings
+from an existing session so the new one opens without the device-changed dialog
+and keeps the same MCP port.
+
+```sh
+# On the native build host; preparation is outside the run:
+python3 tools/dev/run-anticipation-probe.py BUILD_ROOT kick_sidechain_probe.cc --build-only
+python3 tools/dev/make-kick-sidechain-session.py --out /path/to/projects \
+  --vst3-dir /path/to/VST3-folder --like /path/to/existing.ardour
+```
+
+To set up the same routing by hand, right-click the compressor in the plugin
+list, choose **Pin Connections…**, enable **Sidechain**, click the sidechain
+input and choose the kick track. Then open the compressor's side panel with
+**>** and enable **Sidechain**.
