@@ -299,13 +299,6 @@ PianorollMidiView::note_cursor_key (guint key)
 	if (end <= start) return true;
 	if (cursor_selection_anchor) {
 		switch (key) {
-		case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
-			if (_midi_track->freeze_state () != Track::Frozen && !_editing_context.drags ()->active ()) {
-				end_cursor_selection ();
-				delete_selection ();
-				refresh_note_cursor ();
-			}
-			return true;
 		case GDK_Left: case GDK_KP_Left: case GDK_Right: case GDK_KP_Right:
 		case GDK_Up: case GDK_KP_Up: case GDK_Down: case GDK_KP_Down:
 		case GDK_bracketleft: case GDK_bracketright: case GDK_Return: case GDK_KP_Enter:
@@ -349,7 +342,11 @@ PianorollMidiView::note_cursor_key (guint key)
 		break;
 	}
 	case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
-		if (cursor_hit && _midi_track->freeze_state () != Track::Frozen && !_editing_context.drags ()->active ()) {
+		if (_midi_track->freeze_state () == Track::Frozen || _editing_context.drags ()->active ()) return true;
+		if (cursor_selection_anchor || !_selection.empty ()) {
+			end_cursor_selection ();
+			delete_selection ();
+		} else if (cursor_hit) {
 			auto* command = _model->new_note_diff_command (_("Delete note"));
 			command->remove (cursor_hit);
 			_model->apply_diff_command_as_commit (_editing_context.history (), command);
