@@ -809,9 +809,8 @@ Rack row visibility is saved in each plugin's `Extra/RackProcessorRow` state.
 Enter moves from the rack to chains and then plugins. C and Right also focus the
 selected rack’s chains. N adds and selects a new chain in the chain selector.
 Up and Down select rows, Right enters the selected chain’s plugins,
-Left returns to its chain, and Escape returns one level. In the track plugin list,
-N opens a menu with Plugin selected first and Audio Rack below it. Down and Enter
-create a rack. N in a chain’s plugin list opens its plugin picker. Cmd+C and Cmd+V
+Left returns to its chain, and Escape returns one level. N opens the plugin picker
+from either plugin list. Cmd+C and Cmd+V
 copy and paste selected plugins between track and chain lists, before the selected
 row or at the end of an empty list. Shift+Down extends selection in either list.
 In the track list, Cmd+G groups adjacent audio effects in order. Right-click a

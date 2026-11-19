@@ -566,9 +566,7 @@ private:
 	void return_io_finished (IOSelector::Result, std::weak_ptr<ARDOUR::Processor>, IOSelectorWindow*);
 	void choose_insert ();
 	void choose_plugin ();
-	void new_processor_menu (guint32);
 	void add_audio_rack ();
-	Gtk::Menu _new_processor_menu;
 	bool use_plugins (const SelectedPlugins&);
 
 	bool no_processor_redisplay;
