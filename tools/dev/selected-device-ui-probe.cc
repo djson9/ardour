@@ -385,6 +385,16 @@ static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> m
  shifted (GDK_Right);
  check (view->selection ().size () == 2 && model->notes ().size () == 3 && piano.is_focus (),
         "Selection extension changed notes, focus, or the anchor at the clip boundary");
+ // Replace the keyboard range with a separate selection, as a mouse gesture can.
+ view->clear_note_selection ();
+ view->select_notes ({(*model->notes ().begin ())->id ()}, false);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2 && (*view->selection ().begin ())->note ()->time () < step + step,
+        "Shift+Right did not extend the independent selection by one nudge");
+ view->clear_note_selection ();
+ view->select_notes ({(*model->notes ().rbegin ())->id ()}, false);
+ shifted (GDK_Left);
+ check (view->selection ().size () == 2, "Shift+Left did not extend the existing selection's left edge");
  key (piano, GDK_Delete);
  check (model->notes ().size () == 1 && (*model->notes ().begin ())->note () == 60,
         "Delete must remove only the selected notes");
