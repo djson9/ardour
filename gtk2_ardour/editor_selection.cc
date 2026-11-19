@@ -1884,6 +1884,7 @@ Editor::edit_track_clip_at_selection (TimeAxisView& track)
 				if (selected->region () != visible) {
 					clip = selected;
 				} else if (!playhead_moved) {
+					_properties_box->focus_piano_roll ();
 					return;
 				}
 			}
@@ -1914,6 +1915,7 @@ Editor::edit_track_clip_at_selection (TimeAxisView& track)
 		commit_reversible_selection_op ();
 	}
 	open_clip_editor (*clip);
+	_properties_box->focus_piano_roll ();
 }
 
 void

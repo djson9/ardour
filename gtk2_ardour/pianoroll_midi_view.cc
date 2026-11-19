@@ -16,9 +16,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <cmath>
+
+#include "pbd/unwind.h"
+
 #include "ardour/midi_region.h"
 #include "ardour/midi_source.h"
 #include "ardour/midi_track.h"
+#include "ardour/scale.h"
 #include "ardour/triggerbox.h"
 #include "ardour/types.h"
 
@@ -39,6 +44,8 @@
 #include "pianoroll_midi_view.h"
 #include "pianoroll_velocity.h"
 #include "note.h"
+#include "public_editor.h"
+#include "timers.h"
 #include "ui_config.h"
 #include "velocity_display.h"
 #include "verbose_cursor.h"
@@ -108,6 +115,7 @@ PianorollMidiView::PianorollMidiView (std::shared_ptr<ARDOUR::MidiTrack> mt,
 
 PianorollMidiView::~PianorollMidiView ()
 {
+	cursor_timer.disconnect ();
 	delete _start_boundary_rect;
 	delete _end_boundary_rect;
 
@@ -117,6 +125,240 @@ PianorollMidiView::~PianorollMidiView ()
 	for (auto & [param,lane] : automation_map) {
 		delete lane;
 	}
+}
+
+Temporal::Beats
+PianorollMidiView::clip_end () const
+{
+	return (_midi_region->start () + _midi_region->length ()).beats ();
+}
+
+Temporal::Beats
+PianorollMidiView::cursor_step (Temporal::Beats const& at) const
+{
+	Temporal::timecnt_t next;
+	return std::max (Temporal::Beats::one_tick (), PublicEditor::instance ().get_nudge_distance (
+		_midi_region->source_beats_to_absolute_time (at), next).beats ());
+}
+
+void
+PianorollMidiView::start_note_cursor ()
+{
+	if (!_model || !_midi_region || cursor_rect) return;
+	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
+	cursor_time = _midi_region->start ().beats ();
+	std::shared_ptr<NoteType> lowest;
+	{
+		auto lock = _model->read_lock ();
+		for (const auto& note : _model->notes ()) {
+			if (note->time () >= clip_end ()) break;
+			if (note->end_time () > cursor_time && (!lowest || note->note () < lowest->note ())) lowest = note;
+		}
+	}
+	if (lowest) {
+		cursor_time = std::max (cursor_time, lowest->time ());
+		cursor_pitch = lowest->note ();
+		static_cast<Pianoroll&> (_editing_context).set_visible_channel (lowest->channel ());
+	}
+	cursor_length = cursor_step (cursor_time);
+	cursor_rect.reset (new ArdourCanvas::Rectangle (_note_group->parent ()));
+	cursor_rect->set_ignore_events (true);
+	cursor_timer = Timers::rapid_connect (sigc::mem_fun (*this, &PianorollMidiView::animate_note_cursor));
+	_midi_context.maybe_extend_note_range (cursor_pitch);
+	_editing_context.center_screen (Temporal::timepos_t (cursor_time).samples ());
+	refresh_note_cursor ();
+}
+
+void
+PianorollMidiView::refresh_note_cursor ()
+{
+	if (!cursor_rect || !_midi_region || !_model) return;
+	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
+	for (const auto& note : cursor_overlaps) {
+		auto previous = _events.find (note);
+		if (previous != _events.end ()) color_note (previous->second, note->channel ());
+	}
+	cursor_overlaps.clear ();
+	cursor_hit.reset ();
+	const auto start = _midi_region->start ().beats ();
+	const auto end = clip_end ();
+	if (end <= start) {
+		cursor_rect->hide ();
+		return;
+	}
+	cursor_time = std::clamp (cursor_time, start, end - Temporal::Beats::one_tick ());
+	if (cursor_selection_anchor) {
+		const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
+		const double x0 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.first).samples ());
+		const double x1 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.second).samples ());
+		cursor_rect->set (ArdourCanvas::Rect (x0, 0, std::max (x0 + 1., x1), _midi_context.height ()));
+		const auto color = UIConfiguration::instance ().color ("selection rect");
+		cursor_rect->set_fill_color (Gtkmm2ext::change_alpha (color, 0.15));
+		cursor_rect->set_outline_color (Gtkmm2ext::change_alpha (color, 0.8));
+		cursor_rect->raise_to_top ();
+		cursor_rect->show ();
+		return;
+	}
+	const auto channel = get_channel_for_add (cursor_time);
+	const auto cursor_end = std::min (end, cursor_time + cursor_length);
+	for (const auto& [note, item] : _events) {
+		if (note->note () != cursor_pitch || note->channel () != channel ||
+		    note->time () >= cursor_end || note->end_time () <= cursor_time) continue;
+		cursor_overlaps.push_back (note);
+		item->set_fill_color (UIConfiguration::instance ().color ("midi note selected"));
+		item->set_outline_color (UIConfiguration::instance ().color ("midi note selected outline"));
+		if (note->time () <= cursor_time && (!cursor_hit || cursor_hit->time () < note->time ())) {
+			cursor_hit = note;
+		}
+	}
+
+	const double x = _editing_context.sample_to_pixel (Temporal::timepos_t (cursor_time).samples ());
+	const double right = _editing_context.sample_to_pixel (Temporal::timepos_t (cursor_end).samples ());
+	const double y = 1 + note_to_y (cursor_pitch);
+	cursor_rect->set (ArdourCanvas::Rect (x, y, std::max (x + 1., right), y + std::max (1., note_height () - 1.)));
+	cursor_rect->raise_to_top ();
+	cursor_rect->show ();
+	animate_note_cursor ();
+}
+
+void
+PianorollMidiView::animate_note_cursor ()
+{
+	if (cursor_selection_anchor) return;
+	const auto color = UIConfiguration::instance ().color ("midi note selected outline");
+	const double phase = (g_get_monotonic_time () % 1400000) * (6.283185307 / 1400000.);
+	cursor_rect->set_fill_color (Gtkmm2ext::change_alpha (color, cursor_hit ? 0.12 : 0.34 + 0.10 * std::sin (phase)));
+	cursor_rect->set_outline_color (Gtkmm2ext::change_alpha (color, 0.85));
+}
+
+void
+PianorollMidiView::end_cursor_selection ()
+{
+	if (cursor_selection_anchor && !extending_cursor_selection) {
+		cursor_selection_anchor.reset ();
+		refresh_note_cursor ();
+	}
+}
+
+void
+PianorollMidiView::extend_cursor_selection (bool forward)
+{
+	if (!cursor_rect || !_midi_region || !_model || _editing_context.drags ()->active ()) return;
+	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
+	const auto start = _midi_region->start ().beats ();
+	const auto end = clip_end ();
+	if (end <= start) return;
+
+	if (!cursor_selection_anchor) {
+		auto first = cursor_time;
+		auto last = cursor_time;
+		if (!_selection.empty ()) {
+			first = end;
+			last = start;
+			for (const auto* item : _selection) {
+				first = std::min (first, item->note ()->time ());
+				last = std::max (last, item->note ()->end_time ());
+			}
+			first = std::clamp (first, start, end);
+			last = std::clamp (last, start, end);
+		}
+		cursor_selection_anchor = forward ? first : last;
+		cursor_selection_edge = forward ? last : first;
+	}
+
+	const auto step = cursor_step (cursor_selection_edge);
+	cursor_selection_edge = std::clamp (forward ? cursor_selection_edge + step : cursor_selection_edge - step, start, end);
+	const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
+	PBD::Unwinder<bool> extending (extending_cursor_selection, true);
+	PBD::Unwinder<bool> quiet (_no_sound_notes, true);
+	for (const auto& [note, item] : _events) {
+		const bool overlaps = bounds.first < bounds.second && note->time () < bounds.second && note->end_time () > bounds.first;
+		if (overlaps && note_editable (item)) {
+			if (!item->selected ()) add_to_selection (item);
+		} else if (item->selected ()) {
+			remove_from_selection (item);
+		}
+	}
+	selection_changed ();
+
+	/* A range may reach the exclusive clip end. Keep the insertion cursor inside. */
+	cursor_time = cursor_selection_edge < end ? cursor_selection_edge : std::max (start, end - step);
+	if (cursor_selection_edge == *cursor_selection_anchor) cursor_selection_anchor.reset ();
+	_editing_context.center_screen (Temporal::timepos_t (cursor_selection_edge).samples ());
+	refresh_note_cursor ();
+}
+
+bool
+PianorollMidiView::note_cursor_key (guint key)
+{
+	if (!cursor_rect || !_midi_region || !_model) return false;
+	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
+	const auto step = cursor_step (cursor_time);
+	const auto start = _midi_region->start ().beats ();
+	const auto end = clip_end ();
+	if (end <= start) return true;
+	if (cursor_selection_anchor) {
+		switch (key) {
+		case GDK_Left: case GDK_KP_Left: case GDK_Right: case GDK_KP_Right:
+		case GDK_Up: case GDK_KP_Up: case GDK_Down: case GDK_KP_Down:
+		case GDK_bracketleft: case GDK_bracketright: case GDK_Return: case GDK_KP_Enter:
+			clear_selection ();
+			selection_changed ();
+			break;
+		}
+	}
+	switch (key) {
+	case GDK_Left: case GDK_KP_Left:
+		cursor_time = std::max (start, cursor_time - step);
+		break;
+	case GDK_Right: case GDK_KP_Right:
+		if (cursor_time + step < end) cursor_time += step;
+		break;
+	case GDK_Up: case GDK_KP_Up:
+		if (cursor_pitch < 127) ++cursor_pitch;
+		break;
+	case GDK_Down: case GDK_KP_Down:
+		if (cursor_pitch > 0) --cursor_pitch;
+		break;
+	case GDK_bracketleft:
+		cursor_length = std::max (step, std::min (cursor_length, end - cursor_time) - step);
+		break;
+	case GDK_bracketright:
+		cursor_length = std::min (end - cursor_time, cursor_length + step);
+		break;
+	case GDK_Return: case GDK_KP_Enter: {
+		if (_midi_track->freeze_state () == Track::Frozen || _editing_context.drags ()->active ()) return true;
+		auto musical_key = _midi_track->key ();
+		if ((_midi_track->key_enforcement_policy () & NoInsert) && musical_key && !musical_key->in_key (cursor_pitch)) return true;
+		auto note = std::make_shared<NoteType> (get_channel_for_add (cursor_time), cursor_time,
+			std::min (cursor_length, end - cursor_time), cursor_pitch, get_velocity_for_add (cursor_time));
+		/* Cursor highlighting follows the current cell independently of mouse selection. */
+		const bool was_vacant = !cursor_hit;
+		auto* command = _model->new_note_diff_command (_("Place note"));
+		command->add_on_top (note);
+		_model->apply_diff_command_as_commit (_editing_context.history (), command);
+		play_midi_note (note);
+		if (was_vacant && cursor_time + step < end) cursor_time += step;
+		break;
+	}
+	case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
+		if (_midi_track->freeze_state () == Track::Frozen || _editing_context.drags ()->active ()) return true;
+		if (cursor_selection_anchor || !_selection.empty ()) {
+			end_cursor_selection ();
+			delete_selection ();
+		} else if (cursor_hit) {
+			auto* command = _model->new_note_diff_command (_("Delete note"));
+			command->remove (cursor_hit);
+			_model->apply_diff_command_as_commit (_editing_context.history (), command);
+		}
+		break;
+	default:
+		return false;
+	}
+	_midi_context.maybe_extend_note_range (cursor_pitch);
+	_editing_context.center_screen (Temporal::timepos_t (cursor_time).samples ());
+	refresh_note_cursor ();
+	return true;
 }
 
 bool
@@ -200,10 +442,6 @@ PianorollMidiView::scroll (GdkEventScroll* ev)
 			_editing_context.scroll_left_step ();
 			return true;
 		}
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
-			_editing_context.temporal_zoom_step_mouse_focus (false);
-			return true;
-		}
         if (!UIConfiguration::instance().get_scroll_velocity_editing ()) {
             if (_midi_context.scroll (ev)) {
                 return true;
@@ -213,10 +451,6 @@ PianorollMidiView::scroll (GdkEventScroll* ev)
 	case GDK_SCROLL_DOWN:
 		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
 			_editing_context.scroll_right_step ();
-			return true;
-		}
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
-			_editing_context.temporal_zoom_step_mouse_focus (true);
 			return true;
 		}
         if (!UIConfiguration::instance().get_scroll_velocity_editing ()) {
@@ -275,6 +509,8 @@ PianorollMidiView::clear_ghost_events ()
 void
 PianorollMidiView::ghosts_model_changed ()
 {
+	cursor_selection_anchor.reset ();
+	refresh_note_cursor ();
 	AutomationLane* lane = automation_lane_by_param (MidiVelocityAutomation);
 	if (lane) {
 		lane->velocity_display->clear();
@@ -290,6 +526,7 @@ PianorollMidiView::ghosts_model_changed ()
 void
 PianorollMidiView::ghosts_view_changed ()
 {
+	refresh_note_cursor ();
 	AutomationLane* lane = automation_lane_by_param (MidiVelocityAutomation);
 	if (lane) {
 		lane->velocity_display->redisplay();
@@ -681,6 +918,7 @@ PianorollMidiView::point_selection_changed ()
 void
 PianorollMidiView::clear_selection ()
 {
+	end_cursor_selection ();
 	MidiView::clear_note_selection ();
 	clear_point_selection();
 }

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Inject only into a disposable Verification GUI, then create the trigger file. */
+#include <cmath>
 #include <fstream>
 #include <type_traits>
 #include <execinfo.h>
@@ -16,6 +17,7 @@
 #include "ardour/audio_track.h"
 #include "ardour/gain_control.h"
 #include "ardour/midi_track.h"
+#include "ardour/midi_model.h"
 #include "ardour/midi_source.h"
 #include "ardour/playlist.h"
 #include "ardour/region.h"
@@ -33,6 +35,8 @@
 #include "../../gtk2_ardour/plugin_ui.h"
 #include "../../gtk2_ardour/gain_meter.h"
 #include "../../gtk2_ardour/pianoroll.h"
+#include "../../gtk2_ardour/pianoroll_midi_view.h"
+#include "../../gtk2_ardour/note_base.h"
 #include "../../gtk2_ardour/automation_clip_editor.h"
 #include "../../gtk2_ardour/region_view.h"
 #include "../../gtk2_ardour/selection.h"
@@ -330,6 +334,8 @@ static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<Pl
  auto respond = [&] (int response) {
   for (auto w : Gtk::Window::list_toplevels ()) if (auto dialog = dynamic_cast<Gtk::MessageDialog*> (w)) {
    if (dialog->get_visible () && dialog->get_transient_for () == props.get_toplevel ()) {
+    auto remove = dialog->get_widget_for_response (Gtk::RESPONSE_ACCEPT);
+    check (remove && remove == dialog->get_focus () && remove->has_default (), "Remove must have focus and be the default action");
     dialog->response (response);
     return;
    }
@@ -394,6 +400,140 @@ static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<Pl
  auto extra = insert_state->child ("Extra");
  auto state = extra ? extra->child ("CompactPluginParameters") : nullptr;
  check (state && state->children ().size () == 2 && control->get_value () == value, "Wrong serialized parameter list or value");
+}
+
+static void zoom_scroll (Gtk::Widget& canvas, GdkScrollDirection direction, double delta, guint modifiers = 0)
+{
+ GdkEvent* ev = gdk_event_new (GDK_SCROLL);
+ ev->scroll.window = GDK_WINDOW (g_object_ref (canvas.get_window ()->gobj ()));
+ ev->scroll.send_event = true;
+ ev->scroll.x = canvas.get_width () * 0.75;
+ ev->scroll.y = canvas.get_height () * 0.5;
+ ev->scroll.direction = direction;
+ ev->scroll.has_deltas = true;
+ ev->scroll.delta_y = delta;
+ ev->scroll.state = modifiers;
+ gtk_widget_event (canvas.gobj (), ev);
+ gdk_event_free (ev);
+}
+
+static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> model)
+{
+ auto check = [] (bool ok, const char* message) { if (!ok) throw std::runtime_error (message); };
+ check (piano.is_focus () && model->notes ().empty (), "Enter must focus the empty clip without inserting");
+ Temporal::timecnt_t next;
+ auto step = PublicEditor::instance ().get_nudge_distance (timepos_t (Temporal::Beats ()), next).beats ();
+ auto* view = static_cast<Pianoroll*> (piano.get_data ("pianoroll-note-cursor"))->midi_view ();
+ // Three adjacent notes across two pitches. Start the selection at the middle note.
+ key (piano, GDK_Return);
+ key (piano, GDK_Up);
+ key (piano, GDK_Return);
+ key (piano, GDK_Return);
+ // The insertion cursor is on an empty step after placing three notes.
+ const auto original_notes = model->notes ();
+ key (piano, GDK_a, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (view->selection ().size () == 3, "Cmd+A did not select all three piano-roll notes");
+ key (piano, GDK_Delete);
+ check (piano.is_focus () && model->notes ().empty (), "Delete after Cmd+A left notes in the piano roll");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes () == original_notes, "One undo must restore the entire deleted selection");
+ key (piano, GDK_Left);
+ key (piano, GDK_Left);
+ // Backspace must also prefer a single selected note over a different note under the cursor.
+ view->clear_note_selection ();
+ auto first = *original_notes.begin ();
+ view->select_notes ({first->id ()}, false);
+ key (piano, GDK_BackSpace);
+ check (model->notes ().size () == 2 && *model->notes ().begin () != first, "Backspace deleted the wrong note");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes () == original_notes, "Undo did not restore the selected note");
+ view->clear_note_selection ();
+ auto shifted = [&] (guint arrow) { key (piano, arrow, GDK_SHIFT_MASK); };
+ shifted (GDK_Right);
+ check (view->selection ().size () == 1 && (*view->selection ().begin ())->note ()->time () == step,
+        "Shift+Right must select just one nudge, excluding its right edge");
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2, "Repeated Shift+Right did not extend the same edge");
+ shifted (GDK_Left);
+ shifted (GDK_Left);
+ check (view->selection ().empty (), "Reversing to the anchor must collapse the selection");
+ shifted (GDK_Left);
+ shifted (GDK_Left);
+ check (view->selection ().size () == 1 && (*view->selection ().begin ())->note ()->note () == 60,
+        "Extending left across the anchor must select the lower pitch and stop at clip start");
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2 && model->notes ().size () == 3 && piano.is_focus (),
+        "Selection extension changed notes, focus, or the anchor at the clip boundary");
+ // Replace the keyboard range with a separate selection, as a mouse gesture can.
+ view->clear_note_selection ();
+ view->select_notes ({(*model->notes ().begin ())->id ()}, false);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2 && (*view->selection ().begin ())->note ()->time () < step + step,
+        "Shift+Right did not extend the independent selection by one nudge");
+ view->clear_note_selection ();
+ view->select_notes ({(*model->notes ().rbegin ())->id ()}, false);
+ shifted (GDK_Left);
+ check (view->selection ().size () == 2, "Shift+Left did not extend the existing selection's left edge");
+ key (piano, GDK_Delete);
+ check (model->notes ().size () == 1 && (*model->notes ().begin ())->note () == 60,
+        "Delete must remove only the selected notes");
+ key (piano, GDK_Down);
+ for (int i = 0; i < 3; ++i) key (piano, GDK_Left);
+ key (piano, GDK_Delete);
+ check (model->notes ().empty (), "Failed to clear the selection fixture");
+ // Enter at the last grid position must stay there.
+ const auto end = Temporal::Beats (4, 0);
+ auto last = Temporal::Beats ();
+ while (last + step < end) {
+  key (piano, GDK_Right);
+  last += step;
+ }
+ key (piano, GDK_KP_Enter);
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 1, "The selection must include the last note at the clip end");
+ shifted (GDK_Left);
+ check (view->selection ().empty (), "The selection overshot the clip end");
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1 && (*model->notes ().begin ())->time () == last,
+        "Placing at the clip end advanced beyond the last grid position");
+ key (piano, GDK_Delete);
+ key (piano, GDK_Delete);
+ for (auto pos = last; pos > Temporal::Beats (); pos -= step) key (piano, GDK_Left);
+ check (model->notes ().empty (), "Failed to remove the two notes at the clip end");
+ key (piano, GDK_Right);
+ key (piano, GDK_Down);
+ key (piano, GDK_bracketright);
+ key (piano, GDK_bracketright);
+ key (piano, GDK_bracketleft);
+ check (piano.is_focus () && model->notes ().empty (), "Cursor navigation wrote a note or left the pane");
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1, "Enter did not place exactly one note");
+ auto original = *model->notes ().begin ();
+ check (original->time () == step && original->length () == step + step && original->note () == 59,
+        "Wrong cursor pitch, nudge distance or bracket length");
+
+ // Placement advanced one nudge into the tail of the two-nudge note.
+ // Covering that occupied position must keep the cursor there for stacking.
+ key (piano, GDK_bracketleft);
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1, "Overlapping original remained in playback");
+ auto second = *model->notes ().begin ();
+ check (second->time () == step + step && second->length () == step, "Wrong overlapping note");
+ key (piano, GDK_KP_Enter);
+ check (model->notes ().size () == 1 && *model->notes ().begin () != second, "Exact overlap did not stack");
+ key (piano, GDK_Delete);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == second, "Delete did not uncover the second note");
+ key (piano, GDK_BackSpace);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == original, "Backspace did not restore the original");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes ().size () == 1 && *model->notes ().begin () == second, "Undo did not re-cover the original");
+ key (piano, GDK_Delete);
+ key (piano, GDK_Up);
+ key (piano, GDK_Return);
+ check (piano.is_focus () && model->notes ().size () == 2, "A different pitch must coexist at the same beat");
 }
 
 static gboolean tick (gpointer) {
@@ -475,10 +615,49 @@ static gboolean tick (gpointer) {
     return false;
    };
    auto* midi_view = editor.time_axis_view_from_stripable (midi_track);
-   if (stage == 32) {
+   if (stage == 32 || stage == 48 || stage == 49 || stage == 50) {
     if (!has_midi (midi_b)) return finish ("Enter did not open the MIDI clip at the selection marker");
     auto* piano = piano_canvas ();
-    snapshot (piano, ".midi"); piano->grab_focus (); key (*piano, GDK_Escape);
+    auto* pane = static_cast<Pianoroll*> (piano->get_data ("pianoroll-note-cursor"));
+    if (!pane) return finish ("Piano roll lost keyboard editing mode");
+    static samplecnt_t initial_zoom, pinch_zoom, arrangement_zoom, zoom_before_event;
+    static double anchor_sample;
+    const auto zoom = pane->get_current_zoom ();
+    // Zoom changes are applied on an idle callback between canvas frames.
+    if (stage != 32 && zoom == zoom_before_event) {
+     piano->queue_draw ();
+     piano->get_window ()->process_updates (true);
+     return TRUE;
+    }
+    const double anchor_x = pane->canvas_to_timeline (piano->get_width () * 0.75);
+    const double anchored = (pane->horizontal_position () + anchor_x) * zoom;
+    if (stage == 32) {
+     arrangement_zoom = editor.get_current_zoom ();
+     initial_zoom = zoom;
+     anchor_sample = anchored;
+     zoom_before_event = zoom;
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
+     stage = 48; return TRUE;
+    }
+    if (stage == 48) {
+     if (zoom != std::llround (std::llround (initial_zoom / 1.25) / 1.25) ||
+         std::abs (anchored - anchor_sample) > zoom) return finish ("Pinch zoom lost its scale or pointer anchor");
+     pinch_zoom = zoom;
+     zoom_before_event = zoom;
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, -0.2);
+     stage = 49; return TRUE;
+    }
+    if (stage == 49) {
+     if (zoom <= pinch_zoom) return finish ("Pinching inward did not zoom out");
+     zoom_before_event = zoom;
+     zoom_scroll (*piano, GDK_SCROLL_UP, -1, Gtkmm2ext::Keyboard::ScrollZoomHorizontalModifier);
+     stage = 50; return TRUE;
+    }
+    if (zoom >= pinch_zoom || editor.get_current_zoom () != arrangement_zoom || !piano->is_focus ())
+     return finish ("Modified scroll did not zoom the focused piano roll independently");
+    verify_note_cursor (*piano, std::dynamic_pointer_cast<MidiSource> (midi_b->source ())->model ());
+    snapshot (piano, ".midi"); key (*piano, GDK_Escape);
     stage = 40; return TRUE;
    }
    if (stage == 40 || stage == 43) {
@@ -496,7 +675,9 @@ static gboolean tick (gpointer) {
    if (stage == 42) {
     if (editor.playhead_cursor_sample () != timepos_t (Temporal::Beats (5, 0)).samples ()) return TRUE;
     auto* piano = piano_canvas (); if (!piano) return finish ("Piano roll closed during locate");
-    piano->grab_focus (); key (*piano, GDK_Return); stage = 45; return TRUE;
+    auto* canvas = named (piano->get_toplevel (), "EditorMainCanvas");
+    if (!canvas) return finish ("Missing arrangement canvas after locate");
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 45; return TRUE;
    }
    if (stage == 45) {
     if (!has_midi (midi_a)) return finish ("Enter did not follow the moved playhead into another clip");
