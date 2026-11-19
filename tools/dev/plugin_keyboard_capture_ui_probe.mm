@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Test-only injection into a private Ardour GUI session. */
-#import <Cocoa/Cocoa.h>
 #include <fstream>
 #include <ytkmm/window.h>
 #include <ytkmm/container.h>
@@ -8,16 +7,34 @@
 #include "../../gtk2_ardour/keyboard.h"
 #include "../../gtk2_ardour/chord_grid_reload.h"
 
+#import <Cocoa/Cocoa.h>
+
 static Gtk::Widget* capture_button(Gtk::Widget* widget) {
  if(widget->get_tooltip_text().find("+K")!=Glib::ustring::npos && widget->get_tooltip_text().find("keyboard")!=Glib::ustring::npos)return widget;
  if(auto* container=dynamic_cast<Gtk::Container*>(widget))for(auto* child:container->get_children())if(auto* hit=capture_button(child))return hit;
  return nullptr;
 }
-static void post(NSWindow* window,NSUInteger flags=NSCommandKeyMask,bool up=false,bool repeat=false) {
- auto* event=[NSEvent keyEventWithType:up?NSKeyUp:NSKeyDown location:NSZeroPoint modifierFlags:flags timestamp:[[NSProcessInfo processInfo] systemUptime] windowNumber:[window windowNumber] context:nullptr characters:@"k" charactersIgnoringModifiers:@"k" isARepeat:repeat keyCode:40];
+static void post(NSWindow* window,NSUInteger flags=NSCommandKeyMask,bool up=false,bool repeat=false, unsigned short code=40, NSString* chars=@"k") {
+ auto* event=[NSEvent keyEventWithType:up?NSKeyUp:NSKeyDown location:NSZeroPoint modifierFlags:flags timestamp:[[NSProcessInfo processInfo] systemUptime] windowNumber:[window windowNumber] context:nullptr characters:chars charactersIgnoringModifiers:chars isARepeat:repeat keyCode:code];
  [NSApp postEvent:event atStart:false];
 }
+static void post_escape (NSWindow* window, NSUInteger flags = 0)
+{
+ post (window, flags, false, false, 53, @"\x1b");
+ post (window, flags, true, false, 53, @"\x1b");
+}
+
+static NSWindow* native_window (Gtk::Window* window)
+{
+ for (NSWindow* candidate in [NSApp windows]) {
+  const char* title = [[candidate title] UTF8String];
+  if (title && window->get_title () == title) return candidate;
+ }
+ return nullptr;
+}
+
 static gboolean check(gpointer) {
+ static std::unique_ptr<PluginUIWindow> generic;
  static int attempts=0,stage=0,changes=0;static bool captured=false;static std::shared_ptr<ARDOUR::PluginInsert> insert;static PluginUIWindow* window=nullptr;static std::string chunk;
  const char* result=getenv("ARDOUR_CAPTURE_UI_RESULT");if(!result)return FALSE;
  auto fail=[&](const char* why){std::ofstream(result)<<"{\"passed\":false,\"stage\":"<<stage<<",\"reason\":\""<<why<<"\"}";return FALSE;};
@@ -32,7 +49,7 @@ static gboolean check(gpointer) {
   }
   if(!window)for(auto* candidate:Gtk::Window::list_toplevels())if(candidate->get_visible())if(auto* plugin=dynamic_cast<PluginUIWindow*>(candidate))window=plugin;
   if(!window)return TRUE;auto* button=capture_button(window);if(!button)return fail("Capture toolbar control missing");
-  NSWindow* native=nullptr;for(NSWindow* candidate in [NSApp windows])if([[candidate title] UTF8String]&&window->get_title()==[[candidate title] UTF8String])native=candidate;if(!native)return TRUE;
+  NSWindow* native=native_window(window);if(!native && window->get_visible())return TRUE;
   if(stage==1){window->pluginui().KeyboardFocused.connect([](bool on){captured=on;++changes;});[NSApp activateIgnoringOtherApps:true];[native makeKeyAndOrderFront:nullptr];post(native);stage=2;return TRUE;}
   if(stage==2){if(!captured||changes!=1||!Gtkmm2ext::Keyboard::some_magic_widget_has_focus())return fail("Cmd-K did not enable capture");if(button->get_tooltip_text().find("normal use")==Glib::ustring::npos)return fail("Toolbar state did not follow shortcut");post(native,NSCommandKeyMask,false,true);post(native,NSCommandKeyMask,true);stage=3;return TRUE;}
   if(stage==3){if(changes!=1)return fail("Repeat or key-up toggled capture");post(native);post(native,NSCommandKeyMask,true);stage=4;return TRUE;}
@@ -42,9 +59,41 @@ static gboolean check(gpointer) {
    auto* down=gdk_event_new(GDK_KEY_PRESS);down->key.keyval=GDK_k;down->key.state=Gtkmm2ext::Keyboard::PrimaryModifier;window->on_key_press_event(&down->key);
    auto* release=gdk_event_new(GDK_KEY_RELEASE);release->key.keyval=GDK_Meta_L;release->key.state=Gtkmm2ext::Keyboard::PrimaryModifier;window->on_key_release_event(&release->key);
    window->on_key_press_event(&down->key);release->key.keyval=GDK_k;window->on_key_release_event(&release->key);gdk_event_free(down);gdk_event_free(release);if(captured||changes!=6)return fail("Command-first release left shortcut stuck");
-   std::unique_ptr<XMLNode> state(&insert->plugin()->get_state());if(ChordGridReload::state_chunk(*state)!=chunk)return fail("Shortcut changed plugin state");if(session->transport_rolling())return fail("Shortcut changed transport");
-   PluginUIWindow generic(insert,false,false);if(generic.pluginui().toggle_keyboard_capture())return fail("Generic UI without capture control toggled");
-   std::ofstream(result)<<"{\"passed\":true,\"native_macos_events\":true,\"both_capture_modes\":true,\"repeat_and_keyup_ignored\":true,\"toolbar_mouse_parity\":true,\"modified_key_unchanged\":true,\"plugin_and_transport_state_preserved\":true}";return FALSE;}
+   post(native);post(native,NSCommandKeyMask,true);stage=7;return TRUE;}
+  if (stage == 7) {
+   if (!captured) return fail("Capture setup failed");
+   post_escape(native, NSShiftKeyMask);
+  } else if (stage == 8) {
+   if (!window->get_visible() || !captured) return fail("Shift-Escape dismissed editor or released capture");
+   post_escape(native);
+  } else if (stage == 9) {
+   if (window->get_visible() || captured || Gtkmm2ext::Keyboard::some_magic_widget_has_focus()) return fail("Escape did not close captured editor and release keyboard");
+   insert->ShowUI();
+  } else if (stage == 10) {
+   if (!window->get_visible()) return fail("Native editor did not reopen");
+   [native makeKeyAndOrderFront:nullptr];
+   post_escape(native);
+  } else if (stage == 11) {
+   if (window->get_visible()) return fail("Escape did not close uncaptured editor");
+   insert->ShowUI();
+   generic.reset(new PluginUIWindow(insert, false, false));
+   if (generic->pluginui().toggle_keyboard_capture()) return fail("Generic editor unexpectedly enabled capture");
+   generic->set_title("Generic Escape fixture");
+   generic->show_all();
+   generic->present();
+  } else if (stage == 12) {
+   auto* focused = native_window(generic.get());
+   if (!focused || !generic->get_visible() || !window->get_visible()) return fail("Two-editor fixture failed");
+   [focused makeKeyAndOrderFront:nullptr];
+   post_escape(focused);
+  } else if (stage == 13) {
+   if (generic->get_visible() || !window->get_visible()) return fail("Escape did not close only the focused generic editor");
+   std::unique_ptr<XMLNode> state(&insert->plugin()->get_state());
+   if (ChordGridReload::state_chunk(*state) != chunk || session->transport_rolling()) return fail("Shortcuts changed plugin or transport state");
+   std::ofstream(result)<<"{\"passed\":true,\"native_macos_events\":true,\"both_capture_modes\":true,\"repeat_and_keyup_ignored\":true,\"toolbar_mouse_parity\":true,\"modified_key_unchanged\":true,\"focused_native_and_generic_escape\":true,\"plugin_and_transport_state_preserved\":true}";
+   return FALSE;
+  }
+  ++stage;
  }catch(std::exception const& e){g_printerr("Capture probe: %s\n",e.what());return fail("Exception");}
  return TRUE;
 }

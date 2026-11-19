@@ -120,6 +120,7 @@ PluginUIWindow::PluginUIWindow (std::shared_ptr<PlugInsertBase> pib,
 	, was_visible (false)
 	, _keyboard_focused (false)
 	, _capture_shortcut_down (false)
+	, _escape_down (false)
 #ifdef AUDIOUNIT_SUPPORT
 	, pre_deactivate_x (-1)
 	, pre_deactivate_y (-1)
@@ -467,6 +468,12 @@ PluginUIWindow::keyboard_focused (bool yn)
 bool
 PluginUIWindow::on_key_press_event (GdkEventKey* event)
 {
+	/* Close on release so holding Escape cannot dismiss the next window. */
+	if (event->keyval == GDK_Escape && Keyboard::modifier_state_equals (event->state, 0)) {
+		_escape_down = true;
+		return true;
+	}
+
 	/* The host owns this escape from plugin keyboard capture. Handle it before
 	 * forwarding native or GTK events to the editor in either capture mode. */
 	if (_pluginui && (event->keyval == GDK_k || event->keyval == GDK_K) &&
@@ -512,6 +519,15 @@ PluginUIWindow::on_key_press_event (GdkEventKey* event)
 bool
 PluginUIWindow::on_key_release_event (GdkEventKey* event)
 {
+	if (event->keyval == GDK_Escape && _escape_down) {
+		_escape_down = false;
+		if (_keyboard_focused && Keyboard::some_magic_widget_has_focus ()) {
+			_pluginui->toggle_keyboard_capture ();
+		}
+		hide ();
+		return true;
+	}
+
 	if (event->keyval == GDK_k || event->keyval == GDK_K) {
 		const bool handled = _capture_shortcut_down;
 		_capture_shortcut_down = false;
@@ -536,6 +552,7 @@ bool
 PluginUIWindow::on_focus_out_event (GdkEventFocus* event)
 {
 	_capture_shortcut_down = false;
+	_escape_down = false;
 	return ArdourWindow::on_focus_out_event (event);
 }
 
