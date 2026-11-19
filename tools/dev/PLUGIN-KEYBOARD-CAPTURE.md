@@ -1,5 +1,8 @@
 # Plugin keyboard capture shortcut
 
+Press **Escape** to close the focused plug-in editor. This works in native and
+generic editors and returns keyboard control to Ardour when capture is active.
+
 In a plugin window with the keyboard button, press **Cmd+K** on macOS
 (**Ctrl+K** on other platforms) to toggle between plugin keyboard capture and
 normal Ardour shortcuts. This invokes the same action as clicking the button,
