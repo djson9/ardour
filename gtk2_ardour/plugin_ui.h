@@ -415,6 +415,7 @@ private:
 	bool was_visible;
 	bool _keyboard_focused;
 	bool _capture_shortcut_down;
+	bool _escape_down;
 #ifdef AUDIOUNIT_SUPPORT
 	int pre_deactivate_x;
 	int pre_deactivate_y;
