@@ -35,6 +35,8 @@
 #include "../../gtk2_ardour/plugin_ui.h"
 #include "../../gtk2_ardour/gain_meter.h"
 #include "../../gtk2_ardour/pianoroll.h"
+#include "../../gtk2_ardour/pianoroll_midi_view.h"
+#include "../../gtk2_ardour/note_base.h"
 #include "../../gtk2_ardour/automation_clip_editor.h"
 #include "../../gtk2_ardour/region_view.h"
 #include "../../gtk2_ardour/selection.h"
@@ -357,6 +359,39 @@ static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> m
  check (piano.is_focus () && model->notes ().empty (), "Enter must focus the empty clip without inserting");
  Temporal::timecnt_t next;
  auto step = PublicEditor::instance ().get_nudge_distance (timepos_t (Temporal::Beats ()), next).beats ();
+ auto* view = static_cast<Pianoroll*> (piano.get_data ("pianoroll-note-cursor"))->midi_view ();
+ // Three adjacent notes across two pitches. Start the selection at the middle note.
+ key (piano, GDK_Return);
+ key (piano, GDK_Up);
+ key (piano, GDK_Return);
+ key (piano, GDK_Return);
+ key (piano, GDK_Left);
+ key (piano, GDK_Left);
+ auto shifted = [&] (guint arrow) { key (piano, arrow, GDK_SHIFT_MASK); };
+ shifted (GDK_Right);
+ check (view->selection ().size () == 1 && (*view->selection ().begin ())->note ()->time () == step,
+        "Shift+Right must select just one nudge, excluding its right edge");
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2, "Repeated Shift+Right did not extend the same edge");
+ shifted (GDK_Left);
+ shifted (GDK_Left);
+ check (view->selection ().empty (), "Reversing to the anchor must collapse the selection");
+ shifted (GDK_Left);
+ shifted (GDK_Left);
+ check (view->selection ().size () == 1 && (*view->selection ().begin ())->note ()->note () == 60,
+        "Extending left across the anchor must select the lower pitch and stop at clip start");
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 2 && model->notes ().size () == 3 && piano.is_focus (),
+        "Selection extension changed notes, focus, or the anchor at the clip boundary");
+ key (piano, GDK_Delete);
+ check (model->notes ().size () == 1 && (*model->notes ().begin ())->note () == 60,
+        "Delete must remove only the selected notes");
+ key (piano, GDK_Down);
+ for (int i = 0; i < 3; ++i) key (piano, GDK_Left);
+ key (piano, GDK_Delete);
+ check (model->notes ().empty (), "Failed to clear the selection fixture");
  // Enter at the last grid position must stay there.
  const auto end = Temporal::Beats (4, 0);
  auto last = Temporal::Beats ();

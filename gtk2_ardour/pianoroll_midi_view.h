@@ -25,6 +25,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 
 #include "ardour/types.h"
 
@@ -56,6 +57,8 @@ class PianorollMidiView : public MidiView
 
 	void start_note_cursor ();
 	bool note_cursor_key (guint);
+	void extend_cursor_selection (bool forward);
+	void end_cursor_selection ();
 
 	void clear_events ();
 	void clear_ghost_events();
@@ -159,12 +162,14 @@ class PianorollMidiView : public MidiView
 
 	Temporal::Beats cursor_time;
 	Temporal::Beats cursor_length;
+	std::optional<Temporal::Beats> cursor_selection_anchor;
+	Temporal::Beats cursor_selection_edge;
 	uint8_t cursor_pitch = 60;
 	std::unique_ptr<ArdourCanvas::Rectangle> cursor_rect;
 	std::shared_ptr<NoteType> cursor_hit;
 	std::vector<std::shared_ptr<NoteType>> cursor_overlaps;
 	sigc::connection cursor_timer;
-	Temporal::Beats cursor_step () const;
+	Temporal::Beats cursor_step (Temporal::Beats const& at) const;
 	Temporal::Beats clip_end () const;
 	void refresh_note_cursor ();
 	void animate_note_cursor ();

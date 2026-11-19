@@ -500,6 +500,7 @@ Pianoroll::set_visible_channel (int n)
 	visible_channel_selector.set_active (string_compose ("%1", _visible_channel + 1));
 
 	for (auto & [region,view] : region_view_map) {
+		view->end_cursor_selection ();
 		view->set_visible_channel (n);
 		view->swap_automation_channel (n);
 	}
@@ -856,6 +857,15 @@ Pianoroll::note_cursor_key (GdkEventKey* ev)
 			return;
 		}
 		if (_active_view->note_cursor_key (ev->keyval)) return;
+	} else if (Keyboard::modifier_state_equals (ev->state, GDK_SHIFT_MASK)) {
+		switch (ev->keyval) {
+		case GDK_Left: case GDK_KP_Left:
+			_active_view->extend_cursor_selection (false);
+			return;
+		case GDK_Right: case GDK_KP_Right:
+			_active_view->extend_cursor_selection (true);
+			return;
+		}
 	}
 
 	/* Keep the piano roll's configured shortcuts, including its own undo history. */
@@ -1158,6 +1168,9 @@ Pianoroll::button_press_handler (ArdourCanvas::Item* item, GdkEvent* event, Item
 		return false;
 	}
 
+	if (_active_view) {
+		_active_view->end_cursor_selection ();
+	}
 	button_selection (item, event, item_type);
 
 	if (!_drags->active () && (Keyboard::is_delete_event (&event->button))) {

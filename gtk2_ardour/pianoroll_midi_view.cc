@@ -18,6 +18,8 @@
 
 #include <cmath>
 
+#include "pbd/unwind.h"
+
 #include "ardour/midi_region.h"
 #include "ardour/midi_source.h"
 #include "ardour/midi_track.h"
@@ -132,11 +134,11 @@ PianorollMidiView::clip_end () const
 }
 
 Temporal::Beats
-PianorollMidiView::cursor_step () const
+PianorollMidiView::cursor_step (Temporal::Beats const& at) const
 {
 	Temporal::timecnt_t next;
 	return std::max (Temporal::Beats::one_tick (), PublicEditor::instance ().get_nudge_distance (
-		_midi_region->source_beats_to_absolute_time (cursor_time), next).beats ());
+		_midi_region->source_beats_to_absolute_time (at), next).beats ());
 }
 
 void
@@ -158,7 +160,7 @@ PianorollMidiView::start_note_cursor ()
 		cursor_pitch = lowest->note ();
 		static_cast<Pianoroll&> (_editing_context).set_visible_channel (lowest->channel ());
 	}
-	cursor_length = cursor_step ();
+	cursor_length = cursor_step (cursor_time);
 	cursor_rect.reset (new ArdourCanvas::Rectangle (_note_group->parent ()));
 	cursor_rect->set_ignore_events (true);
 	cursor_timer = Timers::rapid_connect (sigc::mem_fun (*this, &PianorollMidiView::animate_note_cursor));
@@ -185,6 +187,18 @@ PianorollMidiView::refresh_note_cursor ()
 		return;
 	}
 	cursor_time = std::clamp (cursor_time, start, end - Temporal::Beats::one_tick ());
+	if (cursor_selection_anchor) {
+		const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
+		const double x0 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.first).samples ());
+		const double x1 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.second).samples ());
+		cursor_rect->set (ArdourCanvas::Rect (x0, 0, std::max (x0 + 1., x1), _height));
+		const auto color = UIConfiguration::instance ().color ("selection rect");
+		cursor_rect->set_fill_color (Gtkmm2ext::change_alpha (color, 0.15));
+		cursor_rect->set_outline_color (Gtkmm2ext::change_alpha (color, 0.8));
+		cursor_rect->raise_to_top ();
+		cursor_rect->show ();
+		return;
+	}
 	const auto channel = get_channel_for_add (cursor_time);
 	const auto cursor_end = std::min (end, cursor_time + cursor_length);
 	for (const auto& [note, item] : _events) {
@@ -210,10 +224,67 @@ PianorollMidiView::refresh_note_cursor ()
 void
 PianorollMidiView::animate_note_cursor ()
 {
+	if (cursor_selection_anchor) return;
 	const auto color = UIConfiguration::instance ().color ("midi note selected outline");
 	const double phase = (g_get_monotonic_time () % 1400000) * (6.283185307 / 1400000.);
 	cursor_rect->set_fill_color (Gtkmm2ext::change_alpha (color, cursor_hit ? 0.12 : 0.34 + 0.10 * std::sin (phase)));
 	cursor_rect->set_outline_color (Gtkmm2ext::change_alpha (color, 0.85));
+}
+
+void
+PianorollMidiView::end_cursor_selection ()
+{
+	if (cursor_selection_anchor) {
+		cursor_selection_anchor.reset ();
+		refresh_note_cursor ();
+	}
+}
+
+void
+PianorollMidiView::extend_cursor_selection (bool forward)
+{
+	if (!cursor_rect || !_midi_region || !_model || _editing_context.drags ()->active ()) return;
+	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
+	const auto start = _midi_region->start ().beats ();
+	const auto end = clip_end ();
+	if (end <= start) return;
+
+	if (!cursor_selection_anchor) {
+		auto first = cursor_time;
+		auto last = cursor_time;
+		if (!_selection.empty ()) {
+			first = end;
+			last = start;
+			for (const auto* item : _selection) {
+				first = std::min (first, item->note ()->time ());
+				last = std::max (last, item->note ()->end_time ());
+			}
+			first = std::clamp (first, start, end);
+			last = std::clamp (last, start, end);
+		}
+		cursor_selection_anchor = forward ? first : last;
+		cursor_selection_edge = forward ? last : first;
+	}
+
+	const auto step = cursor_step (cursor_selection_edge);
+	cursor_selection_edge = std::clamp (forward ? cursor_selection_edge + step : cursor_selection_edge - step, start, end);
+	const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
+	PBD::Unwinder<bool> quiet (_no_sound_notes, true);
+	for (const auto& [note, item] : _events) {
+		const bool overlaps = bounds.first < bounds.second && note->time () < bounds.second && note->end_time () > bounds.first;
+		if (overlaps && note_editable (item)) {
+			if (!item->selected ()) add_to_selection (item);
+		} else if (item->selected ()) {
+			remove_from_selection (item);
+		}
+	}
+	selection_changed ();
+
+	/* A range may reach the exclusive clip end. Keep the insertion cursor inside. */
+	cursor_time = cursor_selection_edge < end ? cursor_selection_edge : std::max (start, end - step);
+	if (bounds.first == bounds.second) cursor_selection_anchor.reset ();
+	_editing_context.center_screen (Temporal::timepos_t (cursor_selection_edge).samples ());
+	refresh_note_cursor ();
 }
 
 bool
@@ -221,10 +292,27 @@ PianorollMidiView::note_cursor_key (guint key)
 {
 	if (!cursor_rect || !_midi_region || !_model) return false;
 	EC_LOCAL_TEMPO_SCOPE_ARG (_editing_context);
-	const auto step = cursor_step ();
+	const auto step = cursor_step (cursor_time);
 	const auto start = _midi_region->start ().beats ();
 	const auto end = clip_end ();
 	if (end <= start) return true;
+	if (cursor_selection_anchor) {
+		switch (key) {
+		case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
+			if (_midi_track->freeze_state () != Track::Frozen && !_editing_context.drags ()->active ()) {
+				end_cursor_selection ();
+				delete_selection ();
+				refresh_note_cursor ();
+			}
+			return true;
+		case GDK_Left: case GDK_KP_Left: case GDK_Right: case GDK_KP_Right:
+		case GDK_Up: case GDK_KP_Up: case GDK_Down: case GDK_KP_Down:
+		case GDK_bracketleft: case GDK_bracketright: case GDK_Return: case GDK_KP_Enter:
+			clear_selection ();
+			selection_changed ();
+			break;
+		}
+	}
 	switch (key) {
 	case GDK_Left: case GDK_KP_Left:
 		cursor_time = std::max (start, cursor_time - step);
@@ -423,6 +511,7 @@ PianorollMidiView::clear_ghost_events ()
 void
 PianorollMidiView::ghosts_model_changed ()
 {
+	cursor_selection_anchor.reset ();
 	refresh_note_cursor ();
 	AutomationLane* lane = automation_lane_by_param (MidiVelocityAutomation);
 	if (lane) {
@@ -831,6 +920,7 @@ PianorollMidiView::point_selection_changed ()
 void
 PianorollMidiView::clear_selection ()
 {
+	end_cursor_selection ();
 	MidiView::clear_note_selection ();
 	clear_point_selection();
 }
