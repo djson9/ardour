@@ -268,6 +268,8 @@ static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<Pl
  auto respond = [&] (int response) {
   for (auto w : Gtk::Window::list_toplevels ()) if (auto dialog = dynamic_cast<Gtk::MessageDialog*> (w)) {
    if (dialog->get_visible () && dialog->get_transient_for () == props.get_toplevel ()) {
+    auto remove = dialog->get_widget_for_response (Gtk::RESPONSE_ACCEPT);
+    check (remove && remove == dialog->get_focus () && remove->has_default (), "Remove must have focus and be the default action");
     dialog->response (response);
     return;
    }

@@ -664,8 +664,9 @@ GenericPluginUI::confirm_compact_removal ()
 	_compact_dialog.reset (new MessageDialog (*static_cast<Window*> (get_toplevel ()), question, false, MESSAGE_QUESTION, BUTTONS_NONE, true));
 	_compact_dialog->set_secondary_text (_("Use Configure to add a parameter again."));
 	_compact_dialog->add_button (_("Cancel"), RESPONSE_CANCEL);
-	_compact_dialog->add_button (_("Remove"), RESPONSE_ACCEPT);
-	_compact_dialog->set_default_response (RESPONSE_CANCEL);
+	auto remove = _compact_dialog->add_button (_("Remove"), RESPONSE_ACCEPT);
+	_compact_dialog->set_default_response (RESPONSE_ACCEPT);
+	remove->grab_focus ();
 	_compact_dialog->signal_response ().connect ([this] (int response) {
 		_compact_dialog->hide ();
 		if (response == RESPONSE_ACCEPT) {
