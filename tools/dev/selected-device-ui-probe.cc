@@ -489,15 +489,22 @@ static gboolean tick (gpointer) {
     auto* piano = piano_canvas ();
     auto* pane = static_cast<Pianoroll*> (piano->get_data ("pianoroll-note-cursor"));
     if (!pane) return finish ("Piano roll lost keyboard editing mode");
-    static samplecnt_t initial_zoom, pinch_zoom, arrangement_zoom;
+    static samplecnt_t initial_zoom, pinch_zoom, arrangement_zoom, zoom_before_event;
     static double anchor_sample;
     const auto zoom = pane->get_current_zoom ();
+    // Zoom changes are applied on an idle callback between canvas frames.
+    if (stage != 32 && zoom == zoom_before_event) {
+     piano->queue_draw ();
+     piano->get_window ()->process_updates (true);
+     return TRUE;
+    }
     const double anchor_x = pane->canvas_to_timeline (piano->get_width () * 0.75);
     const double anchored = (pane->horizontal_position () + anchor_x) * zoom;
     if (stage == 32) {
      arrangement_zoom = editor.get_current_zoom ();
      initial_zoom = zoom;
      anchor_sample = anchored;
+     zoom_before_event = zoom;
      zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
      zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
      stage = 48; return TRUE;
@@ -506,11 +513,13 @@ static gboolean tick (gpointer) {
      if (zoom != std::llround (std::llround (initial_zoom / 1.25) / 1.25) ||
          std::abs (anchored - anchor_sample) > zoom) return finish ("Pinch zoom lost its scale or pointer anchor");
      pinch_zoom = zoom;
+     zoom_before_event = zoom;
      zoom_scroll (*piano, GDK_SCROLL_PINCH, -0.2);
      stage = 49; return TRUE;
     }
     if (stage == 49) {
      if (zoom <= pinch_zoom) return finish ("Pinching inward did not zoom out");
+     zoom_before_event = zoom;
      zoom_scroll (*piano, GDK_SCROLL_UP, -1, Gtkmm2ext::Keyboard::ScrollZoomHorizontalModifier);
      stage = 50; return TRUE;
     }
