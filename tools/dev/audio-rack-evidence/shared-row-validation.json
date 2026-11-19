@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-19",
+  "base_main": "2b1a1c3fa3ee0adb69706bf6898d8fff2562516b",
+  "product_source_files_verified": 4870,
+  "source_manifest_sha256": "c3e9fd10c90e2e70c01bba4491146f2b5724415a6eb2beed5440038ffef7fd84",
+  "changed_source_sha256": {
+    "gtk2_ardour/audio_rack_ui.cc": "ed6d99cfa1bcccd2c287a39c238567a92910b698fbe354859ebfccae8f4233a5",
+    "gtk2_ardour/audio_rack_ui.h": "5c277ec21e54cd400ec1f8e3237beef49d24492e9c16d612dec6718b5117ab47",
+    "gtk2_ardour/processor_box.cc": "db7de61a4a959643ada2294eea4d9576a2acef5735263de4dd8e7d143144d175",
+    "gtk2_ardour/processor_box.h": "03af55daa0fa04502a72b72326e91b2a8920da1eaa0676728448116c860576e8",
+    "gtk2_ardour/processor_entry_host.h": "ceba3c301b55454b050423d88e5e6af9eba94ebb5bfea186a0c26e356705540f",
+    "gtk2_ardour/route_properties_box.cc": "1afc49355fd1f3d4fd4d2d65afe90a4b30eafa8c57b66ee299e5be19fee008be",
+    "libs/gtkmm2ext/gtkmm2ext/dndvbox.h": "81a7c567caf713cea94e8821b280fcbf83cf405050746a8b0f04d2f56b0b9b2a",
+    "libs/tk/ytk/gtkdnd-quartz.c": "6e196b40ad3d8dd9dc9d2a22953a81dcbf947d391620e29781a78c8240cba83a",
+    "tools/dev/audio-rack-row-probe.cc": "509ae7a11690fc6ba17a4a3074d202644fd8f68c7484d9a8cf9814de2fcc19d6",
+    "tools/dev/audio-rack-ui-probe.c": "483baf197b2ab7b673d75ecb895e843c929bb42a63c2d2e8c58e1a7b02de907b",
+    "tools/dev/prepare-rack-ui-probe.py": "fbc8b6d599b59511e1504df6c1c9b8178feff208869664bb1eeb53a4b9c52a7e",
+    "tools/dev/rack-drag-mouse.swift": "22f7d90edc4176f7a94a0caf6a70f1b9e2355f73d963b36677a525161874cd31",
+    "tools/dev/selected-device-ui-probe.cc": "cc05f65855c339edb4bcd2bcb3341955dd30a49453edbbb24ec2831de700630d",
+    "tools/dev/verify-audio-racks.py": "bad2d428045fb5554068d835e50d20ee6264f4948017e24201de45030aa11ebe"
+  },
+  "keyboard_shared_rows_and_focus": {
+    "passed": true,
+    "stage": 64,
+    "seconds": 0.647182,
+    "error": ""
+  },
+  "native_mouse_and_session_save": {
+    "native_mouse_drag": true,
+    "drag_identity_and_mapping_checks": true,
+    "bottom_panel": true,
+    "floating_editor": false,
+    "selected_chain_lists": true,
+    "insertion_reorder_removal": true,
+    "track_switch_lifecycle": true,
+    "saved_chain_plugins": [
+      [
+        "Rack test"
+      ],
+      [
+        "ACE EQ"
+      ]
+    ]
+  },
+  "native_build_passed": true,
+  "engine_tests_passed": 5
+}

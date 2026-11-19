@@ -118,6 +118,7 @@ static void snapshot (Gtk::Widget* w, std::string const& suffix) {
  /* GTK2's pixmap snapshot has no Quartz backing store. Cache the native view
   * instead, which draws the real widget tree without screen-recording access. */
  auto* toplevel = w->get_toplevel ();
+ gdk_window_process_updates (toplevel->get_window ()->gobj (), true);
  NSView* view = gdk_quartz_window_get_nsview (toplevel->get_window ()->gobj ());
  gint x = 0, y = 0;
  gtk_widget_translate_coordinates (w->gobj (), GTK_WIDGET (toplevel->gobj ()), 0, 0, &x, &y);
@@ -570,7 +571,7 @@ static gboolean tick (gpointer) {
  try {
   auto* session = AudioEngine::instance ()->session (); if (!session) return TRUE;
   if (session->name ().find ("Verification") == std::string::npos) return finish ("Use a disposable Verification session");
-  if (stage >= 30 && stage <= 47) {
+  if (stage >= 30 && stage <= 50) {
    auto& editor = PublicEditor::instance ();
    auto range = [&] (std::shared_ptr<Route> track, timepos_t at) {
     session->selection ().select_stripable_and_maybe_group (track, SelectionSet, false);

@@ -93,6 +93,7 @@ public:
 
 	virtual ~DnDVBox ()
 	{
+		if (_drag_source == this) _drag_source = 0;
 		clear ();
 
 		delete _drag_icon;

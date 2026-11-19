@@ -41,9 +41,26 @@ The macOS GTK drag completion callback previously destroyed source state only
 on successful drops, so cancellation could skip `drag-end`. Remove that guard
 so every completed drag releases its state; audio/model changes still require
 a successful drop. This is a small vendored-toolkit fix, outside the host seam.
-Run model transfers at lower idle priority than GTK cleanup so the shared row
-releases its drag state before a route change destroys the source panel.
+Run model transfers at lower idle priority than queued GTK cleanup. Clear the
+shared drag-source pointer when its list is destroyed, including when a move
+replaces the source panel. These changes prevent stale source references.
 
 Use native Cocoa snapshots in the rack probe instead of reparenting live
 widgets to GTK offscreen windows. Wait for source drag completion and let
 AppKit consume mouse-up before restoring the test cursor position.
+
+## Completed validation — 2026-11-19
+- Native arm64 build passes with main through `2b1a1c3fa`; all 4,870 tracked
+  product/build/test source files match the isolated builder.
+- All five rack engine tests pass, including identity, rollback and reopening.
+- Native GTK checks pass for shared row type/style, isolated bypass, Controls
+  and Presets menus, visibility serialization, Enter/arrows/Escape and text input.
+- Inspected screenshots show bright focus moving from track plugins to chains
+  to chain plugins; previous selections dim, and Escape restores each level.
+- Native Quartz mouse moves pass between chains, within a chain, out to the
+  track, into an empty chain, and Escape cancellation. Track switching and
+  saving preserve the expected plugin IDs and learned controls.
+
+Evidence is in `audio-rack-evidence/shared-row-validation.json`, the associated
+build/engine/drag logs, and the three `shared-row-focus-*.png` images. Testing
+used a disposable app/session with private preferences and dummy audio.

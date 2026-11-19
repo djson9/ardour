@@ -7,8 +7,8 @@
 extern "C" NSView* gdk_quartz_window_get_nsview (GdkWindow*);
 #endif
 
-static bool dragging = false;
-extern "C" int rack_probe_dragging () { return dragging; }
+static GtkWidget* drag_source = nullptr;
+extern "C" int rack_probe_dragging () { return drag_source != nullptr; }
 using List = Gtkmm2ext::DnDVBox<ProcessorEntry>;
 static List* list (GtkWidget* w) { return w ? dynamic_cast<List*> (Glib::wrap (w)) : nullptr; }
 extern "C" int rack_probe_plugin_count (GtkWidget* w) {
@@ -23,9 +23,14 @@ extern "C" GtkWidget* rack_probe_plugin_row (GtkWidget* w, int index) {
  if (index < 0 || index >= int (rows.size ())) return nullptr;
  auto& widget = (*std::next (rows.begin (), index))->action_widget ();
  g_printerr ("RACK PROBE row: %s (%dx%d)\n", (*std::next (rows.begin (), index))->processor ()->name ().c_str (), widget.get_width (), widget.get_height ());
- widget.signal_drag_begin ().connect ([] (Glib::RefPtr<Gdk::DragContext> const&) { dragging = true; g_printerr ("RACK PROBE drag begin\n"); });
- widget.signal_drag_end ().connect ([] (Glib::RefPtr<Gdk::DragContext> const&) { dragging = false; g_printerr ("RACK PROBE drag end\n"); });
- widget.signal_drag_data_get ().connect ([] (Glib::RefPtr<Gdk::DragContext> const&, Gtk::SelectionData& d, guint, guint) { g_printerr ("RACK PROBE data: %s\n", d.get_target ().c_str ()); });
+ if (!widget.get_data ("rack-probe-drag-watched")) {
+  widget.set_data ("rack-probe-drag-watched", &drag_source);
+  // A move out can replace the source panel. Observe native drag completion
+  // or source destruction; either releases this probe's source widget.
+  g_signal_connect (widget.gobj (), "drag-begin", G_CALLBACK (+[] (GtkWidget* source, GdkDragContext*, gpointer) { drag_source = source; g_printerr ("RACK PROBE drag begin\n"); }), nullptr);
+  g_signal_connect (widget.gobj (), "drag-end", G_CALLBACK (+[] (GtkWidget* source, GdkDragContext*, gpointer) { if (drag_source == source) drag_source = nullptr; g_printerr ("RACK PROBE drag end\n"); }), nullptr);
+  g_signal_connect (widget.gobj (), "destroy", G_CALLBACK (+[] (GtkWidget* source, gpointer) { if (drag_source == source) drag_source = nullptr; }), nullptr);
+ }
  return GTK_WIDGET (widget.gobj ());
 }
 
