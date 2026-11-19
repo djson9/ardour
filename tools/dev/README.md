@@ -806,10 +806,16 @@ callbacks these rows need from their container; rendering stays in
 `processor_box.h/.cc`. Chain edits still use the existing rack/route APIs.
 Rack row visibility is saved in each plugin's `Extra/RackProcessorRow` state.
 
-Enter moves from the rack to chains and then plugins; arrows navigate that
-list, and Escape returns one level. Only the active level has a bright selection;
-the other levels retain dim selections for context. Delete removes the selected
-chain plugin.
+Enter moves from the rack to chains and then plugins. C also focuses the selected
+rack’s chains. Up and Down select rows, Right enters the selected chain’s plugins,
+Left returns to its chain, and Escape returns one level. N opens the plugin picker
+from either plugin list. In the track list, Shift+Down extends the selection and
+Cmd+G groups adjacent audio effects in order. Right-click a single-chain rack and
+choose Ungroup Plugins to restore its effects at the same position. Ungrouping
+requires unity chain gain, an enabled rack, an unmuted chain and no macro mappings.
+Only the active list has a bright selection. A short insertion line appears at the
+end of a focused plugin list when the last row is selected or the list is empty.
+Delete removes the selected chain plugin.
 Right-click a plugin for editing, bypass, inline controls, presets or renaming.
 
 The selected-device native probe checks that both lists use the same row class,

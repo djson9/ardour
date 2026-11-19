@@ -25,6 +25,7 @@
 #include <ytkmm/box.h>
 #include <ytkmm/eventbox.h>
 #include <ytkmm/label.h>
+#include <ytkmm/separator.h>
 
 #include "gtkmm2ext/keyboard.h"
 #include "gtkmm2ext/visibility.h"
@@ -177,6 +178,7 @@ public:
 	/** Clear all children from the widget */
 	void clear ()
 	{
+		show_end_cursor (false);
 		_selection.clear ();
 
 		for (typename std::list<T*>::iterator i = _children.begin(); i != _children.end(); ++i) {
@@ -203,6 +205,31 @@ public:
 		clear_selection ();
 
 		SelectionChanged (); /* EMIT SIGNAL */
+	}
+
+	void extend_selection (T* child)
+	{
+		if (child && !selected (child)) {
+			add_to_selection (child);
+			SelectionChanged ();
+		}
+	}
+
+	void show_end_cursor (bool visible, T* before = nullptr)
+	{
+		if (visible && !_end_cursor.get_parent ()) {
+			_end_cursor.set_name ("PluginInsertionCursor");
+			_end_cursor.set_size_request (-1, 4);
+			_internal_vbox.pack_start (_end_cursor, false, false, 2);
+			if (before) {
+				auto widgets = _internal_vbox.get_children ();
+				auto where = std::find (widgets.begin (), widgets.end (), &before->widget ());
+				_internal_vbox.reorder_child (_end_cursor, std::distance (widgets.begin (), where));
+			}
+			_end_cursor.show ();
+		} else if (!visible && _end_cursor.get_parent ()) {
+			_internal_vbox.remove (_end_cursor);
+		}
 	}
 
 	void select (T* child)
@@ -684,6 +711,7 @@ private:
 	}
 
 	Gtk::VBox _internal_vbox;
+	Gtk::HSeparator _end_cursor;
 	std::list<Gtk::TargetEntry> _targets;
 	Gdk::DragAction _actions;
 	std::list<T*> _children;

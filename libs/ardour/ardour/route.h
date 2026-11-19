@@ -341,6 +341,8 @@ public:
 	 */
 	/** Move an existing audio effect atomically, retaining its controls and identity.
 	 * Null racks mean the route processor list; position is before removal. */
+	std::shared_ptr<AudioRack> group_plugins (ProcessorList const&);
+	bool ungroup_plugins (std::shared_ptr<AudioRack>);
 	bool move_rack_plugin (std::shared_ptr<PluginInsert>, std::shared_ptr<AudioRack> source,
 	                       std::shared_ptr<AudioRack> destination, size_t chain, size_t position,
 	                       std::shared_ptr<Processor> before = {});
@@ -789,8 +791,7 @@ private:
 	int input_port_count_changing (ChanCount);
 	int output_port_count_changing (ChanCount);
 
-	bool output_effectively_connected_real () const;
-	mutable std::map<Route*, bool> _connection_cache;
+	bool output_effectively_connected_real (std::set<Route const*>& visited) const;
 
 	int configure_processors_unlocked (ProcessorStreams*, PBD::RWLock::WriterLock*);
 	bool set_meter_point_unlocked ();

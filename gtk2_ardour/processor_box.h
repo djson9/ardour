@@ -74,6 +74,7 @@ class ProcessorSelection;
 class MixerStrip;
 
 namespace ARDOUR {
+	class AudioRack;
 	class Connection;
 	class IO;
 	class Insert;
@@ -503,6 +504,9 @@ private:
 
 	std::shared_ptr<ARDOUR::Route>  _route;
 	bool _focus_highlight = false;
+	void update_end_cursor ();
+	void group_selected_plugins ();
+	std::shared_ptr<ARDOUR::AudioRack> selected_rack () const;
 	std::weak_ptr<ARDOUR::Processor> _rack_drop_target;
 	void begin_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);
 	void end_plugin_drag (Glib::RefPtr<Gdk::DragContext> const&);

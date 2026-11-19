@@ -1655,6 +1655,87 @@ Route::is_internal_processor (std::shared_ptr<Processor> p) const
 	return false;
 }
 
+std::shared_ptr<AudioRack>
+Route::group_plugins (ProcessorList const& selection)
+{
+	if (selection.empty () || !_session.engine ().running ()) return {};
+	auto rack = std::make_shared<AudioRack> (_session, *this);
+	rack->set_owner (this);
+	{
+		PBD::Mutex::Lock process (AudioEngine::instance ()->process_lock ());
+		if (_session.actively_recording ()) return {};
+		_session.retire_anticipation_for_edit ();
+		if (_pending_process_reorder.load () || _pending_listen_change.load ()) apply_processor_changes_rt ();
+		PBD::RWLock::WriterLock lock (_processor_lock);
+		auto first = std::search (_processors.begin (), _processors.end (), selection.begin (), selection.end ());
+		if (first == _processors.end ()) return {};
+
+		std::vector<std::shared_ptr<PluginInsert>> plugins;
+		std::vector<bool> strict;
+		for (auto const& processor : selection) {
+			auto plugin = std::dynamic_pointer_cast<PluginInsert> (processor);
+			if (!plugin || !plugin->plugin () || plugin->is_instrument () || plugin->has_no_inputs () ||
+			    plugin->has_sidechain () || plugin->sidechain_input_pins ().n_total () ||
+			    plugin->natural_input_streams ().n_midi () || plugin->natural_output_streams ().n_midi ()) return {};
+			plugins.push_back (plugin);
+			strict.push_back (plugin->strict_io ());
+		}
+
+		ProcessorState original (this);
+		_processors.insert (first, rack);
+		_processors.erase (first, std::next (first, selection.size ()));
+		auto& members = rack->_chains.front ()->plugins;
+		members = plugins;
+		if (configure_processors_unlocked (nullptr, &lock)) {
+			members.clear (); // The restored route owns these instances.
+			original.restore ();
+			for (size_t i = 0; i < plugins.size (); ++i) plugins[i]->set_strict_io (strict[i]);
+			configure_processors_unlocked (nullptr, &lock);
+			return {};
+		}
+		rack->activate ();
+	}
+	rack->ActiveChanged.connect_same_thread (*rack, std::bind (&Session::queue_latency_recompute, &_session));
+	set_processor_positions ();
+	processors_changed (RouteProcessorChange (RouteProcessorChange::GeneralChange, false));
+	_session.set_dirty ();
+	_session.queue_latency_recompute ();
+	return rack;
+}
+
+bool
+Route::ungroup_plugins (std::shared_ptr<AudioRack> rack)
+{
+	if (!rack || !_session.engine ().running ()) return false;
+	{
+		PBD::Mutex::Lock process (AudioEngine::instance ()->process_lock ());
+		if (_session.actively_recording () || !rack->can_ungroup ()) return false;
+		_session.retire_anticipation_for_edit ();
+		if (_pending_process_reorder.load () || _pending_listen_change.load ()) apply_processor_changes_rt ();
+		PBD::RWLock::WriterLock lock (_processor_lock);
+		auto position = std::find (_processors.begin (), _processors.end (), rack);
+		if (position == _processors.end ()) return false;
+		ProcessorState original (this);
+		auto& members = rack->_chains.front ()->plugins;
+		_processors.insert (position, members.begin (), members.end ());
+		_processors.erase (position);
+		for (auto const& p : members) p->set_strict_io (_strict_io);
+		if (configure_processors_unlocked (nullptr, &lock)) {
+			original.restore ();
+			configure_processors_unlocked (nullptr, &lock);
+			return false;
+		}
+		for (auto const& p : members) p->set_time_domain_parent (*this);
+		members.clear ();
+	}
+	rack->drop_references ();
+	set_processor_positions ();
+	processors_changed (RouteProcessorChange (RouteProcessorChange::GeneralChange, false));
+	_session.set_dirty ();
+	_session.queue_latency_recompute ();
+	return true;
+}
+
 bool
 Route::move_rack_plugin (std::shared_ptr<PluginInsert> plugin, std::shared_ptr<AudioRack> source,
                         std::shared_ptr<AudioRack> destination, size_t chain, size_t position,
@@ -4394,14 +4475,14 @@ Route::signal_sources (bool via_sends_only)
 bool
 Route::output_effectively_connected () const
 {
-	_connection_cache.clear ();
-	return output_effectively_connected_real ();
+	std::set<Route const*> visited;
+	return output_effectively_connected_real (visited);
 }
 
 bool
-Route::output_effectively_connected_real () const
+Route::output_effectively_connected_real (std::set<Route const*>& visited) const
 {
-	if (!_output->connected ()) {
+	if (!visited.insert (this).second || !_output->connected ()) {
 		return false;
 	}
 
@@ -4423,18 +4504,7 @@ Route::output_effectively_connected_real () const
 		if (!i->input()->connected_to (_output)) {
 			continue;
 		}
-		if (_connection_cache.find (rp) != _connection_cache.end ()) {
-			return _connection_cache[rp];
-		}
-		/* First mark node a traversed to prevent endless recursion.
-		 * Otherwise graph loops A -> B -> A will cause a stack overflow.
-		 */
-		_connection_cache[rp] = false;
-
-		/* recurse downstream, check connected route */
-		bool rv = i->output_effectively_connected_real ();
-		_connection_cache[rp] = rv;
-		if (rv) {
+		if (i->output_effectively_connected_real (visited)) {
 			return true;
 		}
 	}

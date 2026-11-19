@@ -208,6 +208,25 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
 }
+static bool open_plugin_picker (RoutePropertiesBox& props)
+{
+ bool picker_opened = false;
+ auto close_dialogs = Glib::signal_timeout ().connect ([&picker_opened] () {
+  for (auto w : Gtk::Window::list_toplevels ()) if (auto dialog = dynamic_cast<Gtk::Dialog*> (w)) {
+   if (!dialog->get_visible ()) continue;
+   if (dialog->get_title () == "Plugin Selector") {
+    picker_opened = true;
+    dialog->response (Gtk::RESPONSE_CLOSE);
+    return false;
+   }
+   if (dialog->get_title () == "Discover VST/AU Plugins?" || dialog->get_title () == "Discover VST Plugins?") dialog->response (Gtk::RESPONSE_NO);
+  }
+  return true;
+ }, 20);
+ key (props, GDK_n);
+ close_dialogs.disconnect ();
+ return picker_opened;
+}
 static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<AudioRack> rack, List& devices)
 {
  auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
@@ -229,8 +248,10 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  check (index (chains) == 0, "Chain navigation wrapped at the start");
  key (props, GDK_Down);
  check (chains->is_focus () && index (chains) == 1 && selected_rack (), "Down left the chain list");
- key (props, GDK_Right); key (props, GDK_Left);
- check (index (chains) == 1, "Horizontal arrows did not navigate chains");
+ key (props, GDK_Right);
+ check (plugins->is_focus () && plugin_index () == 0, "Right did not focus selected chain plugins");
+ key (props, GDK_Left);
+ check (chains->is_focus () && index (chains) == 1, "Left did not return to the same chain");
  key (props, GDK_KP_Enter);
  check (plugins->is_focus () && plugin_index () == 0, "Enter on chain did not focus its first plugin");
  key (props, GDK_Down);
@@ -249,6 +270,8 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  key (props, GDK_Escape);
  key (props, GDK_Down); key (props, GDK_Return);
  check (plugins->is_focus () && plugins->children ().empty (), "Cannot enter an empty chain");
+ check (named (plugins, "PluginInsertionCursor"), "Empty chain lacks an insertion cursor");
+ check (open_plugin_picker (props), "N did not open the empty chain plugin selector");
  key (props, GDK_Down);
  check (plugins->is_focus () && selected_rack (), "Empty chain arrow changed track/device selection");
  key (props, GDK_Escape);
@@ -259,7 +282,7 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  auto route = dynamic_cast<Route*> (rack->owner ());
  auto* view = route ? PublicEditor::instance ().time_axis_view_from_stripable (route->shared_from_this ()) : nullptr;
  check (view && view->track_header_has_focus (), "Escape from devices did not return to the track");
- key (props, GDK_Tab); key (props, GDK_KP_Enter);
+ key (props, GDK_Tab); key (props, GDK_c);
  check (chains->is_focus () && index (chains) == 1, "Reentering rack lost the selected chain");
  key (props, GDK_Return); key (props, GDK_Escape); key (props, GDK_Escape);
  check (devices.is_focus () && selected_rack (), "Repeated Enter/Escape lost rack selection");
@@ -840,6 +863,9 @@ static gboolean tick (gpointer) {
    stage = 60; return TRUE;
   }
   if (stage == 60) {
+   auto* plugins = dynamic_cast<List*> (named (find<AudioRackUI> (props), "AudioRackPluginList"));
+   auto* row = entry (plugins, rack->chains ()[1]->plugins.front ());
+   if (!row || !row->action_widget ().get_mapped () || row->action_widget ().get_height () < 8) return TRUE;
    verify_rack_rows (*props, rack, *list);
    stage = 61; return TRUE;
   }
@@ -879,7 +905,25 @@ static gboolean tick (gpointer) {
    key (*props, GDK_Tab);
    if (view->track_header_has_focus () || list->is_focus () || !selected (rack)) return finish ("Entry Tab was intercepted");
    if (!props->focus_processors ()) return finish ("Could not refocus the device list after entry Tab");
-   if (getenv ("ARDOUR_DEVICE_UI_PROBE_RACK_KEYS")) return finish (nullptr);
+   if (getenv ("ARDOUR_DEVICE_UI_PROBE_RACK_KEYS")) {
+    list->select (entry (list, eq));
+    key (*props, GDK_Down, Gdk::SHIFT_MASK);
+    if (list->selection ().size () != 2) return finish ("Shift+Down did not extend the plugin selection");
+    key (*props, GDK_g, Gtkmm2ext::Keyboard::PrimaryModifier);
+    auto order = visible_order (route);
+    auto grouped = order.empty () ? nullptr : std::dynamic_pointer_cast<AudioRack> (order.front ());
+    if (!grouped || grouped == rack || grouped->chains ()[0]->plugins != std::vector<std::shared_ptr<PluginInsert>> {eq, delay}) return finish ("Cmd+G did not group the selected plugins in order");
+    click (entry (list, grouped)->action_widget (), 3);
+    auto menu = dynamic_cast<Gtk::Menu*> (ActionManager::get_widget ("/ProcessorMenu"));
+    auto item = menu ? static_cast<Gtk::MenuItem*> (menu->get_data ("ungroup-rack-item")) : nullptr;
+    if (!item || !item->get_visible () || !item->is_sensitive ()) return finish ("Ungroup menu missing");
+    item->activate (); menu->popdown ();
+    if (visible_order (route) != std::vector<std::shared_ptr<Processor>> {eq, delay, rack, route->amp ()}) return finish ("Ungroup did not restore original order");
+    list->select (entry (list, rack));
+    auto cursor = named (list, "PluginInsertionCursor");
+    if (!cursor || !cursor->get_visible ()) return finish ("End insertion cursor missing");
+    return finish (open_plugin_picker (*props) ? nullptr : "N did not open the track plugin selector");
+   }
    key (*props, GDK_Right); stage = 25; return TRUE;
   }
   if (stage == 25) {

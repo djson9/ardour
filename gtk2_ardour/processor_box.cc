@@ -1986,6 +1986,7 @@ ProcessorBox::ProcessorBox (ARDOUR::Session* sess, std::function<PluginSelector*
 	set_widget_bindings (processor_display, *bindings, ARDOUR_BINDING_KEY);
 	processor_display.SelectionAdded.connect (sigc::mem_fun (*this, &ProcessorBox::selection_added));
 	processor_display.SelectionChanged.connect ([this] () {
+		update_end_cursor ();
 		// Changing the bottom panel on mouse-down can move the source row out
 		// from under the pointer before GTK reaches its drag threshold.
 		GdkEvent* event = gtk_get_current_event ();
@@ -2447,6 +2448,11 @@ ProcessorBox::show_processor_menu (int arg)
 		item->set_sensitive (!_session->actively_recording ());
 	}
 
+	auto* ungroup = static_cast<MenuItem*> (processor_menu->get_data ("ungroup-rack-item"));
+	auto rack = selected_rack ();
+	ungroup->set_visible (bool (rack));
+	ungroup->set_sensitive (rack && rack->can_ungroup () && !_session->actively_recording ());
+
 	/* Sort out the plugin submenu */
 
 	Gtk::MenuItem* plugin_menu_item = dynamic_cast<Gtk::MenuItem*>(ActionManager::get_widget("/ProcessorMenu/newplugin"));
@@ -2632,7 +2638,52 @@ ProcessorBox::set_focus_highlight (bool focused)
 {
 	if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") return;
 	_focus_highlight = focused;
+	update_end_cursor ();
 	for (auto entry : processor_display.children ()) entry->set_selection_focus (focused);
+}
+
+void
+ProcessorBox::update_end_cursor ()
+{
+	bool show = false;
+	ProcessorEntry* pinned_fader = nullptr;
+	if (_route && _focus_highlight) {
+		auto selection = processor_display.selection ();
+		ProcessorEntry* last_device = nullptr;
+		for (auto* row : processor_display.children ()) {
+			if (_route->fader_last () && row->processor () == _route->amp ()) pinned_fader = row;
+			if (std::dynamic_pointer_cast<PluginInsert> (row->processor ()) || std::dynamic_pointer_cast<AudioRack> (row->processor ())) last_device = row;
+		}
+		auto rows = processor_display.children ();
+		show = !last_device || (!selection.empty () && (selection.back () == last_device || selection.back () == rows.back ()));
+	}
+	processor_display.show_end_cursor (show, pinned_fader);
+}
+
+std::shared_ptr<AudioRack>
+ProcessorBox::selected_rack () const
+{
+	auto rows = processor_display.selection ();
+	return rows.size () == 1 ? std::dynamic_pointer_cast<AudioRack> (rows.front ()->processor ()) : nullptr;
+}
+
+void
+ProcessorBox::group_selected_plugins ()
+{
+	Route::ProcessorList plugins;
+	for (auto* row : processor_display.children ()) {
+		if (processor_display.selected (row)) plugins.push_back (row->processor ());
+	}
+	if (plugins.empty ()) return;
+	auto rack = _route->group_plugins (plugins);
+	if (!rack) {
+		MessageDialog dialog (_("Select adjacent audio effects to group. Instruments, sidechains, and MIDI effects cannot be grouped. Stop recording before grouping."));
+		dialog.run ();
+		return;
+	}
+	for (auto* row : processor_display.children ()) {
+		if (row->processor () == rack) { processor_display.select (row); break; }
+	}
 }
 
 bool
@@ -2655,9 +2706,21 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	    (Keyboard::modifier_state_equals (event->state, 0) || Keyboard::modifier_state_equals (event->state, Gdk::SHIFT_MASK))) {
 		return TrackFocusRequested ();
 	}
-	if (!Keyboard::modifier_state_equals (event->state, 0)) return false;
+	if (event->keyval == GDK_g && Keyboard::modifier_state_equals (event->state, Keyboard::PrimaryModifier)) {
+		group_selected_plugins ();
+		return true;
+	}
+	bool extend = (event->keyval == GDK_Down || event->keyval == GDK_KP_Down) &&
+	              Keyboard::modifier_state_equals (event->state, Gdk::SHIFT_MASK);
+	if (!extend && !Keyboard::modifier_state_equals (event->state, 0)) return false;
+	if (event->keyval == GDK_n) {
+		_placement = -1;
+		choose_plugin ();
+		_get_plugin_selector ()->show_manager ();
+		return true;
+	}
 	if (event->keyval == GDK_Escape) return TrackFocusRequested ();
-	if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter) {
+	if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter || event->keyval == GDK_c) {
 		auto selection = processor_display.selection ();
 		if (!selection.empty () && std::dynamic_pointer_cast<AudioRack> (selection.back ()->processor ()) && !RackFocusRequested.empty ()) {
 			RackFocusRequested (selection.back ()->processor ());
@@ -2686,7 +2749,12 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	if (current == devices.end ()) current = previous ? std::prev (devices.end ()) : devices.begin ();
 	else if (previous && current != devices.begin ()) --current;
 	else if (!previous && std::next (current) != devices.end ()) ++current;
-	processor_display.select (*current);
+	if (extend) {
+		if (!std::dynamic_pointer_cast<PluginInsert> ((*current)->processor ())) return true;
+		processor_display.extend_selection (*current);
+	} else {
+		processor_display.select (*current);
+	}
 	int x, y;
 	if ((*current)->widget ().translate_coordinates (processor_display, 0, 0, x, y)) {
 		processor_scroller.get_vadjustment ()->clamp_page (y, y + (*current)->widget ().get_height ());
@@ -2865,7 +2933,9 @@ ProcessorBox::processor_button_press_event (GdkEventButton *ev, ProcessorEntry* 
 		ret = true;
 
 	} else if (Keyboard::is_context_menu_event (ev)) {
-
+		if (std::dynamic_pointer_cast<AudioRack> (processor) && !selected_rack ()) {
+			processor_display.select (child);
+		}
 		show_processor_menu (ev->time);
 
 		ret = true;
@@ -2945,6 +3015,20 @@ ProcessorBox::build_processor_menu ()
 			if (box->_route->add_processor_by_index (rack, box->_placement, nullptr, true) == 0) box->edit_processor (rack);
 			else { MessageDialog dialog (_("Cannot add an audio rack here. Audio channels are required and recording must be stopped.")); dialog.run (); }
 		}));
+	}
+	if (!processor_menu->get_data ("ungroup-rack-item")) {
+		auto* item = manage (new MenuItem (_("Ungroup Plugins")));
+		item->signal_activate ().connect ([] () {
+			auto* box = _current_processor_box;
+			if (!box || !box->_route) return;
+			auto rack = box->selected_rack ();
+			if (rack && !box->_route->ungroup_plugins (rack)) {
+				MessageDialog dialog (_("Cannot ungroup this rack with the current routing or recording state."));
+				dialog.run ();
+			}
+		});
+		processor_menu->prepend (*item);
+		processor_menu->set_data ("ungroup-rack-item", item);
 	}
 	return processor_menu;
 }
