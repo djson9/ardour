@@ -3243,6 +3243,7 @@ Pianoroll::our_midi_view_selection_changed ()
 		return;
 	}
 
+	_active_view->end_cursor_selection ();
 	MidiView::Selection const & sel (_active_view->selection());
 	if (sel.size() < 2) {
 		midi_inspector->chord_box->show_chord ("");

@@ -191,7 +191,7 @@ PianorollMidiView::refresh_note_cursor ()
 		const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
 		const double x0 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.first).samples ());
 		const double x1 = _editing_context.sample_to_pixel (Temporal::timepos_t (bounds.second).samples ());
-		cursor_rect->set (ArdourCanvas::Rect (x0, 0, std::max (x0 + 1., x1), _height));
+		cursor_rect->set (ArdourCanvas::Rect (x0, 0, std::max (x0 + 1., x1), _midi_context.height ()));
 		const auto color = UIConfiguration::instance ().color ("selection rect");
 		cursor_rect->set_fill_color (Gtkmm2ext::change_alpha (color, 0.15));
 		cursor_rect->set_outline_color (Gtkmm2ext::change_alpha (color, 0.8));
@@ -234,7 +234,7 @@ PianorollMidiView::animate_note_cursor ()
 void
 PianorollMidiView::end_cursor_selection ()
 {
-	if (cursor_selection_anchor) {
+	if (cursor_selection_anchor && !extending_cursor_selection) {
 		cursor_selection_anchor.reset ();
 		refresh_note_cursor ();
 	}
@@ -269,6 +269,7 @@ PianorollMidiView::extend_cursor_selection (bool forward)
 	const auto step = cursor_step (cursor_selection_edge);
 	cursor_selection_edge = std::clamp (forward ? cursor_selection_edge + step : cursor_selection_edge - step, start, end);
 	const auto bounds = std::minmax (*cursor_selection_anchor, cursor_selection_edge);
+	PBD::Unwinder<bool> extending (extending_cursor_selection, true);
 	PBD::Unwinder<bool> quiet (_no_sound_notes, true);
 	for (const auto& [note, item] : _events) {
 		const bool overlaps = bounds.first < bounds.second && note->time () < bounds.second && note->end_time () > bounds.first;
@@ -282,7 +283,7 @@ PianorollMidiView::extend_cursor_selection (bool forward)
 
 	/* A range may reach the exclusive clip end. Keep the insertion cursor inside. */
 	cursor_time = cursor_selection_edge < end ? cursor_selection_edge : std::max (start, end - step);
-	if (bounds.first == bounds.second) cursor_selection_anchor.reset ();
+	if (cursor_selection_edge == *cursor_selection_anchor) cursor_selection_anchor.reset ();
 	_editing_context.center_screen (Temporal::timepos_t (cursor_selection_edge).samples ());
 	refresh_note_cursor ();
 }

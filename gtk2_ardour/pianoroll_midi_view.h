@@ -164,6 +164,7 @@ class PianorollMidiView : public MidiView
 	Temporal::Beats cursor_length;
 	std::optional<Temporal::Beats> cursor_selection_anchor;
 	Temporal::Beats cursor_selection_edge;
+	bool extending_cursor_selection = false;
 	uint8_t cursor_pitch = 60;
 	std::unique_ptr<ArdourCanvas::Rectangle> cursor_rect;
 	std::shared_ptr<NoteType> cursor_hit;

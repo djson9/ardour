@@ -400,6 +400,11 @@ static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> m
   last += step;
  }
  key (piano, GDK_KP_Enter);
+ shifted (GDK_Right);
+ shifted (GDK_Right);
+ check (view->selection ().size () == 1, "The selection must include the last note at the clip end");
+ shifted (GDK_Left);
+ check (view->selection ().empty (), "The selection overshot the clip end");
  key (piano, GDK_Return);
  check (model->notes ().size () == 1 && (*model->notes ().begin ())->time () == last,
         "Placing at the clip end advanced beyond the last grid position");
