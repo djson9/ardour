@@ -39,3 +39,6 @@ if args[4] != 0 {
     usleep(150_000)
 }
 mouse(.leftMouseUp, args[2], args[3])
+
+// Let AppKit consume mouse-up before restoring the hardware cursor position.
+RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))

@@ -196,8 +196,8 @@ RoutePropertiesBox::on_unmap ()
 void
 RoutePropertiesBox::update_focus_highlight (Gtk::Widget* focus)
 {
-	while (focus && focus != this) focus = focus->get_parent ();
-	if (_insert_box) _insert_box->set_focus_highlight (focus == this);
+	while (focus && focus != _insert_box) focus = focus->get_parent ();
+	if (_insert_box) _insert_box->set_focus_highlight (focus == _insert_box);
 }
 
 void

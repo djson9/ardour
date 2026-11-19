@@ -60,6 +60,7 @@
 #include "beatbox_gui.h"
 #endif
 #include "plugin_interest.h"
+#include "processor_entry_host.h"
 #include "plugin_display.h"
 #include "io_selector.h"
 #include "send_ui.h"
@@ -142,7 +143,7 @@ class PluginPinWindowProxy : public WM::ProxyBase
 class ProcessorEntry : public Gtkmm2ext::DnDVBoxChild, public sigc::trackable
 {
 public:
-	ProcessorEntry (ProcessorBox *, std::shared_ptr<ARDOUR::Processor>, Width);
+	ProcessorEntry (ProcessorEntryHost *, std::shared_ptr<ARDOUR::Processor>, Width);
 	~ProcessorEntry ();
 
 	Gtk::EventBox& action_widget ();
@@ -167,6 +168,7 @@ public:
 	bool unknown_processor () const { return _unknown_processor; } ;
 	std::shared_ptr<ARDOUR::Processor> processor () const;
 	void set_enum_width (Width);
+	static void setup_routing_feeds (std::list<ProcessorEntry*> const&);
 
 	/** Hide any widgets that should be hidden */
 	virtual void hide_things ();
@@ -186,7 +188,7 @@ protected:
 	Gtk::VBox _vbox;
 	ProcessorPosition _position;
 	uint32_t _position_num;
-	ProcessorBox* _parent;
+	ProcessorEntryHost* _parent;
 
 	virtual void setup_visuals ();
 
@@ -406,7 +408,7 @@ protected:
 class PluginInsertProcessorEntry : public ProcessorEntry
 {
 public:
-	PluginInsertProcessorEntry (ProcessorBox *, std::shared_ptr<ARDOUR::PluginInsert>, Width);
+	PluginInsertProcessorEntry (ProcessorEntryHost *, std::shared_ptr<ARDOUR::PluginInsert>, Width);
 
 	void hide_things ();
 
@@ -417,7 +419,7 @@ private:
 	PBD::ScopedConnectionList _iomap_connection;
 };
 
-class ProcessorBox : public Gtk::HBox, public PluginInterestedObject, public ARDOUR::SessionHandlePtr
+class ProcessorBox : public ProcessorEntryHost, public Gtk::HBox, public PluginInterestedObject, public ARDOUR::SessionHandlePtr
 {
 public:
 	enum ProcessorOperation {
@@ -453,6 +455,8 @@ public:
 	void setup_routing_feeds ();
 
 	void hide_things ();
+
+	Gtk::Widget* entry_toplevel () override { return get_toplevel (); }
 
 	bool edit_aux_send (std::shared_ptr<ARDOUR::Processor>);
 

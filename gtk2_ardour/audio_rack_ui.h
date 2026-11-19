@@ -17,6 +17,7 @@
 #include "ardour/audio_rack.h"
 #include "ardour_window.h"
 #include "plugin_interest.h"
+#include "processor_box.h"
 
 namespace ARDOUR { class Route; }
 class PluginSelector;
@@ -62,7 +63,7 @@ private:
 	sigc::connection _idle;
 };
 
-class AudioRackUI : public Gtk::VBox, public PluginInterestedObject, public PBD::ScopedConnectionList {
+class AudioRackUI : public Gtk::VBox, public PluginInterestedObject, public PBD::ScopedConnectionList, public ProcessorEntryHost {
 public:
 	explicit AudioRackUI (std::shared_ptr<ARDOUR::AudioRack>);
 	~AudioRackUI ();
@@ -77,12 +78,29 @@ public:
 	sigc::signal<bool> ParentFocusRequested;
 private:
 	bool focus_list (Gtk::TreeView&);
+	bool focus_plugins ();
+	void chain_focus_changed (bool);
+	void on_map () override;
+	void on_unmap () override;
+	void update_focus_highlight (Gtk::Widget*);
+	void all_visible_processors_active (bool) override;
+	void setup_routing_feeds () override;
+	void update_gui_object_state (ProcessorEntry*, bool) override;
+	void edit_processor (std::shared_ptr<ARDOUR::Processor>) override;
+	void generic_edit_processor (std::shared_ptr<ARDOUR::Processor>) override;
+	Gtk::Widget* entry_toplevel () override { return get_toplevel (); }
+	bool entry_drag_data (Gtk::SelectionData&, std::shared_ptr<ARDOUR::Processor>) override;
+	bool plugin_button_press (GdkEventButton*, ProcessorEntry*);
+	bool plugin_button_release (GdkEventButton*, ProcessorEntry*);
+	void plugin_menu (ProcessorEntry*, guint);
+	void rename_plugin (std::shared_ptr<ARDOUR::PluginInsert>);
+	size_t selected_plugin_index () const;
+	void scroll_to_plugin (ProcessorEntry*);
 	void plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&);
-	void plugin_drag_data (Glib::RefPtr<Gdk::DragContext> const&, Gtk::SelectionData&, guint, guint);
 	void plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&);
 	bool drag_motion (Glib::RefPtr<Gdk::DragContext> const&, int, int, guint, bool chains);
 	void drag_received (Glib::RefPtr<Gdk::DragContext> const&, int, int, Gtk::SelectionData const&, guint, guint, bool chains);
-	std::weak_ptr<ARDOUR::PluginInsert> _drag_plugin;
+	bool _dragging = false, _rebuild_after_drag = false;
 	Gtk::Window& parent_window ();
 	void schedule_rebuild ();
 	void rebuild_plugins ();
@@ -112,8 +130,9 @@ private:
 	Gtk::VBox _root, _macro_section, _chain_section, _plugin_section;
 	Gtk::HBox _body, _toolbar, _chain_toolbar, _chain_controls, _plugin_toolbar;
 	Gtk::Table _macros;
-	Gtk::TreeView _chain_view, _plugin_view;
-	Glib::RefPtr<Gtk::ListStore> _chain_model, _plugin_model;
+	Gtk::TreeView _chain_view;
+	Gtkmm2ext::DnDVBox<ProcessorEntry> _plugin_view;
+	Glib::RefPtr<Gtk::ListStore> _chain_model;
 	Gtk::ScrolledWindow _chain_scroll, _plugin_scroll;
 	Gtk::Button _add_chain, _remove_chain, _add_plugin, _open_plugin, _parameters, _up, _down, _remove_plugin;
 	Gtk::ComboBoxText _learn_macro;
@@ -127,9 +146,10 @@ private:
 	std::unique_ptr<PluginSelector> _selector;
 	std::vector<std::unique_ptr<PluginUIWindow>> _windows;
 	std::unique_ptr<Gtk::Menu> _menu;
+	std::unique_ptr<Gtk::Menu> _plugin_menu;
 	std::weak_ptr<ARDOUR::AudioRack::Chain> _adding_chain;
 	bool _rebuilding = false;
-	sigc::connection _idle;
+	sigc::connection _idle, _colors, _focus_connection;
 };
 
 /** Optional floating editor uses exactly the same controls as the device panel. */

@@ -780,6 +780,28 @@ refresh, invalid input, Cancel, empty filters, Reset, and startup restoration.
 The injection waits for a trigger and refuses to operate on non-Verification
 windows. Keep it out of production launch environments.
 
+## Shared plugin rows in audio racks
+
+The selected rack chain uses the same `PluginInsertProcessorEntry` widgets as
+track processor lists: bypass LED, inline controls/displays, routing indicators,
+and Controls/Presets menus. `ProcessorEntryHost` contains the small set of
+callbacks these rows need from their container; rendering stays in
+`processor_box.h/.cc`. Chain edits still use the existing rack/route APIs.
+Rack row visibility is saved in each plugin's `Extra/RackProcessorRow` state.
+
+Enter moves from the rack to chains and then plugins; arrows navigate that
+list, and Escape returns one level. Only the active level has a bright selection;
+the other levels retain dim selections for context. Delete removes the selected
+chain plugin.
+Right-click a plugin for editing, bypass, inline controls, presets or renaming.
+
+The selected-device native probe checks that both lists use the same row class,
+then exercises bypass isolation, row menus, saved control visibility, keyboard
+navigation and regular track rows. Build it with
+`prepare-selected-device-ui-probe.py`; `ARDOUR_DEVICE_UI_PROBE_RACK_KEYS=1`
+runs the focused rack/track subset in a disposable Verification session. The
+rack mouse probe uses `prepare-rack-ui-probe.py` to build its C++ row bridge.
+
 ## Dragging plugins through audio racks
 
 Drag an existing audio effect from the track's processor list onto a chain row

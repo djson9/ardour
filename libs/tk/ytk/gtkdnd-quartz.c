@@ -1936,8 +1936,8 @@ drag_drop_finished_idle_cb (gpointer data)
 {
   GtkDragSourceInfo* info = (GtkDragSourceInfo*) data;
 
-  if (info->success)
-    gtk_drag_source_info_destroy (data);
+  /* Cancelled and rejected drags also own source state and must emit drag-end. */
+  gtk_drag_source_info_destroy (info);
 
   return FALSE;
 }

@@ -159,7 +159,7 @@ static void set_routing_color (cairo_t* cr, bool midi)
 	}
 }
 
-ProcessorEntry::ProcessorEntry (ProcessorBox* parent, std::shared_ptr<Processor> p, Width w)
+ProcessorEntry::ProcessorEntry (ProcessorEntryHost* parent, std::shared_ptr<Processor> p, Width w)
 	: _button (ArdourButton::led_default_elements)
 	, _position (PreFader)
 	, _position_num(0)
@@ -341,6 +341,7 @@ ProcessorEntry::can_copy_state (Gtkmm2ext::DnDVBoxChild* o) const
 bool
 ProcessorEntry::drag_data_get (Glib::RefPtr<Gdk::DragContext> const, Gtk::SelectionData &data)
 {
+	if (_parent->entry_drag_data (data, _processor)) return true;
 	if (data.get_target () == "x-ardour/rack-plugin") {
 		AudioRackUI::drag_data (data, std::dynamic_pointer_cast<PluginInsert> (_processor));
 		return true;
@@ -863,7 +864,7 @@ ProcessorEntry::plugin_preset_add ()
 
 	NewPluginPresetDialog d (plugin, _("New Preset"));
 
-	Gtk::Window* tlw = dynamic_cast<Gtk::Window*> (_parent->get_toplevel ());
+	Gtk::Window* tlw = dynamic_cast<Gtk::Window*> (_parent->entry_toplevel ());
 	d.set_keep_above (true);
 	if (tlw) {
 		d.set_transient_for (*tlw);
@@ -1276,7 +1277,7 @@ ProcessorEntry::Control::state_id () const
 	return string_compose (X_("control %1"), c->id().to_s ());
 }
 
-PluginInsertProcessorEntry::PluginInsertProcessorEntry (ProcessorBox* b, std::shared_ptr<ARDOUR::PluginInsert> p, Width w)
+PluginInsertProcessorEntry::PluginInsertProcessorEntry (ProcessorEntryHost* b, std::shared_ptr<ARDOUR::PluginInsert> p, Width w)
 	: ProcessorEntry (b, p, w)
 	, _plugin_insert (p)
 {
@@ -3431,7 +3432,13 @@ ProcessorBox::reordered ()
 void
 ProcessorBox::setup_routing_feeds ()
 {
-	list<ProcessorEntry*> children = processor_display.children ();
+	ProcessorEntry::setup_routing_feeds (processor_display.children ());
+}
+
+void
+ProcessorEntry::setup_routing_feeds (std::list<ProcessorEntry*> const& entries)
+{
+	list<ProcessorEntry*> children = entries;
 	/* first set the i/o maps for every processor */
 	list<ProcessorEntry*>::iterator prev = children.begin();
 
