@@ -252,6 +252,10 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  check (plugins->is_focus () && plugin_index () == 0, "Right did not focus selected chain plugins");
  key (props, GDK_Left);
  check (chains->is_focus () && index (chains) == 1, "Left did not return to the same chain");
+ key (props, GDK_Left);
+ check (devices.is_focus () && selected_rack (), "Left from chains did not return to the rack row");
+ key (props, GDK_Return);
+ check (chains->is_focus () && index (chains) == 1, "Reentering after Left lost the selected chain");
  key (props, GDK_KP_Enter);
  check (plugins->is_focus () && plugin_index () == 0, "Enter on chain did not focus its first plugin");
  key (props, GDK_Down);
@@ -282,6 +286,8 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  auto route = dynamic_cast<Route*> (rack->owner ());
  auto* view = route ? PublicEditor::instance ().time_axis_view_from_stripable (route->shared_from_this ()) : nullptr;
  check (view && view->track_header_has_focus (), "Escape from devices did not return to the track");
+ check (open_plugin_picker (props), "N on the focused track did not open its plugin selector");
+ check (view->track_header_has_focus (), "N on the track moved keyboard focus");
  key (props, GDK_Tab); key (props, GDK_c);
  check (chains->is_focus () && index (chains) == 1, "Reentering rack lost the selected chain");
  key (props, GDK_Return); key (props, GDK_Escape); key (props, GDK_Escape);

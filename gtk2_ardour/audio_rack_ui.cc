@@ -319,6 +319,7 @@ bool AudioRackUI::list_key_press (GdkEventKey* event) {
 	switch (event->keyval) {
 	case GDK_Left: case GDK_KP_Left:
 		if (!chains) focus_chains ();
+		else if (!ParentFocusRequested.empty ()) ParentFocusRequested ();
 		return true;
 	case GDK_Right: case GDK_KP_Right:
 		if (chains) focus_plugins ();
