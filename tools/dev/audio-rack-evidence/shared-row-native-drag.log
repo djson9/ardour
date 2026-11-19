@@ -1,0 +1,31 @@
+RACK PROBE stage 2
+RACK PROBE stage 7
+RACK PROBE stage 12
+RACK PROBE stage 17
+RACK PROBE stage 21
+RACK PROBE stage 25
+RACK PROBE stage 29
+RACK PROBE stage 34
+RACK PROBE row: Rack test (376x19)
+RACK PROBE drag begin
+RACK PROBE stage 41
+RACK PROBE drag end
+RACK PROBE row: Rack test (376x19)
+RACK PROBE row: ACE EQ (376x19)
+RACK PROBE drag begin
+RACK PROBE stage 42
+RACK PROBE drag end
+RACK PROBE row: Rack test (376x19)
+RACK PROBE stage 43
+RACK PROBE drag begin
+RACK PROBE stage 43
+RACK PROBE stage 44
+RACK PROBE row: Rack test (376x19)
+RACK PROBE drag begin
+RACK PROBE stage 45
+RACK PROBE drag end
+RACK PROBE PASSED: native mouse drags between chains, reorder, out to track, into empty chain, cancel
+RACK PROBE READY: select empty track
+RACK PROBE READY: return to rack track
+RACK PROBE stage 37
+RACK PROBE PASSED: bottom panel, macros, learned controls, chain selection, insertion, reorder, removal and track-switch lifecycle

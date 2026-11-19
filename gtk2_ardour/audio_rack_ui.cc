@@ -15,6 +15,8 @@
 #include "ardour/plugin_manager.h"
 #include "ardour/session.h"
 #include "gtkmm2ext/doi.h"
+#include "gtkmm2ext/colors.h"
+#include "ui_config.h"
 #include "audio_rack_ui.h"
 #include "automation_controller.h"
 #include "gui_thread.h"
@@ -164,7 +166,7 @@ AudioRackWindow::AudioRackWindow (std::shared_ptr<AudioRack> rack)
 }
 
 AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
-	: _rack (rack), _macros (2, 4, true), _add_chain (_("Add chain")), _remove_chain (_("Remove chain")),
+	: _rack (rack), _macros (2, 4, true), _plugin_view ({TargetEntry ("x-ardour/rack-plugin", TARGET_SAME_APP)}, Gdk::ACTION_COPY | Gdk::ACTION_MOVE), _add_chain (_("Add chain")), _remove_chain (_("Remove chain")),
 	  _add_plugin (_("Add plugin…")), _open_plugin (_("Open")), _parameters (_("Parameters")),
 	  _up (_("Up")), _down (_("Down")), _remove_plugin (_("Remove")), _learn (_("Learn")),
 	  _chain_mute (_("Mute")), _chain_solo (_("Solo"))
@@ -187,6 +189,8 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_chain_scroll.set_policy (POLICY_NEVER, POLICY_AUTOMATIC); _chain_scroll.set_size_request (185, 90); _chain_scroll.add (_chain_view);
 	_chain_view.set_name ("AudioRackChainList"); _chain_view.set_headers_visible (false);
 	_chain_view.set_data ("audio-rack-ui", this);
+	_colors = UIConfiguration::instance ().ColorsChanged.connect ([this] () { chain_focus_changed (_chain_view.is_focus ()); });
+	chain_focus_changed (false);
 	_chain_model = ListStore::create (_list_columns); _chain_view.set_model (_chain_model);
 	_chain_view.append_column (_("Chain"), _list_columns.name); _chain_view.append_column (_("Plugins"), _list_columns.detail);
 	_chain_view.get_selection ()->signal_changed ().connect (sigc::mem_fun (*this, &AudioRackUI::chain_selected));
@@ -201,22 +205,23 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	_chain_mute.signal_toggled ().connect (sigc::mem_fun (*this, &AudioRackUI::update_chain));
 	_chain_solo.signal_toggled ().connect (sigc::mem_fun (*this, &AudioRackUI::update_chain));
 	_plugin_scroll.set_policy (POLICY_NEVER, POLICY_AUTOMATIC); _plugin_scroll.set_size_request (380, 90); _plugin_scroll.add (_plugin_view);
-	_plugin_view.set_name ("AudioRackPluginList"); _plugin_model = ListStore::create (_list_columns); _plugin_view.set_model (_plugin_model);
-	_plugin_view.append_column (_("Plugins in selected chain"), _list_columns.name);
+	_plugin_view.set_name ("AudioRackPluginList"); _plugin_view.set_can_focus ();
+	_plugin_view.set_no_show_all (true); _plugin_view.show ();
 	_plugin_view.set_data ("audio-rack-ui", this);
-	_plugin_view.get_selection ()->signal_changed ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_selected));
-	_plugin_view.signal_row_activated ().connect ([this] (TreeModel::Path const&, TreeViewColumn*) { if (auto p = selected_plugin ()) open_plugin (p, true); });
+	_plugin_view.SelectionChanged.connect (sigc::mem_fun (*this, &AudioRackUI::plugin_selected));
+	_plugin_view.ButtonPress.connect (sigc::mem_fun (*this, &AudioRackUI::plugin_button_press));
+	_plugin_view.ButtonRelease.connect (sigc::mem_fun (*this, &AudioRackUI::plugin_button_release));
 	std::vector<TargetEntry> targets {TargetEntry ("x-ardour/rack-plugin", TARGET_SAME_APP)};
-	_plugin_view.enable_model_drag_source (targets, Gdk::BUTTON1_MASK, Gdk::ACTION_COPY | Gdk::ACTION_MOVE);
-	_plugin_view.signal_drag_begin ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_begin));
-	_plugin_view.signal_drag_data_get ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_data));
-	_plugin_view.signal_drag_end ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_end));
 	for (bool chains : {false, true}) {
-		auto& view = chains ? _chain_view : _plugin_view;
+		Widget& view = chains ? static_cast<Widget&> (_chain_view) : static_cast<Widget&> (_plugin_view);
 		view.drag_dest_set (targets, DEST_DEFAULT_DROP, Gdk::ACTION_COPY | Gdk::ACTION_MOVE);
 		view.signal_drag_motion ().connect (sigc::bind (sigc::mem_fun (*this, &AudioRackUI::drag_motion), chains), false);
-		view.signal_drag_data_received ().connect (sigc::bind (sigc::mem_fun (*this, &AudioRackUI::drag_received), chains));
-		view.signal_drag_leave ().connect ([&view] (Glib::RefPtr<Gdk::DragContext> const&, guint) { gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE); });
+		// Handle the ID payload before DnDVBox's native pointer-based reorder handler.
+		view.signal_drag_data_received ().connect (sigc::bind (sigc::mem_fun (*this, &AudioRackUI::drag_received), chains), false);
+		view.signal_drag_leave ().connect ([this, chains] (Glib::RefPtr<Gdk::DragContext> const&, guint) {
+			if (chains) gtk_tree_view_set_drag_dest_row (_chain_view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+			else _plugin_view.remove_placeholder ();
+		});
 	}
 	_plugin_view.set_tooltip_text (_("Drag plugins to reorder them, into another chain, or back to the track's plugin list."));
 	_chain_view.set_tooltip_text (_("Drop an audio effect on a chain to move it there."));
@@ -242,7 +247,7 @@ AudioRackUI::AudioRackUI (std::shared_ptr<AudioRack> rack)
 	signal_unmap ().connect ([this] () { _learn.set_active (false); _selector->hide (); });
 	rebuild (); show_all_children ();
 }
-AudioRackUI::~AudioRackUI () { _idle.disconnect (); }
+AudioRackUI::~AudioRackUI () { _idle.disconnect (); _colors.disconnect (); _focus_connection.disconnect (); _plugin_menu.reset (); _plugin_view.clear (); }
 bool AudioRackUI::focus_list (TreeView& view) {
 	if (!view.get_mapped () || !view.is_sensitive ()) return false;
 	auto row = view.get_selection ()->get_selected ();
@@ -251,16 +256,46 @@ bool AudioRackUI::focus_list (TreeView& view) {
 	view.grab_focus ();
 	return view.is_focus ();
 }
+void AudioRackUI::on_map () {
+	Gtk::VBox::on_map (); _focus_connection.disconnect ();
+	if (auto window = dynamic_cast<Window*> (get_toplevel ())) {
+		_focus_connection = window->signal_set_focus ().connect (sigc::mem_fun (*this, &AudioRackUI::update_focus_highlight));
+		update_focus_highlight (window->get_focus ());
+	}
+}
+void AudioRackUI::on_unmap () {
+	_focus_connection.disconnect (); update_focus_highlight (nullptr); Gtk::VBox::on_unmap ();
+}
+void AudioRackUI::update_focus_highlight (Widget* focus) {
+	chain_focus_changed (focus == &_chain_view);
+	while (focus && focus != &_plugin_view) focus = focus->get_parent ();
+	for (auto e : _plugin_view.children ()) e->set_selection_focus (focus == &_plugin_view);
+}
+void AudioRackUI::chain_focus_changed (bool focused) {
+	auto& config = UIConfiguration::instance ();
+	auto background = Gtkmm2ext::gdk_color_from_rgba (config.color (focused ? "gtk_bg_selected" : "gtk_background"));
+	auto foreground = Gtkmm2ext::gdk_color_from_rgba (config.color (focused ? "gtk_fg_selected" : "gtk_foreground"));
+	for (auto state : {STATE_SELECTED, STATE_ACTIVE}) { _chain_view.modify_base (state, background); _chain_view.modify_text (state, foreground); }
+}
 bool AudioRackUI::focus_chains () { return focus_list (_chain_view); }
+bool AudioRackUI::focus_plugins () {
+	if (!_plugin_view.get_mapped () || !_plugin_view.is_sensitive ()) return false;
+	if (_plugin_view.selection ().empty () && !_plugin_view.children ().empty ()) _plugin_view.select (_plugin_view.children ().front ());
+	_plugin_view.grab_focus ();
+	return _plugin_view.is_focus ();
+}
 bool AudioRackUI::list_key_press (GdkEventKey* event) {
 	if (!Gtkmm2ext::Keyboard::modifier_state_equals (event->state, 0)) return false;
 	bool chains = _chain_view.is_focus ();
 	if (!chains && !_plugin_view.is_focus ()) return false;
 	switch (event->keyval) {
 	case GDK_Return: case GDK_KP_Enter:
-		if (chains) focus_list (_plugin_view);
+		if (chains) focus_plugins ();
 		else if (auto p = selected_plugin ()) open_plugin (p, true);
 		return true;
+	case GDK_Delete: case GDK_BackSpace:
+		if (!chains) { remove_plugin (); return true; }
+		return false;
 	case GDK_Escape:
 		if (!chains) return focus_chains ();
 		return !ParentFocusRequested.empty () && ParentFocusRequested ();
@@ -274,7 +309,18 @@ bool AudioRackUI::list_key_press (GdkEventKey* event) {
 		previous = false; break;
 	default: return false;
 	}
-	auto& view = chains ? _chain_view : _plugin_view;
+	if (!chains) {
+		auto rows = _plugin_view.children ();
+		if (rows.empty ()) return true;
+		auto selected = _plugin_view.selection ();
+		auto row = selected.empty () ? rows.end () : std::find (rows.begin (), rows.end (), selected.back ());
+		if (row == rows.end ()) row = previous ? std::prev (rows.end ()) : rows.begin ();
+		else if (previous && row != rows.begin ()) --row;
+		else if (!previous && std::next (row) != rows.end ()) ++row;
+		_plugin_view.select (*row); scroll_to_plugin (*row);
+		return true;
+	}
+	auto& view = _chain_view;
 	auto model = view.get_model ();
 	auto rows = model->children ();
 	if (rows.empty ()) return true;
@@ -289,7 +335,7 @@ bool AudioRackUI::list_key_press (GdkEventKey* event) {
 }
 Window& AudioRackUI::parent_window () { return *dynamic_cast<Window*> (get_toplevel ()); }
 void AudioRackUI::failed (std::string const& text) { _status.set_text (text); _status.set_visible (!text.empty ()); }
-void AudioRackUI::schedule_rebuild () { if (!_rebuilding && !_idle.connected ()) _idle = Glib::signal_idle ().connect ([this] () { rebuild (); return false; }); }
+void AudioRackUI::schedule_rebuild () { if (_dragging) { _rebuild_after_drag = true; return; } if (!_rebuilding && !_idle.connected ()) _idle = Glib::signal_idle ().connect ([this] () { rebuild (); return false; }); }
 size_t AudioRackUI::selected_chain_index () const {
 	auto c = _selected_chain.lock ();
 	return std::distance (_rack->chains ().begin (), std::find (_rack->chains ().begin (), _rack->chains ().end (), c));
@@ -347,7 +393,7 @@ void AudioRackUI::chain_selected () {
 	_selected_chain = _rack->chains ()[i]; _selected_plugin.reset (); rebuild_plugins ();
 }
 void AudioRackUI::rebuild_plugins () {
-	_rebuilding = true; _plugin_model->clear ();
+	_rebuilding = true; _plugin_menu.reset (); _plugin_view.clear ();
 	auto c = _selected_chain.lock ();
 	if (c) {
 		_chain_name.set_text (c->name); _chain_gain.set_value (c->gain > 0 ? 20 * std::log10 (c->gain) : -60);
@@ -355,20 +401,87 @@ void AudioRackUI::rebuild_plugins () {
 		auto selected = _selected_plugin.lock ();
 		if (std::find (c->plugins.begin (), c->plugins.end (), selected) == c->plugins.end ()) selected = c->plugins.empty () ? nullptr : c->plugins.front ();
 		for (size_t i = 0; i < c->plugins.size (); ++i) {
-			auto row = _plugin_model->append (); (*row)[_list_columns.index] = i; (*row)[_list_columns.name] = c->plugins[i]->name ();
-			if (c->plugins[i] == selected) _plugin_view.get_selection ()->select (row);
+			auto e = new PluginInsertProcessorEntry (this, c->plugins[i], Wide);
+			e->set_position (ProcessorEntry::PreFader, i);
+			e->set_selection_focus (_plugin_view.is_focus ());
+			_plugin_view.add_child (e, {TargetEntry ("x-ardour/rack-plugin", TARGET_SAME_APP)});
+			e->action_widget ().signal_drag_begin ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_begin));
+			e->action_widget ().signal_drag_end ().connect (sigc::mem_fun (*this, &AudioRackUI::plugin_drag_end));
+			e->widget ().show_all (); e->set_control_state (c->plugins[i]->extra_xml ("RackProcessorRow")); e->hide_things ();
+			if (c->plugins[i] == selected) _plugin_view.select (e);
 		}
+		setup_routing_feeds ();
 	}
 	_rebuilding = false; plugin_selected ();
 }
+size_t AudioRackUI::selected_plugin_index () const {
+	auto c = _selected_chain.lock ();
+	return c ? std::distance (c->plugins.begin (), std::find (c->plugins.begin (), c->plugins.end (), selected_plugin ())) : 0;
+}
 void AudioRackUI::plugin_selected () {
 	if (_rebuilding) return;
-	auto row = _plugin_view.get_selection ()->get_selected (); auto c = _selected_chain.lock ();
-	unsigned i = row ? row->get_value (_list_columns.index) : 0;
-	bool valid = row && c && i < c->plugins.size ();
-	_selected_plugin = valid ? c->plugins[i] : std::shared_ptr<PluginInsert> ();
+	auto rows = _plugin_view.selection ();
+	_selected_plugin = rows.empty () ? nullptr : std::dynamic_pointer_cast<PluginInsert> (rows.back ()->processor ());
+	auto c = _selected_chain.lock (); auto i = selected_plugin_index ();
+	bool valid = c && i < c->plugins.size ();
 	_open_plugin.set_sensitive (valid); _parameters.set_sensitive (valid); _remove_plugin.set_sensitive (valid);
 	_up.set_sensitive (valid && i > 0); _down.set_sensitive (valid && i + 1 < c->plugins.size ());
+}
+void AudioRackUI::scroll_to_plugin (ProcessorEntry* e) {
+	int x, y;
+	if (e->widget ().translate_coordinates (_plugin_view, 0, 0, x, y)) _plugin_scroll.get_vadjustment ()->clamp_page (y, y + e->widget ().get_height ());
+}
+void AudioRackUI::all_visible_processors_active (bool active) {
+	if (auto c = _selected_chain.lock ()) for (auto p : c->plugins) p->enable (active);
+}
+void AudioRackUI::setup_routing_feeds () { ProcessorEntry::setup_routing_feeds (_plugin_view.children ()); }
+void AudioRackUI::update_gui_object_state (ProcessorEntry* e, bool) {
+	auto state = new XMLNode ("RackProcessorRow"); e->add_control_state (state);
+	e->processor ()->add_extra_xml (*state); _rack->session ().set_dirty ();
+}
+void AudioRackUI::edit_processor (std::shared_ptr<Processor> p) { if (auto plugin = std::dynamic_pointer_cast<PluginInsert> (p)) open_plugin (plugin, true); }
+void AudioRackUI::generic_edit_processor (std::shared_ptr<Processor> p) { if (auto plugin = std::dynamic_pointer_cast<PluginInsert> (p)) open_plugin (plugin, false); }
+bool AudioRackUI::entry_drag_data (SelectionData& data, std::shared_ptr<Processor> p) {
+	if (data.get_target () != "x-ardour/rack-plugin") return false;
+	drag_data (data, std::dynamic_pointer_cast<PluginInsert> (p), _rack); return true;
+}
+bool AudioRackUI::plugin_button_press (GdkEventButton* ev, ProcessorEntry* e) {
+	_plugin_view.grab_focus ();
+	if (Gtkmm2ext::Keyboard::is_context_menu_event (ev)) { plugin_menu (e, ev->time); return true; }
+	if (ev->button == 1 && ev->type == GDK_2BUTTON_PRESS) {
+		if (!e) add_plugin ();
+		else if (Gtkmm2ext::Keyboard::modifier_state_equals (ev->state, Gtkmm2ext::Keyboard::TertiaryModifier)) e->toggle_inline_display_visibility ();
+		else if (Gtkmm2ext::Keyboard::modifier_state_equals (ev->state, Gtkmm2ext::Keyboard::SecondaryModifier)) generic_edit_processor (e->processor ());
+		else edit_processor (e->processor ());
+		return true;
+	}
+	return false;
+}
+bool AudioRackUI::plugin_button_release (GdkEventButton* ev, ProcessorEntry* e) {
+	if (e && Gtkmm2ext::Keyboard::is_button2_event (ev)) e->processor ()->enable (!e->processor ()->enabled ());
+	return false;
+}
+void AudioRackUI::plugin_menu (ProcessorEntry* e, guint time) {
+	using namespace Menu_Helpers;
+	_plugin_menu.reset (new Menu ()); auto& items = _plugin_menu->items ();
+	items.push_back (MenuElem (_("Add plugin…"), sigc::mem_fun (*this, &AudioRackUI::add_plugin)));
+	if (e) {
+		auto p = std::dynamic_pointer_cast<PluginInsert> (e->processor ());
+		items.push_back (MenuElem (_("Edit…"), [this, p] () { open_plugin (p, true); }));
+		items.push_back (MenuElem (_("Edit with generic controls…"), [this, p] () { open_plugin (p, false); }));
+		items.push_back (MenuElem (p->enabled () ? _("Bypass") : _("Enable"), [p] () { p->enable (!p->enabled ()); }));
+		if (auto menu = e->build_controls_menu ()) items.push_back (MenuElem (_("Controls"), *menu));
+		if (auto menu = e->build_presets_menu ()) items.push_back (MenuElem (_("Presets"), *menu));
+		items.push_back (MenuElem (_("Rename…"), [this, p] () { rename_plugin (p); }));
+		items.push_back (MenuElem (_("Delete"), sigc::mem_fun (*this, &AudioRackUI::remove_plugin)));
+	}
+	_plugin_menu->popup (3, time);
+}
+void AudioRackUI::rename_plugin (std::shared_ptr<PluginInsert> p) {
+	Dialog dialog (_("Rename Plugin"), parent_window (), true); Entry name; name.set_text (p->name ());
+	dialog.get_vbox ()->pack_start (name); dialog.add_button (_("Cancel"), RESPONSE_CANCEL); dialog.add_button (_("Rename"), RESPONSE_OK);
+	name.signal_activate ().connect ([&dialog] () { dialog.response (RESPONSE_OK); }); dialog.show_all (); name.grab_focus ();
+	if (dialog.run () == RESPONSE_OK && !name.get_text ().empty () && _rack->contains (p)) { p->set_name (name.get_text ()); _rack->session ().set_dirty (); }
 }
 void AudioRackUI::update_chain () {
 	if (_rebuilding) return;
@@ -402,7 +515,8 @@ bool AudioRackUI::drop_plugin (Session& session, SelectionData const& data, Rout
 	auto destination = session.route_by_id (route.id ());
 	auto target_chain = rack ? rack->chains ()[chain] : nullptr;
 	// Route notifications can destroy both the drag source and this panel.
-	// Wait until GTK has finished tearing down its drag context.
+	// GTK queues its drag-end cleanup at DEFAULT_IDLE after drop delivery.
+	// Run after that cleanup so DnDVBox can release its source row first.
 	Glib::signal_idle ().connect_once ([plugin, source, source_route, rack, destination, target_chain, position, before] () {
 		size_t index = rack ? std::distance (rack->chains ().begin (), std::find (rack->chains ().begin (), rack->chains ().end (), target_chain)) : 0;
 		if (source_route->session ().route_by_id (source_route->id ()) != source_route ||
@@ -411,47 +525,45 @@ bool AudioRackUI::drop_plugin (Session& session, SelectionData const& data, Rout
 			MessageDialog dialog (_("Cannot move this plugin here. Racks accept compatible audio effects without MIDI or external sidechains; moves are disabled while recording."));
 			dialog.run ();
 		}
-	});
+	}, Glib::PRIORITY_LOW);
 	return true;
 }
-void AudioRackUI::plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&) { _drag_plugin = selected_plugin (); }
-void AudioRackUI::plugin_drag_data (Glib::RefPtr<Gdk::DragContext> const&, SelectionData& data, guint, guint)
-{
-	if (auto p = _drag_plugin.lock ()) drag_data (data, p, _rack);
+void AudioRackUI::plugin_drag_begin (Glib::RefPtr<Gdk::DragContext> const&) { _dragging = true; }
+void AudioRackUI::plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&) {
+	_dragging = false;
+	if (_rebuild_after_drag) { _rebuild_after_drag = false; schedule_rebuild (); }
 }
-void AudioRackUI::plugin_drag_end (Glib::RefPtr<Gdk::DragContext> const&) { _drag_plugin.reset (); }
 bool AudioRackUI::drag_motion (Glib::RefPtr<Gdk::DragContext> const& context, int x, int y, guint time, bool chains)
 {
-	auto& view = chains ? _chain_view : _plugin_view;
+	Widget& view = chains ? static_cast<Widget&> (_chain_view) : static_cast<Widget&> (_plugin_view);
 	if (view.drag_dest_find_target (context, view.drag_dest_get_target_list ()) != "x-ardour/rack-plugin") return false;
-	TreeModel::Path path; TreeViewDropPosition position;
-	if (view.get_dest_row_at_pos (x, y, path, position)) {
-		if (chains) position = TREE_VIEW_DROP_INTO_OR_BEFORE;
-		else position = (position == TREE_VIEW_DROP_AFTER || position == TREE_VIEW_DROP_INTO_OR_AFTER) ? TREE_VIEW_DROP_AFTER : TREE_VIEW_DROP_BEFORE;
-		view.set_drag_dest_row (path, position);
-	} else gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	if (chains) {
+		TreeModel::Path path; TreeViewDropPosition position;
+		if (_chain_view.get_dest_row_at_pos (x, y, path, position)) _chain_view.set_drag_dest_row (path, TREE_VIEW_DROP_INTO_OR_BEFORE);
+		else gtk_tree_view_set_drag_dest_row (_chain_view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	} else _plugin_view.add_placeholder (y);
 	context->drag_status (Gdk::ACTION_COPY, time); // The receiver moves it; GTK must never delete the source.
 	return true;
 }
 void AudioRackUI::drag_received (Glib::RefPtr<Gdk::DragContext> const& context, int x, int y, SelectionData const& data, guint, guint time, bool chains)
 {
-	auto& view = chains ? _chain_view : _plugin_view;
-	TreeModel::Path path; TreeViewDropPosition position;
+	if (!chains) g_signal_stop_emission_by_name (_plugin_view.gobj (), "drag-data-received");
 	size_t chain = selected_chain_index (), index = 0;
-	bool row = view.get_dest_row_at_pos (x, y, path, position);
 	if (chains) {
-		if (!row) { context->drag_finish (false, false, time); return; }
+		TreeModel::Path path; TreeViewDropPosition position;
+		if (!_chain_view.get_dest_row_at_pos (x, y, path, position)) { context->drag_finish (false, false, time); return; }
 		chain = path[0];
 	}
 	bool ok = false;
 	if (chain < _rack->chains ().size ()) {
 		index = _rack->chains ()[chain]->plugins.size ();
-		if (!chains && row) index = path[0] + ((position == TREE_VIEW_DROP_AFTER || position == TREE_VIEW_DROP_INTO_OR_AFTER) ? 1 : 0);
+		if (!chains) { double position = _plugin_view.get_child_at_position (y).second; if (position >= 0) index = size_t (position + .5); }
 		if (auto route = dynamic_cast<Route*> (_rack->owner ())) ok = drop_plugin (_rack->session (), data, *route, _rack, chain, index);
 		if (ok) { _selected_chain = _rack->chains ()[chain]; failed (""); }
 	}
 	if (!ok) failed (_("Cannot move this plugin here. Racks accept compatible audio effects without MIDI or external sidechains; moves are disabled while recording."));
-	gtk_tree_view_set_drag_dest_row (view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	if (chains) gtk_tree_view_set_drag_dest_row (_chain_view.gobj (), nullptr, GTK_TREE_VIEW_DROP_BEFORE);
+	else _plugin_view.remove_placeholder ();
 	context->drag_finish (ok, false, time);
 }
 void AudioRackUI::add_plugin () {
@@ -465,11 +577,11 @@ void AudioRackUI::remove_chain () {
 	_rack->remove_chain (selected_chain_index ());
 }
 void AudioRackUI::move_plugin (int direction) {
-	auto row = _plugin_view.get_selection ()->get_selected (); if (row) _rack->move_plugin (selected_chain_index (), (*row)[_list_columns.index], direction);
+	if (selected_plugin ()) _rack->move_plugin (selected_chain_index (), selected_plugin_index (), direction);
 }
 void AudioRackUI::remove_plugin () {
-	auto row = _plugin_view.get_selection ()->get_selected (); if (!row) return;
-	_windows.clear (); _rack->remove_plugin (selected_chain_index (), (*row)[_list_columns.index]);
+	if (!selected_plugin ()) return;
+	_windows.clear (); _rack->remove_plugin (selected_chain_index (), selected_plugin_index ());
 }
 bool AudioRackUI::use_plugins (SelectedPlugins const& plugins) {
 	auto chain = _adding_chain.lock ();

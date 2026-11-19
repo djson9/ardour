@@ -28,11 +28,19 @@ static int click(GtkWidget* w,const char* text) {
  struct Search s={text,NULL};find_button(w,&s);if(!s.result)return 0;
  g_object_ref(s.result);g_idle_add(click_idle,s.result);return 1;
 }
+#ifdef __APPLE__
+extern int rack_probe_capture(GtkWidget*,const char*);
+#endif
 static void capture(GtkWidget* w,const char* name) {
+#ifdef __APPLE__
+ char path[4096];snprintf(path,sizeof(path),"%s/%s.png",getenv("ARDOUR_RACK_UI_PROBE"),name);
+ if(!rack_probe_capture(w,path))g_printerr("RACK PROBE capture failed: %s\n",path);
+#else
  capturing=w; capture_name=name;content=GTK_IS_WINDOW(w)?gtk_bin_get_child(GTK_BIN(w)):w;original_parent=gtk_widget_get_parent(content);
  GtkAllocation a;gtk_widget_get_allocation(content,&a);g_object_ref(content);
  gtk_container_remove(GTK_CONTAINER(original_parent),content);offscreen=gtk_offscreen_window_new();
  gtk_widget_set_size_request(offscreen,a.width,a.height);gtk_container_add(GTK_CONTAINER(offscreen),content);gtk_widget_show_all(offscreen);
+#endif
 }
 static void finish_capture(void) {
  GdkPixbuf* image=gtk_offscreen_window_get_pixbuf(GTK_OFFSCREEN_WINDOW(offscreen));
@@ -82,16 +90,12 @@ static int select_row(GtkWidget* view,int index) {
  gtk_tree_view_set_cursor(GTK_TREE_VIEW(view),path,NULL,FALSE);gtk_tree_path_free(path);return 1;
 }
 static int select_chain(int index) {return select_row(named(rack,"AudioRackChainList"),index);}
-static int plugin_count(void) {
- GtkWidget* view=named(rack,"AudioRackPluginList");if(!view)return -1;
- return gtk_tree_model_iter_n_children(gtk_tree_view_get_model(GTK_TREE_VIEW(view)),NULL);
-}
-static int plugin_name(int index,const char* expected) {
- GtkWidget* view=named(rack,"AudioRackPluginList");if(!view)return 0;
- GtkTreeModel* model=gtk_tree_view_get_model(GTK_TREE_VIEW(view));GtkTreeIter iter;
- if(!gtk_tree_model_iter_nth_child(model,&iter,NULL,index))return 0;
- char* name=NULL;gtk_tree_model_get(model,&iter,1,&name,-1);int result=name&&!strcmp(name,expected);g_free(name);return result;
-}
+extern int rack_probe_dragging(void);
+extern int rack_probe_plugin_count(GtkWidget*);
+extern int rack_probe_plugin_name(GtkWidget*,int,const char*);
+extern GtkWidget* rack_probe_plugin_row(GtkWidget*,int);
+static int plugin_count(void) { return rack_probe_plugin_count(named(rack,"AudioRackPluginList")); }
+static int plugin_name(int index,const char* expected) { return rack_probe_plugin_name(named(rack,"AudioRackPluginList"),index,expected); }
 static int add_to_second_chain(void) {if(!select_chain(1))return 0;return click(rack,"Add plugin…");}
 static void return_key(GtkWidget* w) {
  GdkEvent* ev=gdk_event_new(GDK_KEY_PRESS);ev->key.window=g_object_ref(gtk_widget_get_window(w));
@@ -115,6 +119,9 @@ static int drag_request(int id, GtkWidget* source, int source_row, GtkWidget* de
  if(!source||!destination||!gtk_widget_get_mapped(source)||!gtk_widget_get_mapped(destination))return 0;
  gtk_window_present(GTK_WINDOW(gtk_widget_get_toplevel(source)));
  GtkWidget* widgets[]={source,destination}; int rows[]={source_row,destination_row}; int x[2],y[2];
+ for(int i=0;i<2;++i) if(widgets[i]==named(rack,"AudioRackPluginList")&&rows[i]>=0) {
+  widgets[i]=rack_probe_plugin_row(widgets[i],rows[i]);if(!widgets[i])return 0;rows[i]=(i==1?-2:-1);
+ }
  for(int i=0;i<2;++i) {
   if(GTK_IS_TREE_VIEW(widgets[i])&&rows[i]>=0) {
    GtkTreePath* path=gtk_tree_path_new_from_indices(rows[i],-1);GdkRectangle rect;
@@ -125,7 +132,7 @@ static int drag_request(int id, GtkWidget* source, int source_row, GtkWidget* de
    GtkWidget* top=gtk_widget_get_toplevel(widgets[i]);int dx,dy;GtkAllocation a;
    gdk_window_get_origin(gtk_widget_get_window(top),&x[i],&y[i]);
    gtk_widget_translate_coordinates(widgets[i],top,0,0,&dx,&dy);gtk_widget_get_allocation(widgets[i],&a);
-   x[i]+=dx+25;y[i]+=dy+(rows[i]==-2?2:a.height/2);
+   x[i]+=dx+a.width/2;y[i]+=dy+(rows[i]==-2?2:a.height/2);
   }
  }
  char path[4096],temp[4096];snprintf(path,sizeof(path),"%s/drag-request.json",getenv("ARDOUR_RACK_UI_PROBE"));
@@ -134,7 +141,7 @@ static int drag_request(int id, GtkWidget* source, int source_row, GtkWidget* de
 }
 static int drag_done(int id) {
  char path[4096];snprintf(path,sizeof(path),"%s/drag-done",getenv("ARDOUR_RACK_UI_PROBE"));
- FILE* f=fopen(path,"r");int value=0;if(f){fscanf(f,"%d",&value);fclose(f);}return value==id;
+ FILE* f=fopen(path,"r");int value=0;if(f){fscanf(f,"%d",&value);fclose(f);}return value==id && !rack_probe_dragging();
 }
 static GtkWidget* editor_window(void) {GtkWidget* w=top("*Rack Verification - Ardour");return w?w:top("Rack Verification - Ardour");}
 static gboolean probe(gpointer unused) {

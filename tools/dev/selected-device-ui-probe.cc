@@ -73,6 +73,11 @@ static Gtk::Widget* named (Gtk::Widget* w, std::string const& name) {
  if (auto* c = dynamic_cast<Gtk::Container*> (w)) for (auto* child : c->get_children ()) if (auto* found = named (child, name)) return found;
  return nullptr;
 }
+static List* track_list (Gtk::Widget* w) {
+ if (w->get_data ("processorbox")) if (auto* list = dynamic_cast<List*> (w)) return list;
+ if (auto* c = dynamic_cast<Gtk::Container*> (w)) for (auto* child : c->get_children ()) if (auto* list = track_list (child)) return list;
+ return nullptr;
+}
 static Gtk::Widget* piano_canvas () {
  for (auto* w : Gtk::Window::list_toplevels ()) if (w->get_visible ()) if (auto* p = named (w, "MidiCueCanvas")) if (p->get_mapped ()) return p;
  return nullptr;
@@ -81,11 +86,11 @@ static ProcessorEntry* entry (List* list, std::shared_ptr<Processor> p) {
  for (auto* e : list->children ()) if (e->processor () == p) return e;
  return nullptr;
 }
-static void click (Gtk::Widget& w, guint button = 1) {
+static void click (Gtk::Widget& w, guint button = 1, double x = 8, double y = 8) {
  for (auto type : {GDK_BUTTON_PRESS, GDK_BUTTON_RELEASE}) {
   GdkEvent* e = gdk_event_new (type);
   e->button.window = GDK_WINDOW (g_object_ref (w.get_window ()->gobj ()));
-  e->button.send_event = true; e->button.button = button; e->button.x = 8; e->button.y = 8;
+  e->button.send_event = true; e->button.button = button; e->button.x = x; e->button.y = y;
   gtk_widget_event (w.gobj (), e); gdk_event_free (e);
  }
 }
@@ -113,6 +118,7 @@ static void snapshot (Gtk::Widget* w, std::string const& suffix) {
  /* GTK2's pixmap snapshot has no Quartz backing store. Cache the native view
   * instead, which draws the real widget tree without screen-recording access. */
  auto* toplevel = w->get_toplevel ();
+ gdk_window_process_updates (toplevel->get_window ()->gobj (), true);
  NSView* view = gdk_quartz_window_get_nsview (toplevel->get_window ()->gobj ());
  gint x = 0, y = 0;
  gtk_widget_translate_coordinates (w->gobj (), GTK_WIDGET (toplevel->gobj ()), 0, 0, &x, &y);
@@ -207,11 +213,15 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
  auto* ui = find<AudioRackUI> (&props);
  auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
- auto* plugins = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackPluginList"));
+ auto* plugins = dynamic_cast<List*> (named (ui, "AudioRackPluginList"));
  check (chains && plugins && chains->is_focus (), "Enter on the rack did not focus chains after a queued panel build");
  auto index = [] (Gtk::TreeView* list) {
   auto row = list->get_selection ()->get_selected ();
   return row ? list->get_model ()->get_path (row)[0] : -1;
+ };
+ auto plugin_index = [&] () {
+  auto rows = plugins->children (); auto selection = plugins->selection ();
+  return selection.empty () ? -1 : int (std::distance (rows.begin (), std::find (rows.begin (), rows.end (), selection.back ())));
  };
  auto selected_rack = [&] () { return devices.selection ().size () == 1 && devices.selection ().front ()->processor () == rack; };
  check (index (chains) == 0, "Wrong initial chain");
@@ -222,23 +232,23 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  key (props, GDK_Right); key (props, GDK_Left);
  check (index (chains) == 1, "Horizontal arrows did not navigate chains");
  key (props, GDK_KP_Enter);
- check (plugins->is_focus () && index (plugins) == 0, "Enter on chain did not focus its first plugin");
+ check (plugins->is_focus () && plugin_index () == 0, "Enter on chain did not focus its first plugin");
  key (props, GDK_Down);
- check (plugins->is_focus () && index (plugins) == 1 && selected_rack (), "Down left the plugin list");
+ check (plugins->is_focus () && plugin_index () == 1 && selected_rack (), "Down left the plugin list");
  key (props, GDK_Down);
- check (index (plugins) == 1, "Plugin navigation wrapped at the end");
+ check (plugin_index () == 1, "Plugin navigation wrapped at the end");
  key (props, GDK_KP_Up);
- check (index (plugins) == 0, "Keypad Up did not select the previous plugin");
+ check (plugin_index () == 0, "Keypad Up did not select the previous plugin");
  key (props, GDK_Up);
- check (index (plugins) == 0, "Plugin navigation wrapped at the start");
+ check (plugin_index () == 0, "Plugin navigation wrapped at the start");
  key (props, GDK_Down);
  key (props, GDK_Escape);
  check (chains->is_focus () && index (chains) == 1, "Escape from plugins did not preserve the chain");
  key (props, GDK_Return);
- check (plugins->is_focus () && index (plugins) == 1, "Reentering the chain lost the selected plugin");
+ check (plugins->is_focus () && plugin_index () == 1, "Reentering the chain lost the selected plugin");
  key (props, GDK_Escape);
  key (props, GDK_Down); key (props, GDK_Return);
- check (plugins->is_focus () && plugins->get_model ()->children ().empty (), "Cannot enter an empty chain");
+ check (plugins->is_focus () && plugins->children ().empty (), "Cannot enter an empty chain");
  key (props, GDK_Down);
  check (plugins->is_focus () && selected_rack (), "Empty chain arrow changed track/device selection");
  key (props, GDK_Escape);
@@ -253,6 +263,59 @@ static void verify_rack_navigation (RoutePropertiesBox& props, std::shared_ptr<A
  check (chains->is_focus () && index (chains) == 1, "Reentering rack lost the selected chain");
  key (props, GDK_Return); key (props, GDK_Escape); key (props, GDK_Escape);
  check (devices.is_focus () && selected_rack (), "Repeated Enter/Escape lost rack selection");
+}
+static void verify_rack_rows (RoutePropertiesBox& props, std::shared_ptr<AudioRack> rack, List& devices)
+{
+ auto check = [] (bool passed, char const* message) { if (!passed) throw std::runtime_error (message); };
+ auto* ui = find<AudioRackUI> (&props);
+ auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+ auto* plugins = dynamic_cast<List*> (named (ui, "AudioRackPluginList"));
+ // Both lists must instantiate the same row class, not just matching styling.
+ auto p = rack->chains ()[1]->plugins.front ();
+ auto* row = entry (plugins, p);
+ check (dynamic_cast<PluginInsertProcessorEntry*> (row), "Rack did not reuse the standard plugin row");
+ check (row->action_widget ().get_name () == devices.children ().front ()->action_widget ().get_name (), "Rack row styling differs from track row");
+ dynamic_cast<Gtk::Container*> (ui->get_toplevel ())->check_resize ();
+ auto* led = dynamic_cast<ArdourWidgets::ArdourButton*> (&row->action_widget ());
+ check (led, "Shared row bypass LED missing");
+ // Click the actual ArdourButton indicator, then test the context menu path.
+ GdkEvent* enter = gdk_event_new (GDK_ENTER_NOTIFY);
+ enter->crossing.window = GDK_WINDOW (g_object_ref (led->get_window ()->gobj ()));
+ enter->crossing.mode = GDK_CROSSING_NORMAL;
+ gtk_widget_event (GTK_WIDGET (led->gobj ()), enter); gdk_event_free (enter);
+ GdkEventButton hit {}; hit.button = 1; hit.x = led->char_pixel_width () + 1; hit.y = led->get_height () * .5;
+ check (led->is_led_click (&hit), "Probe missed bypass indicator");
+ click (*led, 1, hit.x, hit.y);
+ check (!p->enabled () && rack->chains ()[1]->plugins.back ()->enabled (), "Bypass LED affected the wrong plugin");
+ auto menu_item = [&] (std::string const& name) -> Gtk::MenuItem* {
+  for (auto* w : Gtk::Window::list_toplevels ()) if (auto* m = find<Gtk::Menu> (w)) if (m->get_visible ()) {
+   for (auto* child : m->get_children ()) if (auto* item = dynamic_cast<Gtk::MenuItem*> (child)) if (label (item, name)) return item;
+  }
+  return nullptr;
+ };
+ click (row->action_widget (), 3);
+ auto* enable = menu_item ("Enable"); check (enable, "Rack row Enable menu missing"); enable->activate ();
+ check (p->enabled (), "Rack context menu did not enable plugin");
+ click (row->action_widget (), 3);
+ auto* controls = menu_item ("Controls"); auto* presets = menu_item ("Presets");
+ check (controls && presets, "Shared control/preset menus missing");
+ auto* control_menu = dynamic_cast<Gtk::Menu*> (controls->get_submenu ());
+ Gtk::MenuItem* hide = nullptr;
+ for (auto* child : control_menu->get_children ()) if (auto* item = dynamic_cast<Gtk::MenuItem*> (child)) if (label (item, "Hide All Controls")) hide = item;
+ check (hide, "Shared hide-controls menu missing"); hide->activate ();
+ for (auto* w : Gtk::Window::list_toplevels ()) if (auto* m = find<Gtk::Menu> (w)) m->popdown ();
+ auto state = p->extra_xml ("RackProcessorRow"); check (state && !state->children ().empty (), "Inline control visibility was not persisted");
+ XMLNode saved (*state);
+ chains->grab_focus (); key (props, GDK_Down); key (props, GDK_Up);
+ row = entry (plugins, p); XMLNode restored ("RackProcessorRow"); row->add_control_state (&restored);
+ check (saved == restored, "Switching chains lost inline control state");
+ auto clone = std::make_shared<PluginInsert> (p->session (), *rack);
+ std::unique_ptr<XMLNode> plugin_state (&p->get_state ());
+ check (!clone->set_state (*plugin_state, PBD::Stateful::current_state_version), "Reloading plugin row state failed");
+ check (clone->extra_xml ("RackProcessorRow") && *clone->extra_xml ("RackProcessorRow") == saved, "Serialized plugin lost row state");
+ clone->drop_references ();
+
+ props.focus_processors ();
 }
 static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<PluginInsert> eq, std::shared_ptr<PluginInsert> other)
 {
@@ -508,7 +571,7 @@ static gboolean tick (gpointer) {
  try {
   auto* session = AudioEngine::instance ()->session (); if (!session) return TRUE;
   if (session->name ().find ("Verification") == std::string::npos) return finish ("Use a disposable Verification session");
-  if (stage >= 30) {
+  if (stage >= 30 && stage <= 50) {
    auto& editor = PublicEditor::instance ();
    auto range = [&] (std::shared_ptr<Route> track, timepos_t at) {
     session->selection ().select_stripable_and_maybe_group (track, SelectionSet, false);
@@ -689,6 +752,7 @@ static gboolean tick (gpointer) {
   }
   if (stage == 0) {
    g_printerr ("Device UI probe: preparing device/rack fixture\n");
+   ActionManager::get_toggle_action ("Editor", "show-editor-props")->set_active (true);
    for (auto const& r : *session->get_routes ()) if (r->name () == "Audio") route = r;
    if (!route) return finish ("Fixture needs an Audio track");
    if (!route->fader_last ()) return finish ("Existing session did not default to fader last");
@@ -727,7 +791,7 @@ static gboolean tick (gpointer) {
   RoutePropertiesBox* props = nullptr;
   for (auto* w : Gtk::Window::list_toplevels ()) if (w->get_visible ()) if (auto* p = find<RoutePropertiesBox> (w)) if (p->get_mapped ()) props = p;
   if (!props) return TRUE;
-  auto* list = find<List> (props); if (!list || (stage != 9 && (stage < 20 || stage > 23) && !entry (list, eq))) return TRUE;
+  auto* list = track_list (props); if (!list || (stage != 9 && (stage < 20 || stage > 23) && !entry (list, eq))) return TRUE;
   static gint64 last_report = 0;
   static int reported_stage = -1;
   if (reported_stage != stage || g_get_monotonic_time () - last_report > 1000000) {
@@ -773,6 +837,41 @@ static gboolean tick (gpointer) {
    if (!selected (rack)) return finish ("Right did not select the rack");
    if (count<AudioRackUI> (props) != 1 || count<GenericPluginUI> (props)) return TRUE;
    verify_rack_navigation (*props, rack, *list);
+   stage = 60; return TRUE;
+  }
+  if (stage == 60) {
+   verify_rack_rows (*props, rack, *list);
+   stage = 61; return TRUE;
+  }
+  if (stage == 61) {
+   auto* ui = find<AudioRackUI> (props);
+   auto* plugins = dynamic_cast<List*> (named (ui, "AudioRackPluginList"));
+   for (auto* row : plugins->children ()) if (!row->action_widget ().get_mapped () || row->action_widget ().get_height () < 8) return TRUE;
+   snapshot (ui, ".shared-rack-rows");
+   snapshot (props, ".focus-track-plugins");
+   key (*props, GDK_Return); stage = 62; return TRUE;
+  }
+  static Gdk::Color focused_chain_color;
+  if (stage == 62) {
+   auto* ui = find<AudioRackUI> (props);
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+   if (!chains->is_focus ()) return TRUE;
+   focused_chain_color = chains->get_style ()->get_base (Gtk::STATE_SELECTED);
+   snapshot (props, ".focus-chains");
+   key (*props, GDK_Return); stage = 63; return TRUE;
+  }
+  if (stage == 63) {
+   auto* ui = find<AudioRackUI> (props);
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+   auto* plugins = dynamic_cast<List*> (named (ui, "AudioRackPluginList"));
+   if (!plugins->is_focus () || focused_chain_color == chains->get_style ()->get_base (Gtk::STATE_SELECTED)) return finish ("Chain selection did not dim when entering plugins");
+   snapshot (props, ".focus-chain-plugins");
+   key (*props, GDK_Escape); stage = 64; return TRUE;
+  }
+  if (stage == 64) {
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (find<AudioRackUI> (props), "AudioRackChainList"));
+   if (!chains->is_focus () || chains->get_style ()->get_base (Gtk::STATE_SELECTED) != focused_chain_color) return finish ("Escape did not restore the chain focus highlight");
+   key (*props, GDK_Escape);
    auto* text = find<Gtk::Entry> (find<AudioRackUI> (props));
    if (!text) return finish ("Missing rack name entry");
    text->grab_focus (); text->select_region (2, 2); text->set_position (2); key (*props, GDK_Left);

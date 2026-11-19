@@ -1,0 +1,12 @@
+   91 |   reference back() const { return *(--end()); }
+      |                                   ^
+../gtk2_ardour/mixer_ui.cc:4427:9: note: in instantiation of member function 'Ytkmm::HelperList<Gtk::MenuItem, const Gtk::Menu_Helpers::Element, Glib::List_Cpp_Iterator<_GtkMenuItem, Gtk::MenuItem>>::back' requested here
+ 4427 |                 items.back().set_sensitive (!PublicEditor::instance().get_selection().tracks.routelist ().empty ());
+      |                       ^
+72 warnings generated.
+
+[1547/1567] Linking build/gtk2_ardour/ardour-9.0.pre0
+ld: warning: ignoring duplicate libraries: '-ldl', '-lfftw3f_threads', '-lfontconfig', '-lglib-2.0', '-lglibmm-2.4', '-lgobject-2.0', '-lgthread-2.0', '-lharfbuzz', '-lintl', '-lpango-1.0', '-lsigc-2.0'
+
+Waf: Leaving directory `/Users/davidson/workspace/ardour-audio-racks-build/build'
+'build' finished successfully (32.074s)

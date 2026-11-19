@@ -48,11 +48,8 @@ for line in (root/'build/c4che/_cache.py').read_text().splitlines():
   key,value=line.split(' = ',1)
   try:cache[key]=ast.literal_eval(value)
   except (ValueError,SyntaxError):pass
-incs=list((root/'libs/tk').iterdir())+list((root/'build/libs/tk').iterdir())
-for key,value in cache.items():
- if key.startswith('INCLUDES') and isinstance(value,list):incs.extend(map(pathlib.Path,value))
 probe=out/'ui-probe.dylib'
-subprocess.run(['/usr/bin/clang','-dynamiclib','-undefined','dynamic_lookup','-Wno-deprecated-declarations',*['-I'+str(d) for d in incs if d.is_dir()],str(root/'tools/dev/audio-rack-ui-probe.c'),'-o',str(probe)],check=True)
+subprocess.run([os.sys.executable,str(root/'tools/dev/prepare-rack-ui-probe.py'),str(probe)],check=True)
 exe=root/'build/gtk2_ardour'/('ardour-'+cache['VERSION'])
 command=common+'export DYLD_INSERT_LIBRARIES='+shlex.quote(str(interpose)+':'+str(probe))+'\nexec '+shlex.join([str(exe),'-a','-n',str(fixture)])
 job=dict(Label='dev.ardour.audio-racks-verification',ProgramArguments=['/bin/bash','-c',command],RunAtLoad=True,EnvironmentVariables={'ARDOUR_PROBE_HOME':str(home),'ARDOUR_RACK_UI_PROBE':str(out),'ARDOUR_LIVE_LAYOUT':'1'},StandardOutPath=str(out/'gui.log'),StandardErrorPath=str(out/'gui.log'))
