@@ -1341,8 +1341,45 @@ Editor::track_selection_changed ()
 }
 
 void
+Editor::extend_selection_by_nudge (bool forward)
+{
+	if (!_session || _drags->active () || track_dragging ()) {
+		return;
+	}
+
+	timepos_t start, end;
+	if (!get_selection_extents (start, end)) {
+		start = end = selection->time.empty () ? timepos_t (playhead_cursor_sample ()) : selection->time.start_time ();
+	}
+	/* On the first press, extend the edge in the requested direction. Keep
+	 * the opposite edge fixed until another selection gesture takes over. */
+	const timepos_t anchor = _keyboard_selection_anchor.value_or (forward ? start : end);
+	const timepos_t edge = anchor == start ? end : start;
+	timecnt_t unused;
+	const timecnt_t step = directional_nudge_distance (edge, unused, forward);
+	const timepos_t next = forward ? edge + step : (edge > step ? edge.earlier (step) : timepos_t::zero (edge.time_domain ()));
+	if (next == edge) {
+		return;
+	}
+
+	const TrackViewList clip_tracks = selection->regions.empty () ? TrackViewList () : get_tracks_for_range_action ();
+	begin_reversible_selection_op (_("Extend time selection by nudge size"));
+	if (selection->time.size () == 1) {
+		selection->replace (selection->time.front ().id, std::min (anchor, next), std::max (anchor, next));
+	} else {
+		selection->set (std::min (anchor, next), std::max (anchor, next));
+	}
+	if (!clip_tracks.empty ()) {
+		selection->set (clip_tracks);
+	}
+	_keyboard_selection_anchor = anchor;
+	commit_reversible_selection_op ();
+}
+
+void
 Editor::time_selection_changed ()
 {
+	_keyboard_selection_anchor.reset ();
 	/* XXX this is superficially inefficient. Hide the selection in all
 	 * tracks, then show it in all selected tracks.
 	 *
