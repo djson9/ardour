@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Inject only into a disposable Verification GUI, then create the trigger file. */
+#include <cmath>
 #include <fstream>
 #include <type_traits>
 #include <execinfo.h>
@@ -335,12 +336,42 @@ static void verify_parameter_list (RoutePropertiesBox& props, std::shared_ptr<Pl
  check (state && state->children ().size () == 2 && control->get_value () == value, "Wrong serialized parameter list or value");
 }
 
+static void zoom_scroll (Gtk::Widget& canvas, GdkScrollDirection direction, double delta, guint modifiers = 0)
+{
+ GdkEvent* ev = gdk_event_new (GDK_SCROLL);
+ ev->scroll.window = GDK_WINDOW (g_object_ref (canvas.get_window ()->gobj ()));
+ ev->scroll.send_event = true;
+ ev->scroll.x = canvas.get_width () * 0.75;
+ ev->scroll.y = canvas.get_height () * 0.5;
+ ev->scroll.direction = direction;
+ ev->scroll.has_deltas = true;
+ ev->scroll.delta_y = delta;
+ ev->scroll.state = modifiers;
+ gtk_widget_event (canvas.gobj (), ev);
+ gdk_event_free (ev);
+}
+
 static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> model)
 {
  auto check = [] (bool ok, const char* message) { if (!ok) throw std::runtime_error (message); };
  check (piano.is_focus () && model->notes ().empty (), "Enter must focus the empty clip without inserting");
  Temporal::timecnt_t next;
  auto step = PublicEditor::instance ().get_nudge_distance (timepos_t (Temporal::Beats ()), next).beats ();
+ // Enter at the last grid position must stay there.
+ const auto end = Temporal::Beats (4, 0);
+ auto last = Temporal::Beats ();
+ while (last + step < end) {
+  key (piano, GDK_Right);
+  last += step;
+ }
+ key (piano, GDK_KP_Enter);
+ key (piano, GDK_Return);
+ check (model->notes ().size () == 1 && (*model->notes ().begin ())->time () == last,
+        "Placing at the clip end advanced beyond the last grid position");
+ key (piano, GDK_Delete);
+ key (piano, GDK_Delete);
+ for (auto pos = last; pos > Temporal::Beats (); pos -= step) key (piano, GDK_Left);
+ check (model->notes ().empty (), "Failed to remove the two notes at the clip end");
  key (piano, GDK_Right);
  key (piano, GDK_Down);
  key (piano, GDK_bracketright);
@@ -353,8 +384,8 @@ static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> m
  check (original->time () == step && original->length () == step + step && original->note () == 59,
         "Wrong cursor pitch, nudge distance or bracket length");
 
- // Cover the tail, then put a third note directly on top of the second.
- key (piano, GDK_Right);
+ // Placement advanced one nudge into the tail of the two-nudge note.
+ // Covering that occupied position must keep the cursor there for stacking.
  key (piano, GDK_bracketleft);
  key (piano, GDK_Return);
  check (model->notes ().size () == 1, "Overlapping original remained in playback");
@@ -453,9 +484,38 @@ static gboolean tick (gpointer) {
     return false;
    };
    auto* midi_view = editor.time_axis_view_from_stripable (midi_track);
-   if (stage == 32) {
+   if (stage == 32 || stage == 48 || stage == 49 || stage == 50) {
     if (!has_midi (midi_b)) return finish ("Enter did not open the MIDI clip at the selection marker");
     auto* piano = piano_canvas ();
+    auto* pane = static_cast<Pianoroll*> (piano->get_data ("pianoroll-note-cursor"));
+    if (!pane) return finish ("Piano roll lost keyboard editing mode");
+    static samplecnt_t initial_zoom, pinch_zoom, arrangement_zoom;
+    static double anchor_sample;
+    const auto zoom = pane->get_current_zoom ();
+    const double anchor_x = pane->canvas_to_timeline (piano->get_width () * 0.75);
+    const double anchored = (pane->horizontal_position () + anchor_x) * zoom;
+    if (stage == 32) {
+     arrangement_zoom = editor.get_current_zoom ();
+     initial_zoom = zoom;
+     anchor_sample = anchored;
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, 0.25);
+     stage = 48; return TRUE;
+    }
+    if (stage == 48) {
+     if (zoom != std::llround (std::llround (initial_zoom / 1.25) / 1.25) ||
+         std::abs (anchored - anchor_sample) > zoom) return finish ("Pinch zoom lost its scale or pointer anchor");
+     pinch_zoom = zoom;
+     zoom_scroll (*piano, GDK_SCROLL_PINCH, -0.2);
+     stage = 49; return TRUE;
+    }
+    if (stage == 49) {
+     if (zoom <= pinch_zoom) return finish ("Pinching inward did not zoom out");
+     zoom_scroll (*piano, GDK_SCROLL_UP, -1, Gtkmm2ext::Keyboard::ScrollZoomHorizontalModifier);
+     stage = 50; return TRUE;
+    }
+    if (zoom >= pinch_zoom || editor.get_current_zoom () != arrangement_zoom || !piano->is_focus ())
+     return finish ("Modified scroll did not zoom the focused piano roll independently");
     verify_note_cursor (*piano, std::dynamic_pointer_cast<MidiSource> (midi_b->source ())->model ());
     snapshot (piano, ".midi"); key (*piano, GDK_Escape);
     stage = 40; return TRUE;
@@ -475,7 +535,9 @@ static gboolean tick (gpointer) {
    if (stage == 42) {
     if (editor.playhead_cursor_sample () != timepos_t (Temporal::Beats (5, 0)).samples ()) return TRUE;
     auto* piano = piano_canvas (); if (!piano) return finish ("Piano roll closed during locate");
-    piano->grab_focus (); key (*piano, GDK_Return); stage = 45; return TRUE;
+    auto* canvas = named (piano->get_toplevel (), "EditorMainCanvas");
+    if (!canvas) return finish ("Missing arrangement canvas after locate");
+    canvas->grab_focus (); key (*canvas, GDK_Return); stage = 45; return TRUE;
    }
    if (stage == 45) {
     if (!has_midi (midi_a)) return finish ("Enter did not follow the moved playhead into another clip");

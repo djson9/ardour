@@ -516,6 +516,10 @@ Pianoroll::build_canvas ()
 	_canvas.set_background_color (UIConfiguration::instance().color ("arrange base"));
 	_canvas.signal_event().connect (sigc::mem_fun (*this, &Pianoroll::canvas_pre_event), false);
 
+	_canvas.signal_scroll_event ().connect ([this] (GdkEventScroll* ev) {
+		return _session && _track_canvas_width > 0 && !_drags->active () && handle_zoom_scroll (*ev);
+	}, false);
+
 	_canvas.PreRender.connect (sigc::mem_fun(*this, &EditingContext::pre_render));
 
 	/* scroll group for items that should not automatically scroll

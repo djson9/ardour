@@ -251,10 +251,12 @@ PianorollMidiView::note_cursor_key (guint key)
 		auto note = std::make_shared<NoteType> (get_channel_for_add (cursor_time), cursor_time,
 			std::min (cursor_length, end - cursor_time), cursor_pitch, get_velocity_for_add (cursor_time));
 		/* Cursor highlighting follows the current cell independently of mouse selection. */
+		const bool was_vacant = !cursor_hit;
 		auto* command = _model->new_note_diff_command (_("Place note"));
 		command->add_on_top (note);
 		_model->apply_diff_command_as_commit (_editing_context.history (), command);
 		play_midi_note (note);
+		if (was_vacant && cursor_time + step < end) cursor_time += step;
 		break;
 	}
 	case GDK_BackSpace: case GDK_Delete: case GDK_KP_Delete:
@@ -354,10 +356,6 @@ PianorollMidiView::scroll (GdkEventScroll* ev)
 			_editing_context.scroll_left_step ();
 			return true;
 		}
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
-			_editing_context.temporal_zoom_step_mouse_focus (false);
-			return true;
-		}
         if (!UIConfiguration::instance().get_scroll_velocity_editing ()) {
             if (_midi_context.scroll (ev)) {
                 return true;
@@ -367,10 +365,6 @@ PianorollMidiView::scroll (GdkEventScroll* ev)
 	case GDK_SCROLL_DOWN:
 		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
 			_editing_context.scroll_right_step ();
-			return true;
-		}
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::PrimaryModifier)) {
-			_editing_context.temporal_zoom_step_mouse_focus (true);
 			return true;
 		}
         if (!UIConfiguration::instance().get_scroll_velocity_editing ()) {
