@@ -321,6 +321,7 @@ public:
 	Temporal::timecnt_t get_paste_offset (Temporal::timepos_t const & pos, unsigned paste_count, Temporal::timecnt_t const & duration);
 
 	void nudge_forward (bool next, bool force_playhead);
+	void extend_selection_by_nudge (bool forward);
 	void nudge_backward (bool next, bool force_playhead);
 
 	/* nudge initiated from context menu */
@@ -2036,6 +2037,7 @@ private:
 	ArdourWidgets::ArdourButton      nudge_backward_button;
 	Gtk::HBox        nudge_hbox;
 	ArdourWidgets::ArdourDropdown live_nudge_selector;
+	std::optional<Temporal::timepos_t> _keyboard_selection_anchor;
 	int live_nudge_denominator = 0; // Classic layout uses the nudge clock.
 	void set_live_nudge_size (int denominator);
 	Temporal::timecnt_t directional_nudge_distance (Temporal::timepos_t const&, Temporal::timecnt_t& next, bool forward) const;

@@ -212,6 +212,7 @@ public:
 	virtual void toggle_location_at_playhead_cursor () = 0;
 
 	virtual void nudge_forward (bool next, bool force_playhead) = 0;
+	virtual void extend_selection_by_nudge (bool forward) = 0;
 	virtual void nudge_backward (bool next, bool force_playhead) = 0;
 
 	virtual void playhead_forward_to_grid () = 0;
