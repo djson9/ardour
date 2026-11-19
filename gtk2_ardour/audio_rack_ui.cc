@@ -270,6 +270,7 @@ void AudioRackUI::update_focus_highlight (Widget* focus) {
 	chain_focus_changed (focus == &_chain_view);
 	while (focus && focus != &_plugin_view) focus = focus->get_parent ();
 	for (auto e : _plugin_view.children ()) e->set_selection_focus (focus == &_plugin_view);
+	update_end_cursor (focus == &_plugin_view);
 }
 void AudioRackUI::chain_focus_changed (bool focused) {
 	auto& config = UIConfiguration::instance ();
@@ -293,6 +294,9 @@ bool AudioRackUI::list_key_press (GdkEventKey* event) {
 		if (chains) focus_plugins ();
 		else if (auto p = selected_plugin ()) open_plugin (p, true);
 		return true;
+	case GDK_n:
+		if (!chains) { add_plugin (); return true; }
+		return false;
 	case GDK_Delete: case GDK_BackSpace:
 		if (!chains) { remove_plugin (); return true; }
 		return false;
@@ -303,9 +307,15 @@ bool AudioRackUI::list_key_press (GdkEventKey* event) {
 	}
 	bool previous;
 	switch (event->keyval) {
-	case GDK_Up: case GDK_KP_Up: case GDK_Left: case GDK_KP_Left:
+	case GDK_Left: case GDK_KP_Left:
+		if (!chains) focus_chains ();
+		return true;
+	case GDK_Right: case GDK_KP_Right:
+		if (chains) focus_plugins ();
+		return true;
+	case GDK_Up: case GDK_KP_Up:
 		previous = true; break;
-	case GDK_Down: case GDK_KP_Down: case GDK_Right: case GDK_KP_Right:
+	case GDK_Down: case GDK_KP_Down:
 		previous = false; break;
 	default: return false;
 	}
@@ -418,8 +428,14 @@ size_t AudioRackUI::selected_plugin_index () const {
 	auto c = _selected_chain.lock ();
 	return c ? std::distance (c->plugins.begin (), std::find (c->plugins.begin (), c->plugins.end (), selected_plugin ())) : 0;
 }
+void AudioRackUI::update_end_cursor (bool focused) {
+	auto rows = _plugin_view.children ();
+	auto selection = _plugin_view.selection ();
+	_plugin_view.show_end_cursor (focused && (rows.empty () || (!selection.empty () && selection.back () == rows.back ())));
+}
 void AudioRackUI::plugin_selected () {
 	if (_rebuilding) return;
+	update_end_cursor (_plugin_view.is_focus ());
 	auto rows = _plugin_view.selection ();
 	_selected_plugin = rows.empty () ? nullptr : std::dynamic_pointer_cast<PluginInsert> (rows.back ()->processor ());
 	auto c = _selected_chain.lock (); auto i = selected_plugin_index ();

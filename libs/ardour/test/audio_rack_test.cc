@@ -3,6 +3,7 @@
 #include "test_needing_session.h"
 #include "test_util.h"
 #include "evoral/midi_events.h"
+#include "ardour/amp.h"
 #include "ardour/audio_rack.h"
 #include "ardour/audio_buffer.h"
 #include "ardour/midi_buffer.h"
@@ -43,6 +44,7 @@ class AudioRackTest : public TestNeedingSession {
  CPPUNIT_TEST (latency);
  CPPUNIT_TEST (session_roundtrip);
  CPPUNIT_TEST (transfers);
+ CPPUNIT_TEST (group_and_ungroup);
  CPPUNIT_TEST_SUITE_END ();
 public:
  void tearDown () override { AudioEngine::instance ()->set_session (nullptr); TestNeedingSession::tearDown (); }
@@ -150,6 +152,34 @@ end
   CPPUNIT_ASSERT (restored); CPPUNIT_ASSERT_EQUAL (std::string("Saved macro"),restored->macros ()[0].name);
   CPPUNIT_ASSERT_EQUAL (size_t(1),restored->macros ()[0].mappings.size ());
   CPPUNIT_ASSERT_EQUAL (size_t(1),restored->chains ()[0]->plugins.size ());
+ }
+ void group_and_ungroup () {
+  auto route = _session->new_audio_route (1,1,{},1,"Group",PresentationInfo::AudioBus,0).front ();
+  auto make_effect = [&] () {
+   auto dsp = std::make_shared<LuaProc> (*AudioEngine::instance (), *_session, script);
+   return std::make_shared<PluginInsert> (*_session, *route, dsp);
+  };
+  auto a = make_effect (), b = make_effect (), c = make_effect ();
+  CPPUNIT_ASSERT_EQUAL (0, route->add_processors ({a, b, c}, route->amp ()));
+  b->deactivate ();
+  CPPUNIT_ASSERT (!route->group_plugins ({a, c}));
+  auto rack = route->group_plugins ({a, b});
+  CPPUNIT_ASSERT (rack);
+  CPPUNIT_ASSERT ((rack->chains ()[0]->plugins == std::vector<std::shared_ptr<PluginInsert>> {a, b}));
+  CPPUNIT_ASSERT (!b->enabled ());
+  CPPUNIT_ASSERT (!route->processor_by_id (a->id ()));
+  CPPUNIT_ASSERT (rack->set_chain (0, "Wet", .5, false, false));
+  CPPUNIT_ASSERT (!route->ungroup_plugins (rack));
+  CPPUNIT_ASSERT (rack->set_chain (0, "Wet", 1, false, false));
+  CPPUNIT_ASSERT (route->ungroup_plugins (rack));
+  CPPUNIT_ASSERT (rack->chains ()[0]->plugins.empty ());
+  CPPUNIT_ASSERT (!route->processor_by_id (rack->id ()));
+  std::vector<std::shared_ptr<PluginInsert>> order;
+  route->foreach_processor ([&] (std::weak_ptr<Processor> w) {
+   if (auto plugin = std::dynamic_pointer_cast<PluginInsert> (w.lock ())) order.push_back (plugin);
+  });
+  CPPUNIT_ASSERT ((order == std::vector<std::shared_ptr<PluginInsert>> {a, b, c}));
+  CPPUNIT_ASSERT (!b->enabled ());
  }
  void transfers () {
   auto a = _session->new_audio_route (1,1,{},1,"Transfer source",PresentationInfo::AudioBus,0).front ();

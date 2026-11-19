@@ -52,6 +52,7 @@ public:
 	void clear_macro (size_t);
 	void regenerate_ids ();
 	bool requires_fixed_sized_buffers () const;
+	bool can_ungroup () const;
 	bool contains (std::shared_ptr<PluginInsert>) const;
 
 	bool can_support_io_configuration (ChanCount const&, ChanCount&);

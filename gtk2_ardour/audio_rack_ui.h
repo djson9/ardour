@@ -106,6 +106,7 @@ private:
 	void rebuild_plugins ();
 	void chain_selected ();
 	void plugin_selected ();
+	void update_end_cursor (bool focused);
 	void update_chain ();
 	void add_plugin ();
 	void remove_chain ();

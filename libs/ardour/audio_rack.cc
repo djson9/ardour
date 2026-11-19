@@ -14,6 +14,14 @@ using namespace ARDOUR;
 using namespace PBD;
 
 namespace {
+// A child can move between racks and routes while keeping its plugin instance.
+void watch_plugin_bypass (PluginInsert& plugin)
+{
+	plugin.ActiveChanged.connect_same_thread (plugin, [&plugin] () {
+		if (auto route = dynamic_cast<Route*> (plugin.owner ())) route->processor_latency_changed ();
+	});
+}
+
 // Macros have no timeline lane yet. GUI writes and DSP reads share only this
 // atomic value; the base control retains notification and widget behavior.
 class RackMacroControl : public AutomationControl {
@@ -59,6 +67,13 @@ AudioRack::~AudioRack ()
 
 bool AudioRack::editable () const { return !_session.actively_recording (); }
 void AudioRack::changed () { _session.set_dirty (); queue_latency (); Changed (); }
+
+bool AudioRack::can_ungroup () const
+{
+	if (!enabled () || _chains.size () != 1 || _chains.front ()->gain != 1 || _chains.front ()->mute) return false;
+	for (auto const& macro : _macros) if (!macro.mappings.empty ()) return false;
+	return true;
+}
 
 bool AudioRack::contains (std::shared_ptr<PluginInsert> p) const
 {
@@ -134,7 +149,7 @@ bool AudioRack::add_plugin (size_t index, std::shared_ptr<PluginInsert> p)
 		}
 		p->set_owner (owner ()); p->activate (); update_latency ();
 	}
-	p->ActiveChanged.connect_same_thread (*this, std::bind (&AudioRack::queue_latency, this));
+	watch_plugin_bypass (*p);
 	changed (); return true;
 }
 
@@ -339,7 +354,7 @@ int AudioRack::set_state (XMLNode const& node, int version)
 			if (!pn->get_property ("id", saved_id) || loaded.count (saved_id)) return -1;
 			loaded[saved_id] = p;
 			c->plugins.push_back (p);
-			p->ActiveChanged.connect_same_thread (*this, std::bind (&AudioRack::queue_latency, this));
+			watch_plugin_bypass (*p);
 		}
 		_chains.push_back (c);
 	}
