@@ -65,7 +65,7 @@ private:
 
 class AudioRackUI : public Gtk::VBox, public PluginInterestedObject, public PBD::ScopedConnectionList, public ProcessorEntryHost {
 public:
-	explicit AudioRackUI (std::shared_ptr<ARDOUR::AudioRack>);
+	AudioRackUI (std::shared_ptr<ARDOUR::AudioRack>, ProcessorSelection&);
 	~AudioRackUI ();
 	bool use_plugins (SelectedPlugins const&);
 	static void drag_data (Gtk::SelectionData&, std::shared_ptr<ARDOUR::PluginInsert>, std::shared_ptr<ARDOUR::AudioRack> = {});
@@ -109,6 +109,9 @@ private:
 	void update_end_cursor (bool focused);
 	void update_chain ();
 	void add_plugin ();
+	void add_chain ();
+	void copy_plugins ();
+	void paste_plugins ();
 	void remove_chain ();
 	void move_plugin (int);
 	void remove_plugin ();
@@ -123,6 +126,7 @@ private:
 	bool macro_context (GdkEventButton*, size_t);
 	void failed (std::string const&);
 	std::shared_ptr<ARDOUR::AudioRack> _rack;
+	ProcessorSelection& _p_selection;
 	struct ListColumns : Gtk::TreeModel::ColumnRecord {
 		ListColumns () { add (index); add (name); add (detail); }
 		Gtk::TreeModelColumn<unsigned> index;
@@ -156,7 +160,7 @@ private:
 /** Optional floating editor uses exactly the same controls as the device panel. */
 class AudioRackWindow : public ArdourWindow {
 public:
-	explicit AudioRackWindow (std::shared_ptr<ARDOUR::AudioRack>);
+	AudioRackWindow (std::shared_ptr<ARDOUR::AudioRack>, ProcessorSelection&);
 private:
 	AudioRackUI _ui;
 };

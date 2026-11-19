@@ -194,8 +194,9 @@ static void check_plugin_knob_scroll (GenericPluginUI* ui) {
 }
 static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  auto* window = dynamic_cast<Gtk::Window*> (widget.get_toplevel ());
+ auto* menu = dynamic_cast<Gtk::Menu*> (&widget);
  GdkEvent* event = gdk_event_new (GDK_KEY_PRESS);
- event->key.window = GDK_WINDOW (g_object_ref (window->get_window ()->gobj ()));
+ event->key.window = GDK_WINDOW (g_object_ref ((menu ? menu->get_window () : window->get_window ())->gobj ()));
  event->key.send_event = true; event->key.time = GDK_CURRENT_TIME;
  event->key.keyval = keyval; event->key.state = state;
  GdkKeymapKey* keys = nullptr; gint n_keys = 0;
@@ -205,8 +206,16 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gchar text[7] = {}; gunichar character = gdk_keyval_to_unicode (keyval);
  event->key.length = character ? g_unichar_to_utf8 (character, text) : 0;
  event->key.string = g_strdup (text);
- gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
+ gtk_widget_event (menu ? GTK_WIDGET (menu->gobj ()) : GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
+}
+static Gtk::Menu* new_processor_menu (RoutePropertiesBox& props)
+{
+ key (props, GDK_n);
+ for (auto w : Gtk::Window::list_toplevels ()) if (auto* menu = find<Gtk::Menu> (w)) {
+  if (menu->get_visible () && menu->get_data ("new-processor-menu")) return menu;
+ }
+ throw std::runtime_error ("N did not open the new processor menu");
 }
 static bool open_plugin_picker (RoutePropertiesBox& props)
 {
@@ -223,7 +232,14 @@ static bool open_plugin_picker (RoutePropertiesBox& props)
   }
   return true;
  }, 20);
- key (props, GDK_n);
+ auto* devices = track_list (&props);
+ if (devices && devices->is_focus ()) {
+  auto* menu = new_processor_menu (props);
+  std::list<Gtk::Widget*> rows = menu->get_children ();
+  if (rows.size () != 2 || !label (rows.front (), "Plugin") || !label (rows.back (), "Audio Rack") ||
+      GTK_MENU_SHELL (menu->gobj ())->active_menu_item != rows.front ()->gobj ()) throw std::runtime_error ("New menu did not start on Plugin");
+  key (*menu, GDK_Return);
+ } else key (props, GDK_n);
  close_dialogs.disconnect ();
  return picker_opened;
 }
@@ -922,9 +938,90 @@ static gboolean tick (gpointer) {
     list->select (entry (list, rack));
     auto cursor = named (list, "PluginInsertionCursor");
     if (!cursor || !cursor->get_visible ()) return finish ("End insertion cursor missing");
-    return finish (open_plugin_picker (*props) ? nullptr : "N did not open the track plugin selector");
+    if (!open_plugin_picker (*props)) return finish ("N did not open the track plugin selector");
+    auto* new_menu = new_processor_menu (*props);
+    key (*new_menu, GDK_Down);
+    if (!label (Glib::wrap (GTK_MENU_SHELL (new_menu->gobj ())->active_menu_item), "Audio Rack")) return finish ("Down did not select Audio Rack");
+    key (*new_menu, GDK_Return);
+    stage = 65; return TRUE;
    }
-   key (*props, GDK_Right); stage = 25; return TRUE;
+   key (*props, GDK_Down); stage = 25; return TRUE;
+  }
+  static std::shared_ptr<AudioRack> added_rack;
+  static std::shared_ptr<AutomationControl> copied_control;
+  static double copied_value;
+  if (stage == 65) {
+   auto order = visible_order (route);
+   if (order.size () != 5) return finish ("New menu did not add a rack");
+   added_rack = std::dynamic_pointer_cast<AudioRack> (order[3]);
+   if (!added_rack || added_rack == rack || !selected (added_rack)) return finish ("New rack selection missing");
+   if (count<AudioRackUI> (props) != 1 || find<AudioRackUI> (props)->rack () != added_rack) return TRUE;
+   key (*props, GDK_KP_Right); stage = 66; return TRUE;
+  }
+  if (stage == 66) {
+   auto* ui = find<AudioRackUI> (props);
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+   if (!chains->is_focus ()) return finish ("Right from track rack did not focus chains");
+   key (*props, GDK_n);
+   if (added_rack->chains ().size () != 2) return finish ("N did not add a chain");
+   stage = 67; return TRUE;
+  }
+  if (stage == 67) {
+   auto* ui = find<AudioRackUI> (props);
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+   auto row = chains->get_selection ()->get_selected ();
+   if (!chains->is_focus () || !row || chains->get_model ()->get_path (row)[0] != 1) return finish ("New chain did not retain focus and selection");
+   key (*props, GDK_Escape);
+   for (auto const& parameter : eq->what_can_be_automated ()) {
+    auto control = eq->automation_control (parameter);
+    if (parameter.type () == PluginAutomation && control && !control->desc ().toggled && control->desc ().upper > control->desc ().lower) { copied_control = control; break; }
+   }
+   if (!copied_control) return finish ("Missing source parameter for clipboard verification");
+   copied_control->set_value (copied_control->desc ().from_interface (.37), PBD::Controllable::NoGroup);
+   copied_value = copied_control->get_value ();
+   eq->enable (false);
+   auto learned = new XMLNode ("LearnedParameters");
+   learned->add_child ("Parameter")->set_property ("id", copied_control->parameter ().id ());
+   eq->add_extra_xml (*learned);
+   list->select (entry (list, eq));
+   key (*props, GDK_Down, Gdk::SHIFT_MASK);
+   key (*props, GDK_c, Gtkmm2ext::Keyboard::PrimaryModifier);
+   list->select (entry (list, added_rack));
+   key (*props, GDK_Right);
+   stage = 70; return TRUE;
+  }
+  if (stage == 70) {
+   auto* ui = find<AudioRackUI> (props);
+   if (!ui || ui->rack () != added_rack) return TRUE;
+   auto* chains = dynamic_cast<Gtk::TreeView*> (named (ui, "AudioRackChainList"));
+   if (!chains->is_focus ()) return TRUE;
+   auto row = chains->get_selection ()->get_selected ();
+   if (row && chains->get_model ()->get_path (row)[0] == 0) key (*props, GDK_Down);
+   key (*props, GDK_Right);
+   key (*props, GDK_v, Gtkmm2ext::Keyboard::PrimaryModifier);
+   stage = 68; return TRUE;
+  }
+  if (stage == 68) {
+   auto const& copies = added_rack->chains ()[1]->plugins;
+   if (copies.size () != 2 || copies[0]->name () != eq->name () || copies[1]->name () != delay->name () || copies[0]->id () == eq->id () || copies[1]->id () == delay->id ()) return finish ("Track-to-chain copy lost order or plugin identity");
+   auto control = copies[0]->automation_control (copied_control->parameter ());
+   if (!control || control->id () == copied_control->id () || std::abs (control->get_value () - copied_value) > 1e-6 || copies[0]->enabled () || !copies[0]->extra_xml ("LearnedParameters")) return finish ("Paste lost parameter state, bypass or learned controls");
+   auto* plugins = dynamic_cast<List*> (named (find<AudioRackUI> (props), "AudioRackPluginList"));
+   if (!plugins->is_focus () || plugins->children ().size () != 2) return TRUE;
+   key (*props, GDK_Down, Gdk::SHIFT_MASK);
+   if (plugins->selection ().size () != 2) return finish ("Chain Shift+Down did not select both plugins");
+   key (*props, GDK_c, Gtkmm2ext::Keyboard::PrimaryModifier);
+   key (*props, GDK_v, Gtkmm2ext::Keyboard::PrimaryModifier);
+   stage = 69; return TRUE;
+  }
+  if (stage == 69) {
+   if (added_rack->chains ()[1]->plugins.size () != 4) return finish ("Chain-to-chain paste failed");
+   key (*props, GDK_Escape); key (*props, GDK_Escape);
+   list->select (entry (list, added_rack));
+   key (*props, GDK_v, Gtkmm2ext::Keyboard::PrimaryModifier);
+   auto order = visible_order (route);
+   if (order.size () != 7 || order[3]->name () != eq->name () || order[4]->name () != delay->name () || order[3]->id () == eq->id () || order[4]->id () == delay->id ()) return finish ("Chain-to-track paste lost order or unique IDs");
+   return finish (nullptr);
   }
   if (stage == 25) {
    if (!selected (route->amp ())) return finish ("Arrow did not select Fader");

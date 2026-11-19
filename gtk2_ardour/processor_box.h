@@ -482,6 +482,7 @@ public:
 	static Glib::RefPtr<Gtk::ActionGroup> processor_box_actions;
 	static Gtkmm2ext::Bindings* bindings;
 	static void register_actions();
+	static std::shared_ptr<ARDOUR::PluginInsert> clone_plugin (ARDOUR::Session&, Temporal::TimeDomainProvider const&, XMLNode const&);
 
 	typedef std::vector<std::shared_ptr<ARDOUR::Processor> > ProcSelection;
 
@@ -565,6 +566,9 @@ private:
 	void return_io_finished (IOSelector::Result, std::weak_ptr<ARDOUR::Processor>, IOSelectorWindow*);
 	void choose_insert ();
 	void choose_plugin ();
+	void new_processor_menu (guint32);
+	void add_audio_rack ();
+	Gtk::Menu _new_processor_menu;
 	bool use_plugins (const SelectedPlugins&);
 
 	bool no_processor_redisplay;

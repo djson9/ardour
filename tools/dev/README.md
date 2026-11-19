@@ -806,12 +806,16 @@ callbacks these rows need from their container; rendering stays in
 `processor_box.h/.cc`. Chain edits still use the existing rack/route APIs.
 Rack row visibility is saved in each plugin's `Extra/RackProcessorRow` state.
 
-Enter moves from the rack to chains and then plugins. C also focuses the selected
-rack’s chains. Up and Down select rows, Right enters the selected chain’s plugins,
-Left returns to its chain, and Escape returns one level. N opens the plugin picker
-from either plugin list. In the track list, Shift+Down extends the selection and
-Cmd+G groups adjacent audio effects in order. Right-click a single-chain rack and
-choose Ungroup Plugins to restore its effects at the same position. Ungrouping
+Enter moves from the rack to chains and then plugins. C and Right also focus the
+selected rack’s chains. N adds and selects a new chain in the chain selector.
+Up and Down select rows, Right enters the selected chain’s plugins,
+Left returns to its chain, and Escape returns one level. In the track plugin list,
+N opens a menu with Plugin selected first and Audio Rack below it. Down and Enter
+create a rack. N in a chain’s plugin list opens its plugin picker. Cmd+C and Cmd+V
+copy and paste selected plugins between track and chain lists, before the selected
+row or at the end of an empty list. Shift+Down extends selection in either list.
+In the track list, Cmd+G groups adjacent audio effects in order. Right-click a
+single-chain rack and choose Ungroup Plugins to restore its effects at the same position. Ungrouping
 requires unity chain gain, an enabled rack, an unmuted chain and no macro mappings.
 Only the active list has a bright selection. A short insertion line appears at the
 end of a focused plugin list when the last row is selected or the list is empty.
