@@ -428,7 +428,7 @@ RoutePropertiesBox::add_processor_to_display (std::weak_ptr<Processor> w)
 		return;
 	}
 	if (auto rack = std::dynamic_pointer_cast<AudioRack> (p)) {
-		auto ui = new AudioRackUI (rack); _rack_uis.push_back (ui);
+		auto ui = new AudioRackUI (rack, Mixer_UI::instance()->selection()); _rack_uis.push_back (ui);
 		ui->ParentFocusRequested.connect ([this] () { return _insert_box && _insert_box->focus_processors (); });
 		auto frame = new Gtk::Frame (rack->name ()); frame->add (*ui);
 		_box.pack_start (*frame, false, false); frame->show_all (); return;

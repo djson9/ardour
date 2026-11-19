@@ -43,6 +43,7 @@ public:
 	bool remove_chain (size_t);
 	bool set_chain (size_t, std::string const&, float gain, bool mute, bool solo);
 	bool add_plugin (size_t, std::shared_ptr<PluginInsert>);
+	bool add_plugins (size_t chain, std::vector<std::shared_ptr<PluginInsert>> const&, size_t position, bool activate);
 	bool remove_plugin (size_t, size_t);
 	bool move_plugin (size_t, size_t, int direction);
 	bool map_parameter (size_t, std::shared_ptr<PluginInsert>, uint32_t, double lower = 0, double upper = 1);

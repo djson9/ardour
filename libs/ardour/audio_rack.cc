@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include "pbd/compose.h"
 #include "pbd/xml++.h"
 #include "pbd/types_convert.h"
@@ -139,18 +140,43 @@ bool AudioRack::configure_chain (Chain& c, ChanCount in)
 
 bool AudioRack::add_plugin (size_t index, std::shared_ptr<PluginInsert> p)
 {
-	if (!editable () || index >= _chains.size () || !p || contains (p)) return false;
+	if (index >= _chains.size ()) return false;
+	return add_plugins (index, {p}, _chains[index]->plugins.size (), true);
+}
+
+bool AudioRack::add_plugins (size_t index, std::vector<std::shared_ptr<PluginInsert>> const& plugins, size_t position, bool activate)
+{
+	if (!editable () || index >= _chains.size () || plugins.empty ()) return false;
+	std::set<std::shared_ptr<PluginInsert>> unique;
+	std::vector<bool> strict;
+	for (auto const& p : plugins) {
+		if (!p || contains (p) || !unique.insert (p).second || !p->plugin () || p->is_instrument () || p->has_no_inputs () ||
+		    p->has_sidechain () || p->sidechain_input_pins ().n_total () ||
+		    p->natural_input_streams ().n_midi () || p->natural_output_streams ().n_midi ()) return false;
+		strict.push_back (p->strict_io ());
+	}
 	{
 		Mutex::Lock lock (AudioEngine::instance ()->process_lock ());
+		if (!editable ()) return false;
 		_session.retire_anticipation_for_edit ();
-		auto& c = *_chains[index]; c.plugins.push_back (p);
+		auto& c = *_chains[index];
+		if (position > c.plugins.size ()) return false;
+		c.plugins.insert (c.plugins.begin () + position, plugins.begin (), plugins.end ());
 		if (_configured && !configure_chain (c, _configured_input)) {
-			c.plugins.pop_back (); configure_chain (c, _configured_input); return false;
+			c.plugins.erase (c.plugins.begin () + position, c.plugins.begin () + position + plugins.size ());
+			for (size_t i = 0; i < plugins.size (); ++i) plugins[i]->set_strict_io (strict[i]);
+			configure_chain (c, _configured_input);
+			return false;
 		}
-		p->set_owner (owner ()); p->activate (); update_latency ();
+		for (auto const& p : plugins) {
+			p->set_owner (owner ());
+			if (activate) p->activate ();
+		}
+		update_latency ();
 	}
-	watch_plugin_bypass (*p);
-	changed (); return true;
+	for (auto const& p : plugins) watch_plugin_bypass (*p);
+	changed ();
+	return true;
 }
 
 void AudioRack::forget_plugin (std::shared_ptr<PluginInsert> p)

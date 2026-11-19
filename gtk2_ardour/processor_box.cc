@@ -2706,6 +2706,11 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	    (Keyboard::modifier_state_equals (event->state, 0) || Keyboard::modifier_state_equals (event->state, Gdk::SHIFT_MASK))) {
 		return TrackFocusRequested ();
 	}
+	if (Keyboard::modifier_state_equals (event->state, Keyboard::PrimaryModifier)) {
+		if (event->keyval == GDK_c) return processor_operation (ProcessorsCopy);
+		if (event->keyval == GDK_v) return processor_operation (ProcessorsPaste);
+		if (event->keyval == GDK_a) { select_all_plugins (); return true; }
+	}
 	if (event->keyval == GDK_g && Keyboard::modifier_state_equals (event->state, Keyboard::PrimaryModifier)) {
 		group_selected_plugins ();
 		return true;
@@ -2715,18 +2720,18 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	if (!extend && !Keyboard::modifier_state_equals (event->state, 0)) return false;
 	if (event->keyval == GDK_n) {
 		_placement = -1;
-		choose_plugin ();
-		_get_plugin_selector ()->show_manager ();
+		new_processor_menu (event->time);
 		return true;
 	}
 	if (event->keyval == GDK_Escape) return TrackFocusRequested ();
-	if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter || event->keyval == GDK_c) {
+	bool right = event->keyval == GDK_Right || event->keyval == GDK_KP_Right;
+	if (event->keyval == GDK_Return || event->keyval == GDK_KP_Enter || event->keyval == GDK_c || right) {
 		auto selection = processor_display.selection ();
 		if (!selection.empty () && std::dynamic_pointer_cast<AudioRack> (selection.back ()->processor ()) && !RackFocusRequested.empty ()) {
 			RackFocusRequested (selection.back ()->processor ());
 			return true;
 		}
-		return false;
+		if (!right) return false;
 	}
 	bool previous;
 	switch (event->keyval) {
@@ -3011,9 +3016,7 @@ ProcessorBox::build_processor_menu ()
 		processor_menu->items ().push_front (Menu_Helpers::MenuElem (_("New Audio Rack"), [] () {
 			ProcessorBox* box = _current_processor_box;
 			if (!box || !box->_route || !box->_session) return;
-			auto rack = std::make_shared<AudioRack> (*box->_session, *box->_route);
-			if (box->_route->add_processor_by_index (rack, box->_placement, nullptr, true) == 0) box->edit_processor (rack);
-			else { MessageDialog dialog (_("Cannot add an audio rack here. Audio channels are required and recording must be stopped.")); dialog.run (); }
+			box->add_audio_rack ();
 		}));
 	}
 	if (!processor_menu->get_data ("ungroup-rack-item")) {
@@ -3043,6 +3046,47 @@ void
 ProcessorBox::deselect_all_processors ()
 {
 	processor_display.select_none ();
+}
+
+void
+ProcessorBox::new_processor_menu (guint32 time)
+{
+	if (_new_processor_menu.items ().empty ()) {
+		_new_processor_menu.set_name ("ArdourContextMenu");
+		_new_processor_menu.set_data ("new-processor-menu", this);
+		_new_processor_menu.items ().push_back (Menu_Helpers::MenuElem (_("Plugin"), [this] () {
+			choose_plugin ();
+			_get_plugin_selector ()->show_manager ();
+		}));
+		_new_processor_menu.items ().push_back (Menu_Helpers::MenuElem (_("Audio Rack"), sigc::mem_fun (*this, &ProcessorBox::add_audio_rack)));
+	}
+	_new_processor_menu.popup ([this] (int& x, int& y, bool& push_in) {
+		processor_display.get_window ()->get_origin (x, y);
+		auto selection = processor_display.selection ();
+		if (!selection.empty ()) {
+			int row_x, row_y;
+			auto& row = selection.back ()->widget ();
+			if (row.translate_coordinates (processor_display, 0, row.get_height (), row_x, row_y)) y += row_y;
+		}
+		push_in = true;
+	}, 0, time);
+	_new_processor_menu.select_first ();
+}
+
+void
+ProcessorBox::add_audio_rack ()
+{
+	if (!_route || !_session) return;
+	auto rack = std::make_shared<AudioRack> (*_session, *_route);
+	if (_route->add_processor_by_index (rack, _placement, nullptr, true) == 0) {
+		for (auto* row : processor_display.children ()) {
+			if (row->processor () == rack) { processor_display.select (row); break; }
+		}
+		if (Glib::getenv ("ARDOUR_LIVE_LAYOUT") != "1") edit_processor (rack);
+	} else {
+		MessageDialog dialog (_("Cannot add an audio rack here. Audio channels are required and recording must be stopped."));
+		dialog.run ();
+	}
 }
 
 void
@@ -4004,6 +4048,44 @@ ProcessorBox::paste_processors (std::shared_ptr<Processor> before)
 	paste_processor_state (_p_selection.processors.get_node().children(), before);
 }
 
+std::shared_ptr<PluginInsert>
+ProcessorBox::clone_plugin (Session& session, Temporal::TimeDomainProvider const& parent, XMLNode const& source)
+{
+	auto p = std::make_shared<PluginInsert> (session, parent);
+	/* Keep a new processor ID for copied external plugin state. */
+	PBD::ID id = p->id();
+	XMLNode state (source);
+	/* strip side-chain state (processor inside processor must be a side-chain)
+	 * otherwise we'll end up with duplicate ports-names.
+	 * (this needs a better solution which retains connections)
+	 *
+	 * see also ProcessorBox::object_drop
+	 */
+	state.remove_nodes_and_delete ("Processor");
+
+	uint32_t count = 0;
+	state.get_property ("count", count);
+	state.remove_property ("count");
+
+	state.remove_property ("custom");
+	state.remove_nodes_and_delete ("ConfiguredInput");
+	state.remove_nodes_and_delete ("CustomSinks");
+	state.remove_nodes_and_delete ("ConfiguredOutput");
+	state.remove_nodes_and_delete ("PresetOutput");
+	state.remove_nodes_and_delete ("ThruMap");
+	for (uint32_t i = 0; i < count; ++i) {
+		state.remove_nodes_and_delete (string_compose ("InputMap-%1", i));
+		state.remove_nodes_and_delete (string_compose ("OutputMap-%1", i));
+	}
+
+	/* Controllable and automation IDs should not be copied */
+	PBD::Stateful::ForceIDRegeneration force_ids;
+	if (p->set_state (state, Stateful::current_state_version)) return {};
+	/* but retain the processor's ID (LV2 state save) */
+	p->update_id (id);
+	return p;
+}
+
 void
 ProcessorBox::paste_processor_state (const XMLNodeList& nlist, std::shared_ptr<Processor> p)
 {
@@ -4119,43 +4201,8 @@ ProcessorBox::paste_processor_state (const XMLNodeList& nlist, std::shared_ptr<P
 				/* XXX its a bit limiting to assume that everything else
 				   is a plugin.
 				*/
-				p.reset (new PluginInsert (*_session, *_route));
-				/* we can't use RAII Stateful::ForceIDRegeneration
-				 * because that'd void copying the state and wrongly bump
-				 * the state-version counter.
-				 * we need to load the state (incl external files) first and
-				 * only then update the ID)
-				 */
-				PBD::ID id = p->id();
-				XMLNode state (**niter);
-				/* strip side-chain state (processor inside processor must be a side-chain)
-				 * otherwise we'll end up with duplicate ports-names.
-				 * (this needs a better solution which retains connections)
-				 *
-				 * see also ProcessorBox::object_drop
-				 */
-				state.remove_nodes_and_delete ("Processor");
-
-				uint32_t count = 0;
-				state.get_property ("count", count);
-				state.remove_property ("count");
-
-				state.remove_property ("custom");
-				state.remove_nodes_and_delete ("ConfiguredInput");
-				state.remove_nodes_and_delete ("CustomSinks");
-				state.remove_nodes_and_delete ("ConfiguredOutput");
-				state.remove_nodes_and_delete ("PresetOutput");
-				state.remove_nodes_and_delete ("ThruMap");
-				for (uint32_t i = 0; i < count; ++i) {
-					state.remove_nodes_and_delete (string_compose ("InputMap-%1", i));
-					state.remove_nodes_and_delete (string_compose ("OutputMap-%1", i));
-				}
-
-				/* Controllable and automation IDs should not be copied */
-				PBD::Stateful::ForceIDRegeneration force_ids;
-				p->set_state (state, Stateful::current_state_version);
-				/* but retain the processor's ID (LV2 state save) */
-				std::dynamic_pointer_cast<PluginInsert>(p)->update_id (id);
+				p = clone_plugin (*_session, *_route, **niter);
+				if (!p) return;
 			}
 
 			copies.push_back (p);
@@ -4390,7 +4437,7 @@ ProcessorBox::get_editor_window (std::shared_ptr<Processor> processor, bool use_
 
 	} else if (auto rack = std::dynamic_pointer_cast<AudioRack> (processor)) {
 		gidget = get_processor_ui (processor);
-		if (!gidget) { gidget = new AudioRackWindow (rack); set_processor_ui (processor, gidget); }
+		if (!gidget) { gidget = new AudioRackWindow (rack, _p_selection); set_processor_ui (processor, gidget); }
 	} else if ((plugin_insert = std::dynamic_pointer_cast<PluginInsert> (processor)) != 0) {
 
 		PluginUIWindow *plugin_ui;

@@ -241,6 +241,24 @@ end
   CPPUNIT_ASSERT (!rack->contains (incompatible));
   CPPUNIT_ASSERT (incompatible->owner () == b.get ());
   CPPUNIT_ASSERT_EQUAL (size_t(1),rack->chains ()[0]->plugins.size ());
+  // A clipboard batch either inserts every clone or keeps the chain intact.
+  auto first = plugin (*rack), second = plugin (*rack);
+  auto failing = std::make_shared<PluginInsert> (*_session, *rack,
+   std::make_shared<LuaProc> (*AudioEngine::instance (), *_session, stereo));
+  const auto original_chain = rack->chains ()[0]->plugins;
+  CPPUNIT_ASSERT (!rack->add_plugins (0, {first, failing}, 0, false));
+  CPPUNIT_ASSERT (rack->chains ()[0]->plugins == original_chain);
+  CPPUNIT_ASSERT (!rack->add_plugins (0, {first, first}, 0, false));
+  CPPUNIT_ASSERT (!rack->add_plugins (0, {first}, 99, false));
+  first->deactivate ();
+  first->automation_control (Evoral::Parameter (PluginAutomation, 0, 0))->set_value (.37, Controllable::NoGroup);
+  CPPUNIT_ASSERT (rack->add_plugins (0, {first, second}, 0, false));
+  CPPUNIT_ASSERT ((rack->chains ()[0]->plugins == std::vector<std::shared_ptr<PluginInsert>> {first, second, q}));
+  CPPUNIT_ASSERT (!first->enabled ());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL (.37, first->automation_control (Evoral::Parameter (PluginAutomation, 0, 0))->get_value (), 1e-6);
+  CPPUNIT_ASSERT (rack->remove_plugin (0, 1));
+  CPPUNIT_ASSERT (rack->remove_plugin (0, 0));
+  first.reset (); second.reset (); failing.reset ();
   CPPUNIT_ASSERT_EQUAL (0,_session->save_state (""));
   std::unique_ptr<XMLNode> saved (&b->get_state ());
   bool found = false;
