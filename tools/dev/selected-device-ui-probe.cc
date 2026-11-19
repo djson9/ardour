@@ -365,8 +365,25 @@ static void verify_note_cursor (Gtk::Widget& piano, std::shared_ptr<MidiModel> m
  key (piano, GDK_Up);
  key (piano, GDK_Return);
  key (piano, GDK_Return);
+ // The insertion cursor is on an empty step after placing three notes.
+ const auto original_notes = model->notes ();
+ key (piano, GDK_a, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (view->selection ().size () == 3, "Cmd+A did not select all three piano-roll notes");
+ key (piano, GDK_Delete);
+ check (piano.is_focus () && model->notes ().empty (), "Delete after Cmd+A left notes in the piano roll");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes () == original_notes, "One undo must restore the entire deleted selection");
  key (piano, GDK_Left);
  key (piano, GDK_Left);
+ // Backspace must also prefer a single selected note over a different note under the cursor.
+ view->clear_note_selection ();
+ auto first = *original_notes.begin ();
+ view->select_notes ({first->id ()}, false);
+ key (piano, GDK_BackSpace);
+ check (model->notes ().size () == 2 && *model->notes ().begin () != first, "Backspace deleted the wrong note");
+ key (piano, GDK_z, Gtkmm2ext::Keyboard::PrimaryModifier);
+ check (model->notes () == original_notes, "Undo did not restore the selected note");
+ view->clear_note_selection ();
  auto shifted = [&] (guint arrow) { key (piano, arrow, GDK_SHIFT_MASK); };
  shifted (GDK_Right);
  check (view->selection ().size () == 1 && (*view->selection ().begin ())->note ()->time () == step,
