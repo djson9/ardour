@@ -10,8 +10,11 @@
 #include "ardour/io.h"
 #include "ardour/io_vector.h"
 #include "ardour/port.h"
+#include "ardour/rc_configuration.h"
 #include "ardour/route.h"
 #include "ardour/session.h"
+#include "ardour/solo_control.h"
+#include "ardour/solo_isolate_control.h"
 
 using namespace ARDOUR;
 
@@ -44,6 +47,52 @@ bool reconnect (std::shared_ptr<IO> io, Connections const& dest)
 		for (auto const& name : dest[n]) ok = (io->connect (port, name) == 0) && ok;
 	}
 	return ok;
+}
+
+// Which routes each route reaches through actual port and send connections.
+using Reach = std::map<std::shared_ptr<Route>, std::set<std::shared_ptr<Route>>>;
+Reach reachability (Session& s)
+{
+	auto routes = s.get_routes ();
+	std::map<std::shared_ptr<Route>, std::vector<std::shared_ptr<Route>>> next;
+	for (auto const& from : *routes) for (auto const& to : *routes) {
+		if (from != to && from->direct_feeds_according_to_reality (to)) next[from].push_back (to);
+	}
+	Reach result;
+	for (auto const& from : *routes) {
+		auto& seen = result[from];
+		std::vector<std::shared_ptr<Route>> pending {from};
+		while (!pending.empty ()) {
+			auto r = pending.back (); pending.pop_back ();
+			for (auto const& n : next[r]) if (n != from && seen.insert (n).second) pending.push_back (n);
+		}
+	}
+	return result;
+}
+
+// Ardour propagates implicit solo only when a solo changes; route IO handlers
+// deliberately ignore new connections and only remove stale implicit solo.
+// Grouping adds signal paths (always for a new group bus), so apply what
+// Session::route_solo_changed would have done for each new path. Otherwise a
+// group carrying a soloed child is muted by that same solo. Existing paths are
+// left alone to keep Ardour's solo-within-bus semantics.
+void propagate_solo_to_new_paths (Session& s, Reach const& before)
+{
+	if (Config->get_solo_control_is_listen_control ()) return;
+	auto receives = [] (std::shared_ptr<Route> const& r) { return r->can_solo () && !r->solo_isolate_control ()->solo_isolated (); };
+	auto soloed = [] (std::shared_ptr<Route> const& r) { return r->solo_control ()->soloed_by_self_or_masters (); };
+	std::map<std::shared_ptr<Route>, int32_t> up, down;
+	for (auto const& entry : reachability (s)) {
+		auto const& from = entry.first;
+		auto old = before.find (from);
+		for (auto const& to : entry.second) {
+			if (old != before.end () && old->second.count (to)) continue;
+			if (soloed (from) && receives (to)) ++up[to];
+			if (soloed (to) && !to->soloed_by_others_upstream () && receives (from)) ++down[from];
+		}
+	}
+	for (auto const& entry : up) entry.first->solo_control ()->mod_solo_by_others_upstream (entry.second);
+	for (auto const& entry : down) entry.first->solo_control ()->mod_solo_by_others_downstream (entry.second);
 }
 }
 
@@ -146,6 +195,7 @@ std::shared_ptr<Route> GroupTracks::create (Session& s, RouteList selected, std:
 			return {};
 		}
 	}
+	const auto before = reachability (s);
 	std::shared_ptr<Route> bus;
 	try {
 		auto created = s.new_audio_route (dest.size (), dest.size (), {}, 1, "Group", PresentationInfo::AudioBus, PresentationInfo::max_order);
@@ -170,6 +220,7 @@ std::shared_ptr<Route> GroupTracks::create (Session& s, RouteList selected, std:
 	bus->presentation_info ().set_color (first->presentation_info ().color ());
 	bus->set_presentation_order (first->presentation_info ().order ());
 	for (auto const& r : selected) metadata (r).set_property ("parent", bus->id ().to_s ());
+	propagate_solo_to_new_paths (s, before);
 	normalize_order (s);
 	s.set_dirty ();
 	return bus;
@@ -289,12 +340,14 @@ bool GroupTracks::drop (Session& s, RouteList selected, std::shared_ptr<Route> d
 			error = "This move would create an audio feedback loop. Change the routing first."; return false;
 		}
 	}
+	const auto reach_before = reachability (s);
 	for (auto const& entry : replacement) if (!reconnect (entry.first->output (), entry.second)) {
 		bool restored = true;
 		for (auto const& restore : old) restored = reconnect (restore.first->output (), restore.second) && restored;
 		error = restored ? "Could not connect the track; the original routing was restored." : "Could not connect or fully restore the track outputs. Check audio routing.";
 		return false;
 	}
+	propagate_solo_to_new_paths (s, reach_before);
 	PresentationInfo::ChangeSuspender cs;
 	for (auto const& r : selected) metadata (r).set_property ("parent", destination ? destination->id ().to_s () : std::string ());
 	// Assign unique orders across all stripables before normalizing the tree.

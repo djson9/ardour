@@ -7,6 +7,7 @@
 #include "ardour/gain_control.h"
 #include "ardour/mute_control.h"
 #include "ardour/route_group.h"
+#include "ardour/solo_control.h"
 
 struct Constant : Processor {
 	float value;
@@ -116,6 +117,14 @@ int main (int argc, char** argv)
 				need (GroupTracks::drop (*s, {b}, {}, {}, error), error.c_str ()); expect (.2125f);
 				need (GroupTracks::drop (*s, {b}, g, {}, error), error.c_str ()); expect (.0375f);
 				need (a->gain_control ()->get_value () == 1 && b->gain_control ()->get_value () == 1, "independent child gains");
+				// Grouping a soloed child adds new signal paths; Ardour does not
+				// propagate implicit solo to them, so the group would be muted.
+				s->set_control (a->solo_control (), 1.0, PBD::Controllable::NoGroup); expect (.0125f);
+				auto outer = GroupTracks::create (*s, {g}, error);
+				need (bool (outer), error.c_str ()); expect (.0125f);
+				need (GroupTracks::drop (*s, {a}, {}, {}, error), error.c_str ()); expect (.1f);
+				need (GroupTracks::drop (*s, {a}, g, {}, error), error.c_str ()); expect (.0125f);
+				s->set_control (a->solo_control (), 0.0, PBD::Controllable::NoGroup); expect (.0375f);
 				engine->set_session (nullptr);
 			} else {
 				GroupTracks::set_collapsed (*s, g, true);
