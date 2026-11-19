@@ -202,6 +202,12 @@ SelectionPropertiesBox::edit_clip_region (std::shared_ptr<ARDOUR::Region> region
 }
 
 void
+SelectionPropertiesBox::focus_piano_roll ()
+{
+	if (_pianoroll) _pianoroll->focus_note_cursor ();
+}
+
+void
 SelectionPropertiesBox::selection_changed ()
 {
 	if (!_session || _session->inital_connect_or_deletion_in_progress () || !get_mapped ()) {
@@ -290,7 +296,9 @@ SelectionPropertiesBox::selection_changed ()
 	if (!rs.empty() && 0 != (_disposition & ShowRegions)) {
 		RegionView* rv = rs.back();
 
-		if (!_region_editor || _region_editor->region () != rv->region ()) {
+		const bool keep_cursor = rs.size () == 1 && _pianoroll && _pianoroll->region () == rv->region () &&
+		                         _pianoroll->get_canvas ()->get_data ("pianoroll-note-cursor");
+		if (!keep_cursor && (!_region_editor || _region_editor->region () != rv->region ())) {
 			delete_region_editor ();
 			AudioRegionView* arv = dynamic_cast<AudioRegionView*> (rv);
 			if (arv) {
@@ -332,7 +340,7 @@ SelectionPropertiesBox::selection_changed ()
 			});
 		}
 
-		show_similar_midi_regions (rs);
+		if (!keep_cursor) show_similar_midi_regions (rs);
 
 	} else {
 		/* only hide region props when selecting a track or trigger,

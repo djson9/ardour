@@ -16,6 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <cmath>
 #include <iostream>
 
 #include "pbd/error.h"
@@ -3263,6 +3264,36 @@ EditingContext::cycle_zoom_focus ()
 		set_zoom_focus (ZoomFocusLeft);
 		break;
 	}
+}
+
+/* Handle zoom before item-level scrolling. Coordinates are relative to the canvas window. */
+bool
+EditingContext::handle_zoom_scroll (GdkEventScroll const& ev)
+{
+	EC_LOCAL_TEMPO_SCOPE;
+	if (ev.direction == GDK_SCROLL_PINCH) {
+		if (std::isfinite (ev.delta_y) && ev.delta_y != 0.0) {
+			const double factor = std::max (0.5, std::min (2.0, 1.0 + ev.delta_y));
+			const samplecnt_t previous = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
+			const samplepos_t origin = (pending_visual_change.pending & VisualChange::TimeOrigin) ? pending_visual_change.time_origin : _leftmost_sample;
+			const samplecnt_t requested = std::max<samplecnt_t> (1, llround (previous / factor));
+			reset_zoom (requested);
+			if (requested == samples_per_pixel && (pending_visual_change.pending & VisualChange::ZoomLevel)) {
+				pending_visual_change.samples_per_pixel = requested;
+			}
+			const samplecnt_t next = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
+			/* Use the gesture's position, not a later global mouse query. */
+			const double anchor = std::max (0.0, canvas_to_timeline (ev.x));
+			reset_x_origin (std::max (0.0, origin + anchor * (previous - next)));
+		}
+		return true;
+	}
+	if ((ev.direction == GDK_SCROLL_UP || ev.direction == GDK_SCROLL_DOWN) &&
+	    Keyboard::modifier_state_equals (ev.state, Keyboard::ScrollZoomHorizontalModifier)) {
+		temporal_zoom_step_mouse_focus (ev.direction == GDK_SCROLL_DOWN);
+		return true;
+	}
+	return false;
 }
 
 void

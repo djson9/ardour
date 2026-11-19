@@ -605,6 +605,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	void draw_velocity_changed ();
 	void draw_channel_changed ();
 
+	bool handle_zoom_scroll (GdkEventScroll const&);
 	double _timeline_origin;
 
 	ArdourWidgets::ArdourDropdown grid_type_selector;

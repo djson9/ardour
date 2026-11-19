@@ -100,27 +100,13 @@ Editor::track_canvas_scroll (GdkEventScroll* ev)
 		return true;
 	}
 
-	switch (direction) {
-	case GDK_SCROLL_PINCH:
-		if (std::isfinite (ev->delta_y) && ev->delta_y != 0.0) {
-			const double factor = std::max (0.5, std::min (2.0, 1.0 + ev->delta_y));
-			const samplecnt_t previous = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
-			const samplepos_t origin = (pending_visual_change.pending & VisualChange::TimeOrigin) ? pending_visual_change.time_origin : _leftmost_sample;
-			const samplecnt_t requested = std::max<samplecnt_t> (1, llround (previous / factor));
-			reset_zoom (requested);
-			if (requested == samples_per_pixel && (pending_visual_change.pending & VisualChange::ZoomLevel)) {
-				pending_visual_change.samples_per_pixel = requested;
-			}
-			const samplecnt_t next = (pending_visual_change.pending & VisualChange::ZoomLevel) ? pending_visual_change.samples_per_pixel : samples_per_pixel;
-			/* Use the gesture's position, not a later global mouse query. */
-			reset_x_origin (std::max (0.0, origin + ev->x * (previous - next)));
-		}
+	if (handle_zoom_scroll (*ev)) {
 		return true;
+	}
+
+	switch (direction) {
 	case GDK_SCROLL_UP:
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollZoomHorizontalModifier)) {
-			temporal_zoom_step_mouse_focus (false);
-			return true;
-		} else if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
+		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
 			scroll_left_step ();
 			return true;
 		} else if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollZoomVerticalModifier)) {
@@ -142,10 +128,7 @@ Editor::track_canvas_scroll (GdkEventScroll* ev)
 		break;
 
 	case GDK_SCROLL_DOWN:
-		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollZoomHorizontalModifier)) {
-			temporal_zoom_step_mouse_focus (true);
-			return true;
-		} else if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
+		if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollHorizontalModifier)) {
 			scroll_right_step ();
 			return true;
 		} else if (Keyboard::modifier_state_equals (ev->state, Keyboard::ScrollZoomVerticalModifier)) {

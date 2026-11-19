@@ -173,6 +173,8 @@ class Pianoroll : public CueEditor, public SlipDraggable
 	Temporal::timepos_t source_to_timeline (Temporal::timepos_t const & source_pos) const;
 
 	void set_layered_automation (bool);
+	void focus_note_cursor ();
+	void note_cursor_key (GdkEventKey*);
 	void set_note_highlight (uint8_t note);
 
 	void apply_note_range (uint8_t lowest, uint8_t highest);
