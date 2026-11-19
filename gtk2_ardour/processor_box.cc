@@ -2720,7 +2720,8 @@ ProcessorBox::processor_list_key_press (GdkEventKey* event)
 	if (!extend && !Keyboard::modifier_state_equals (event->state, 0)) return false;
 	if (event->keyval == GDK_n) {
 		_placement = -1;
-		new_processor_menu (event->time);
+		choose_plugin ();
+		_get_plugin_selector ()->show_manager ();
 		return true;
 	}
 	if (event->keyval == GDK_Escape) return TrackFocusRequested ();
@@ -3046,31 +3047,6 @@ void
 ProcessorBox::deselect_all_processors ()
 {
 	processor_display.select_none ();
-}
-
-void
-ProcessorBox::new_processor_menu (guint32 time)
-{
-	if (_new_processor_menu.items ().empty ()) {
-		_new_processor_menu.set_name ("ArdourContextMenu");
-		_new_processor_menu.set_data ("new-processor-menu", this);
-		_new_processor_menu.items ().push_back (Menu_Helpers::MenuElem (_("Plugin"), [this] () {
-			choose_plugin ();
-			_get_plugin_selector ()->show_manager ();
-		}));
-		_new_processor_menu.items ().push_back (Menu_Helpers::MenuElem (_("Audio Rack"), sigc::mem_fun (*this, &ProcessorBox::add_audio_rack)));
-	}
-	_new_processor_menu.popup ([this] (int& x, int& y, bool& push_in) {
-		processor_display.get_window ()->get_origin (x, y);
-		auto selection = processor_display.selection ();
-		if (!selection.empty ()) {
-			int row_x, row_y;
-			auto& row = selection.back ()->widget ();
-			if (row.translate_coordinates (processor_display, 0, row.get_height (), row_x, row_y)) y += row_y;
-		}
-		push_in = true;
-	}, 0, time);
-	_new_processor_menu.select_first ();
 }
 
 void

@@ -194,9 +194,8 @@ static void check_plugin_knob_scroll (GenericPluginUI* ui) {
 }
 static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  auto* window = dynamic_cast<Gtk::Window*> (widget.get_toplevel ());
- auto* menu = dynamic_cast<Gtk::Menu*> (&widget);
  GdkEvent* event = gdk_event_new (GDK_KEY_PRESS);
- event->key.window = GDK_WINDOW (g_object_ref ((menu ? menu->get_window () : window->get_window ())->gobj ()));
+ event->key.window = GDK_WINDOW (g_object_ref (window->get_window ()->gobj ()));
  event->key.send_event = true; event->key.time = GDK_CURRENT_TIME;
  event->key.keyval = keyval; event->key.state = state;
  GdkKeymapKey* keys = nullptr; gint n_keys = 0;
@@ -206,16 +205,8 @@ static void key (Gtk::Widget& widget, guint keyval, guint state = 0) {
  gchar text[7] = {}; gunichar character = gdk_keyval_to_unicode (keyval);
  event->key.length = character ? g_unichar_to_utf8 (character, text) : 0;
  event->key.string = g_strdup (text);
- gtk_widget_event (menu ? GTK_WIDGET (menu->gobj ()) : GTK_WIDGET (window->gobj ()), event);
+ gtk_widget_event (GTK_WIDGET (window->gobj ()), event);
  gdk_event_free (event);
-}
-static Gtk::Menu* new_processor_menu (RoutePropertiesBox& props)
-{
- key (props, GDK_n);
- for (auto w : Gtk::Window::list_toplevels ()) if (auto* menu = find<Gtk::Menu> (w)) {
-  if (menu->get_visible () && menu->get_data ("new-processor-menu")) return menu;
- }
- throw std::runtime_error ("N did not open the new processor menu");
 }
 static bool open_plugin_picker (RoutePropertiesBox& props)
 {
@@ -232,14 +223,7 @@ static bool open_plugin_picker (RoutePropertiesBox& props)
   }
   return true;
  }, 20);
- auto* devices = track_list (&props);
- if (devices && devices->is_focus ()) {
-  auto* menu = new_processor_menu (props);
-  std::list<Gtk::Widget*> rows = menu->get_children ();
-  if (rows.size () != 2 || !label (rows.front (), "Plugin") || !label (rows.back (), "Audio Rack") ||
-      GTK_MENU_SHELL (menu->gobj ())->active_menu_item != rows.front ()->gobj ()) throw std::runtime_error ("New menu did not start on Plugin");
-  key (*menu, GDK_Return);
- } else key (props, GDK_n);
+ key (props, GDK_n);
  close_dialogs.disconnect ();
  return picker_opened;
 }
@@ -939,10 +923,14 @@ static gboolean tick (gpointer) {
     auto cursor = named (list, "PluginInsertionCursor");
     if (!cursor || !cursor->get_visible ()) return finish ("End insertion cursor missing");
     if (!open_plugin_picker (*props)) return finish ("N did not open the track plugin selector");
-    auto* new_menu = new_processor_menu (*props);
-    key (*new_menu, GDK_Down);
-    if (!label (Glib::wrap (GTK_MENU_SHELL (new_menu->gobj ())->active_menu_item), "Audio Rack")) return finish ("Down did not select Audio Rack");
-    key (*new_menu, GDK_Return);
+    list->select (entry (list, route->amp ()));
+    click (entry (list, route->amp ())->action_widget (), 3);
+    Gtk::MenuItem* add_rack = nullptr;
+    for (auto* child : menu->get_children ()) if (auto* item = dynamic_cast<Gtk::MenuItem*> (child)) {
+     if (label (item, "New Audio Rack")) add_rack = item;
+    }
+    if (!add_rack) return finish ("Rack context-menu item missing");
+    add_rack->activate (); menu->popdown ();
     stage = 65; return TRUE;
    }
    key (*props, GDK_Down); stage = 25; return TRUE;
@@ -952,7 +940,7 @@ static gboolean tick (gpointer) {
   static double copied_value;
   if (stage == 65) {
    auto order = visible_order (route);
-   if (order.size () != 5) return finish ("New menu did not add a rack");
+   if (order.size () != 5) return finish ("Context menu did not add a rack");
    added_rack = std::dynamic_pointer_cast<AudioRack> (order[3]);
    if (!added_rack || added_rack == rack || !selected (added_rack)) return finish ("New rack selection missing");
    if (count<AudioRackUI> (props) != 1 || find<AudioRackUI> (props)->rack () != added_rack) return TRUE;
