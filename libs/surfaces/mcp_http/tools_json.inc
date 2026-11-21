@@ -2246,6 +2246,38 @@ R"mcp(
       }
     },
     {
+      "name": "plugin_rescan",
+      "title": "Rescan Plugins",
+      "description": "Rescan installed plugins so newly added AU/VST2/VST3/LV2 plugins are discovered without restarting Ardour. Performs a full rescan by default; pass cacheOnly=true to only reload the existing cache (will not find newly installed plugins). Returns the total discovered plugin count after the scan.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cacheOnly": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "pluginCount"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "cacheOnly": {
+            "type": "boolean"
+          },
+          "pluginCount": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
       "name": "plugin_list_available",
       "title": "List Available Plugins",
       "description": "List discovered plugins from Ardour's plugin manager. Returns stable pluginId values suitable for plugin_add_by_plugin_id.",

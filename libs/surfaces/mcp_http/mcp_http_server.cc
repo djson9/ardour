@@ -5348,6 +5348,73 @@ handle_plugin_tool_call (ARDOUR::Session& session, PBD::EventLoop* event_loop, c
 		    std::string ("{\"content\":[{\"type\":\"text\",\"text\":\"Available plugins listed\"}],\"structuredContent\":") + structured.str () + "}");
 	}
 
+	if (tool_name == "plugin/rescan") {
+		const bool cache_only = root.get<bool> ("params.arguments.cacheOnly", false);
+
+		std::string rescan_error;
+		auto        perform_rescan = [&] () {
+			try {
+				ARDOUR::PluginManager::instance ().refresh (cache_only);
+			} catch (...) {
+				rescan_error = "Plugin rescan failed";
+			}
+		};
+
+#ifdef __APPLE__
+		/* Plugin discovery spawns out-of-process scanners and emits signals
+		 * that must be delivered on the GUI/UI event loop, mirroring the
+		 * plugin/add construction path above.
+		 */
+		if (_event_loop) {
+			std::mutex              rescan_mutex;
+			std::condition_variable rescan_cv;
+			bool                    rescan_done = false;
+
+			const bool queued = _event_loop->call_slot (MISSING_INVALIDATOR, [&] () {
+				perform_rescan ();
+				{
+					std::lock_guard<std::mutex> lk (rescan_mutex);
+					rescan_done = true;
+				}
+				rescan_cv.notify_one (); });
+
+			if (queued) {
+				std::unique_lock<std::mutex> lk (rescan_mutex);
+				rescan_cv.wait (lk, [&] { return rescan_done; });
+			} else {
+				perform_rescan ();
+			}
+		} else {
+			perform_rescan ();
+		}
+#else
+		perform_rescan ();
+#endif
+
+		if (!rescan_error.empty ()) {
+			return jsonrpc_error (id, -32000, rescan_error);
+		}
+
+		ARDOUR::PluginManager& manager = ARDOUR::PluginManager::instance ();
+		const size_t           total   = manager.windows_vst_plugin_info ().size ()
+		                     + manager.lxvst_plugin_info ().size ()
+		                     + manager.mac_vst_plugin_info ().size ()
+		                     + manager.vst3_plugin_info ().size ()
+		                     + manager.au_plugin_info ().size ()
+		                     + manager.lv2_plugin_info ().size ()
+		                     + manager.ladspa_plugin_info ().size ()
+		                     + manager.lua_plugin_info ().size ();
+
+		std::ostringstream structured;
+		structured << "{\"ok\":true,\"cacheOnly\":" << (cache_only ? "true" : "false")
+		           << ",\"pluginCount\":" << total
+		           << "}";
+
+		return jsonrpc_result (
+		    id,
+		    std::string ("{\"content\":[{\"type\":\"text\",\"text\":\"Plugin rescan complete\"}],\"structuredContent\":") + structured.str () + "}");
+	}
+
 	if (tool_name == "plugin/add") {
 		const std::string            route_id     = root.get<std::string> ("params.arguments.id", "");
 		const std::string            plugin_id    = root.get<std::string> ("params.arguments.pluginId", "");
