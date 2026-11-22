@@ -185,6 +185,7 @@ def build(bld):
         obj.source   = libydk_sources + libydk_quartz_sources
         obj.cflags   += ['-xobjective-c']
         obj.uselib   += ' OSX' # -framework Cocoa -framework CoreFoundation -framework ApplicationServices
+        obj.linkflags = ['-framework', 'IOSurface', '-framework', 'QuartzCore']
         obj.includes += ['quartz', 'quartz/ydk', 'ydk/quartz']
         obj.export_includes += ['quartz']
     elif bld.env['build_target'] == 'mingw' or bld.env['build_target'] == 'msvc':

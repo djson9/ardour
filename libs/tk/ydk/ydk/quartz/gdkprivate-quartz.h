@@ -218,4 +218,11 @@ gboolean    _gdk_quartz_window_queue_antiexpose  (GdkWindow *window,
 /* Pixmap */
 CGImageRef _gdk_pixmap_get_cgimage (GdkPixmap *pixmap);
 
+/* Window offscreen bitmap (gdkwindow-quartz.c) */
+gboolean _gdk_quartz_use_layer_surface       (void);
+void     _gdk_quartz_window_create_offscreen (GdkWindowImplQuartz *impl,
+                                              int                  width,
+                                              int                  height);
+void     _gdk_quartz_window_release_offscreen (GdkWindowImplQuartz *impl);
+
 #endif /* __GDK_PRIVATE_QUARTZ_H__ */

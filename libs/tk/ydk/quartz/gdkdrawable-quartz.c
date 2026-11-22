@@ -378,7 +378,10 @@ gdk_quartz_draw_drawable (GdkDrawable *drawable,
 
           need_display_region = gdk_region_copy (orig_region);
 
-          if (window_impl->in_paint_rect_count == 0)
+          /* scrollRect: moves pixels in the view's own backing store, which
+           * does not exist when the offscreen bitmap is the layer contents.
+           */
+          if (window_impl->in_paint_rect_count == 0 && !window_impl->offscreen_surface)
             {
               GdkRegion *bottom_border_region;
 

@@ -107,6 +107,14 @@ gdk_window_impl_quartz_get_context (GdkDrawable *drawable,
 	    // if (![window_impl->view lockFocusIfCanDraw])
 	    // return NULL;
     }
+  if (window_impl->offscreen_surface)
+    {
+      /* updateLayer runs without a current NSGraphicsContext */
+      CGContextSaveGState (window_impl->offscreen);
+      CGContextSetAllowsAntialiasing (window_impl->offscreen, antialias);
+      return window_impl->offscreen;
+    }
+
   if (gdk_quartz_osx_version () < GDK_OSX_YOSEMITE)
        cg_context = [[NSGraphicsContext currentContext] graphicsPort];
   else
@@ -179,6 +187,8 @@ gdk_window_impl_quartz_finalize (GObject *object)
 
   if (impl->transient_for)
     g_object_unref (impl->transient_for);
+
+  _gdk_quartz_window_release_offscreen (impl);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -639,36 +649,111 @@ get_nsscreen_for_point (gint x, gint y)
   return screen;
 }
 
-void _update_offscreen(GdkWindow *window) {
-  GdkWindowObject *private;
-  GdkWindowImplQuartz *impl;
+#define GDK_QUARTZ_LAYER_SURFACE_DEFAULT TRUE
 
-  private = (GdkWindowObject *)window;
-  impl = private->impl;
+/* Whether window bitmaps are IOSurfaces handed to CoreAnimation as the
+ * view's layer contents, instead of plain bitmaps that drawRect: copies
+ * into a backing store AppKit allocates for the view. The surface path
+ * skips that copy and the main-thread wait for the backing store.
+ * GDK_QUARTZ_LAYER_SURFACE=0 or =1 overrides the default.
+ */
+gboolean
+_gdk_quartz_use_layer_surface (void)
+{
+  static int use = -1;
 
-  if (impl->view) {
-    if (impl->offscreen) {
-      CFRelease(impl->offscreen);
+  if (use < 0)
+    {
+      const char *env = g_getenv ("GDK_QUARTZ_LAYER_SURFACE");
+      use = env ? atoi (env) != 0 : GDK_QUARTZ_LAYER_SURFACE_DEFAULT;
+    }
+
+  return use;
+}
+
+void
+_gdk_quartz_window_release_offscreen (GdkWindowImplQuartz *impl)
+{
+  if (impl->offscreen)
+    {
+      CGContextRelease (impl->offscreen);
       impl->offscreen = NULL;
     }
 
-    CALayer *layer = [impl->view layer];
+  if (impl->offscreen_surface)
+    {
+      IOSurfaceUnlock (impl->offscreen_surface, 0, NULL);
+      CFRelease (impl->offscreen_surface);
+      impl->offscreen_surface = NULL;
+    }
+}
 
-    CGFloat scale = 1.0;
-    scale = [impl->toplevel backingScaleFactor];
-    int w = private->width * scale;
-    int stride = (w * 4 + 255) & ~255;
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    impl->offscreen = CGBitmapContextCreate(NULL,
-	w,
-	private->height * scale,
-	8,
-	stride,
-	colorSpace,
-	kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-    CGContextScaleCTM(impl->offscreen, scale, scale);
-    CGColorSpaceRelease(colorSpace);
-  }
+/* (Re)create the bitmap that all drawing for the window goes to.
+ * width and height are in points.
+ */
+void
+_gdk_quartz_window_create_offscreen (GdkWindowImplQuartz *impl,
+                                     int                  width,
+                                     int                  height)
+{
+  const CGFloat scale = [impl->toplevel backingScaleFactor];
+  const int w = width * scale;
+  const int h = height * scale;
+  size_t stride = (w * 4 + 255) & ~255;
+  CGColorSpaceRef colorspace;
+  void *data = NULL;
+
+  _gdk_quartz_window_release_offscreen (impl);
+
+  if (w <= 0 || h <= 0)
+    return;
+
+  if (_gdk_quartz_use_layer_surface ())
+    {
+      NSDictionary *properties = @{
+        (id) kIOSurfaceWidth: @(w),
+        (id) kIOSurfaceHeight: @(h),
+        (id) kIOSurfaceBytesPerElement: @(4),
+        (id) kIOSurfacePixelFormat: @((unsigned int) 'BGRA'),
+      };
+
+      impl->offscreen_surface = IOSurfaceCreate ((CFDictionaryRef) properties);
+
+      if (impl->offscreen_surface)
+        {
+          /* Kept locked for CPU drawing; updateLayer cycles the lock to
+           * publish a frame.
+           */
+          IOSurfaceLock (impl->offscreen_surface, 0, NULL);
+          data = IOSurfaceGetBaseAddress (impl->offscreen_surface);
+          stride = IOSurfaceGetBytesPerRow (impl->offscreen_surface);
+        }
+    }
+
+  colorspace = CGColorSpaceCreateDeviceRGB ();
+  impl->offscreen = CGBitmapContextCreate (data, w, h, 8, stride, colorspace,
+                                           kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+  CGColorSpaceRelease (colorspace);
+
+  if (!impl->offscreen)
+    {
+      _gdk_quartz_window_release_offscreen (impl);
+      return;
+    }
+
+  if (impl->offscreen_surface)
+    {
+      /* Layer contents are shown as stored: first bitmap row at the top. */
+      CGContextTranslateCTM (impl->offscreen, 0, h);
+      CGContextScaleCTM (impl->offscreen, scale, -scale);
+    }
+  else
+    {
+      /* drawRect: turns the image over when blitting to the flipped view. */
+      CGContextScaleCTM (impl->offscreen, scale, scale);
+    }
+
+  impl->offscreen_needs_full = TRUE;
 }
 
 void
@@ -849,7 +934,8 @@ _gdk_window_impl_new (GdkWindow     *window,
       g_assert_not_reached ();
     }
 
-  _update_offscreen(window);
+  if (impl->view)
+    _gdk_quartz_window_create_offscreen (impl, private->width, private->height);
 
   GDK_QUARTZ_RELEASE_POOL;
 
@@ -1134,6 +1220,7 @@ move_resize_window_internal (GdkWindow *window,
   GdkRegion *old_region;
   GdkRegion *expose_region;
   NSSize delta;
+  gboolean resized;
 
   if (GDK_WINDOW_DESTROYED (window))
     return;
@@ -1181,17 +1268,17 @@ move_resize_window_internal (GdkWindow *window,
       delta.height = 0;
     }
 
-  if (
-    (width != private->width && width != -1) ||
-    (height != private->height && height != -1)) {
-    _update_offscreen(window);
-  }
+  resized = (width != -1 && width != private->width) ||
+            (height != -1 && height != private->height);
 
   if (width != -1)
     private->width = width;
 
   if (height != -1)
     private->height = height;
+
+  if (resized && impl->view)
+    _gdk_quartz_window_create_offscreen (impl, private->width, private->height);
 
   GDK_QUARTZ_ALLOC_POOL;
 

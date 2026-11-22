@@ -19,6 +19,8 @@
  */
 
 #import "GdkQuartzView.h"
+#import <QuartzCore/QuartzCore.h>
+#import <IOSurface/IOSurface.h>
 #include "gdkregion.h"
 #include "gdkregion-generic.h"
 #include "gdkwindow-quartz.h"
@@ -694,6 +696,94 @@ static bool fullDrawNextTime = FALSE;
   [super setNeedsDisplayInRect:rect];
 }
 
+/* When the window bitmap is an IOSurface, it is handed to CoreAnimation as
+ * the layer's contents: AppKit then calls updateLayer instead of allocating
+ * a backing store and calling drawRect:.
+ */
+-(BOOL)wantsUpdateLayer
+{
+  GdkWindowImplQuartz *impl;
+
+  if (!gdk_window || GDK_WINDOW_DESTROYED (gdk_window))
+    return NO;
+
+  impl = GDK_WINDOW_IMPL_QUARTZ (GDK_WINDOW_OBJECT (gdk_window)->impl);
+
+  return impl && impl->offscreen_surface != NULL;
+}
+
+-(void)updateLayer
+{
+  GdkWindowObject *private = GDK_WINDOW_OBJECT (gdk_window);
+  GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (private->impl);
+  CALayer *layer = [self layer];
+  GdkRegion *region;
+
+  if (GDK_WINDOW_DESTROYED (gdk_window) || !impl->offscreen_surface)
+    return;
+
+  if (!(private->event_mask & GDK_EXPOSURE_MASK) || !GDK_WINDOW_IS_MAPPED (gdk_window))
+    return;
+
+  if (impl->needs_display_region && !impl->offscreen_needs_full)
+    {
+      region = impl->needs_display_region;
+    }
+  else
+    {
+      /* AppKit asked on its own account, or the bitmap is new */
+      NSRect bounds = [self bounds];
+      GdkRectangle r = { bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height };
+
+      if (impl->needs_display_region)
+        gdk_region_destroy (impl->needs_display_region);
+      region = gdk_region_rectangle (&r);
+    }
+  impl->needs_display_region = NULL;
+  impl->offscreen_needs_full = FALSE;
+
+  impl->in_paint_rect_count++;
+  /* this essentially generates an expose event */
+  _gdk_window_process_updates_recurse (gdk_window, region);
+  impl->in_paint_rect_count--;
+
+  gdk_region_destroy (region);
+
+  /* an expose handler may have resized the window and replaced the bitmap */
+  if (!impl->offscreen_surface)
+    return;
+
+  CGContextFlush (impl->offscreen);
+
+  /* Cycling the lock bumps the surface seed, which is how the window server
+   * learns that the pixels changed.
+   */
+  IOSurfaceUnlock (impl->offscreen_surface, 0, NULL);
+  IOSurfaceLock (impl->offscreen_surface, 0, NULL);
+
+  [CATransaction begin];
+  [CATransaction setDisableActions: YES];
+  [layer setContentsScale: [[self window] backingScaleFactor]];
+  [layer setOpaque: [self isOpaque]];
+  if ([layer contents] != (id) impl->offscreen_surface)
+    [layer setContents: (id) impl->offscreen_surface];
+  else if ([layer respondsToSelector: @selector(setContentsChanged)])
+    [layer performSelector: @selector(setContentsChanged)];
+  else
+    {
+      /* re-setting the same object is a no-op */
+      [layer setContents: nil];
+      [layer setContents: (id) impl->offscreen_surface];
+    }
+  [CATransaction commit];
+
+  if (needsInvalidateShadow)
+    {
+      [[self window] invalidateShadow];
+      needsInvalidateShadow = NO;
+    }
+}
+
 -(void)drawRect: (NSRect)rect
 {
   GdkRectangle gdk_rect;
@@ -1008,30 +1098,8 @@ static bool fullDrawNextTime = FALSE;
 		  assumeInside: NO];
 #endif
 
-  if (impl->offscreen) {
-	CFRelease(impl->offscreen);
-	impl->offscreen = NULL;
-
-	CALayer *layer = [impl->view layer];
-
-	CGFloat scale = 1.0;
-	scale = [impl->toplevel backingScaleFactor];
-	int w = rect.size.width * scale;
-	int h = rect.size.height * scale;
-	int stride = (w * 4 + 255) & ~255;
-#ifndef NDEBUG
-	fprintf (stderr, "Update Tracking: scale: %f %d x %d @ %d\n", scale, w, h, stride);
-#endif
-	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-	impl->offscreen = CGBitmapContextCreate(NULL,
-		w, h,
-		8,
-		stride,
-		colorSpace,
-		kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-	CGContextScaleCTM(impl->offscreen, scale, scale);
-	CGColorSpaceRelease(colorSpace);
-  }
+  if (impl->offscreen)
+    _gdk_quartz_window_create_offscreen (impl, rect.size.width, rect.size.height);
 
 }
 

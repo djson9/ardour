@@ -21,6 +21,7 @@
 #ifndef __GDK_WINDOW_QUARTZ_H__
 #define __GDK_WINDOW_QUARTZ_H__
 
+#include <IOSurface/IOSurface.h>
 #include <ydk/quartz/gdkdrawable-quartz.h>
 #import <ydk/quartz/GdkQuartzView.h>
 #import <ydk/quartz/GdkQuartzWindow.h>
@@ -63,7 +64,14 @@ struct _GdkWindowImplQuartz
 
   guint background_color_set : 1;
 
-  CGContextRef *offscreen;
+  /* All drawing for the window goes to this bitmap context. Its pixels
+   * live in offscreen_surface when the bitmap is handed to CoreAnimation
+   * as the view's layer contents (see _gdk_quartz_use_layer_surface()),
+   * otherwise in plain memory that drawRect: blits to the view.
+   */
+  CGContextRef offscreen;
+  IOSurfaceRef offscreen_surface;
+  guint offscreen_needs_full : 1; /* (re)created, holds no content yet */
 };
  
 struct _GdkWindowImplQuartzClass 

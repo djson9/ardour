@@ -59,7 +59,8 @@ Canvas::Canvas ()
 	, _use_intermediate_surface (false)
 {
 #ifdef __APPLE__
-	_use_intermediate_surface = true;
+	/* On by default: see GtkCanvas::on_expose_event() for the trade-off. */
+	_use_intermediate_surface = NULL == g_getenv("ARDOUR_NO_INTERMEDIATE_SURFACE");
 #else
 	_use_intermediate_surface = NULL != g_getenv("ARDOUR_INTERMEDIATE_SURFACE");
 #endif
@@ -1039,21 +1040,16 @@ GtkCanvas::on_expose_event (GdkEventExpose* ev)
 	draw_context->rectangle (ev->area.x, ev->area.y, ev->area.width, ev->area.height);
 	draw_context->clip();
 
-	/* (this comment applies to macOS, but is other platforms
-	 * also benefit from using CPU-rendering on a image-surface
-	 * with a final bitblt).
+	/* Optionally render into a cairo group and blit the result in one go.
 	 *
-	 * group calls cairo_quartz_surface_create() which
-	 * effectively uses a CGBitmapContext + image-surface
-	 *
-	 * This avoids expensive argb32_image_mark_image() during drawing.
-	 * Although the final paint() operation still takes the slow path
-	 * through image_mark_image instead of ColorMaskCopyARGB888_sse :(
-	 *
-	 * profiling indicates a speed up of factor 2. (~ 5-10ms render time,
-	 * instead of 10-20ms, which is still slow compared to XCB and win32 surfaces (~0.2 ms)
-	 *
-	 * Fixing this for good likely involves changes to GdkQuartzWindow, GdkQuartzView
+	 * On macOS the group is the default. cairo sizes it in points, not
+	 * device pixels, so on a Retina display the canvas is rendered at 1x
+	 * and scaled up by the final paint: about a third of the rendering
+	 * work for a canvas-sized blit and a slightly soft canvas.
+	 * ARDOUR_NO_INTERMEDIATE_SURFACE renders straight into the window's
+	 * bitmap at full resolution instead. Measured 11/2026 while scrolling
+	 * a lightly filled editor: about the same cost per expose (3x the
+	 * rendering, no blit); busier canvases will favour the group.
 	 */
 	if (_use_intermediate_surface && !_use_image_surface) {
 		draw_context->push_group ();
