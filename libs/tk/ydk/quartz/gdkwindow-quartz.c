@@ -107,8 +107,12 @@ gdk_window_impl_quartz_get_context (GdkDrawable *drawable,
 	    // if (![window_impl->view lockFocusIfCanDraw])
 	    // return NULL;
     }
-  if (window_impl->offscreen_surface)
+  if (window_impl->offscreen_for_layer)
     {
+      /* Drawing outside an expose has no damage region to go by. */
+      if (window_impl->in_paint_rect_count == 0)
+        window_impl->offscreen_drawn_outside_expose = TRUE;
+
       /* updateLayer runs without a current NSGraphicsContext */
       CGContextSaveGState (window_impl->offscreen);
       CGContextSetAllowsAntialiasing (window_impl->offscreen, antialias);
@@ -651,10 +655,11 @@ get_nsscreen_for_point (gint x, gint y)
 
 #define GDK_QUARTZ_LAYER_SURFACE_DEFAULT TRUE
 
-/* Whether window bitmaps are IOSurfaces handed to CoreAnimation as the
- * view's layer contents, instead of plain bitmaps that drawRect: copies
- * into a backing store AppKit allocates for the view. The surface path
- * skips that copy and the main-thread wait for the backing store.
+/* Whether finished frames are handed to CoreAnimation as IOSurfaces set as
+ * the view's layer contents, instead of drawRect: blitting the offscreen
+ * bitmap into a backing store AppKit allocates for the view. The surface
+ * path replaces that blit and the main-thread wait for the backing store
+ * with a plain copy of the changed pixels.
  * GDK_QUARTZ_LAYER_SURFACE=0 or =1 overrides the default.
  */
 gboolean
@@ -674,18 +679,56 @@ _gdk_quartz_use_layer_surface (void)
 void
 _gdk_quartz_window_release_offscreen (GdkWindowImplQuartz *impl)
 {
+  int i;
+
   if (impl->offscreen)
     {
       CGContextRelease (impl->offscreen);
       impl->offscreen = NULL;
     }
 
-  if (impl->offscreen_surface)
+  for (i = 0; i < GDK_QUARTZ_N_LAYER_SURFACES; i++)
     {
-      IOSurfaceUnlock (impl->offscreen_surface, 0, NULL);
-      CFRelease (impl->offscreen_surface);
-      impl->offscreen_surface = NULL;
+      GdkQuartzLayerSurface *ls = &impl->layer_surfaces[i];
+
+      if (ls->surface)
+        CFRelease (ls->surface);
+      if (ls->stale)
+        gdk_region_destroy (ls->stale);
+      ls->surface = NULL;
+      ls->stale = NULL;
     }
+
+  impl->offscreen_for_layer = FALSE;
+}
+
+static gboolean
+create_layer_surfaces (GdkWindowImplQuartz *impl,
+                       int                  width,
+                       int                  height,
+                       int                  pixel_width,
+                       int                  pixel_height)
+{
+  NSDictionary *properties = @{
+    (id) kIOSurfaceWidth: @(pixel_width),
+    (id) kIOSurfaceHeight: @(pixel_height),
+    (id) kIOSurfaceBytesPerElement: @(4),
+    (id) kIOSurfacePixelFormat: @((unsigned int) 'BGRA'),
+  };
+  GdkRectangle all = { 0, 0, width, height };
+  int i;
+
+  for (i = 0; i < GDK_QUARTZ_N_LAYER_SURFACES; i++)
+    {
+      GdkQuartzLayerSurface *ls = &impl->layer_surfaces[i];
+
+      ls->surface = IOSurfaceCreate ((CFDictionaryRef) properties);
+      if (!ls->surface)
+        return FALSE;
+      ls->stale = gdk_region_rectangle (&all);
+    }
+
+  return TRUE;
 }
 
 /* (Re)create the bitmap that all drawing for the window goes to.
@@ -699,49 +742,41 @@ _gdk_quartz_window_create_offscreen (GdkWindowImplQuartz *impl,
   const CGFloat scale = [impl->toplevel backingScaleFactor];
   const int w = width * scale;
   const int h = height * scale;
-  size_t stride = (w * 4 + 255) & ~255;
+  const size_t stride = (w * 4 + 255) & ~255;
   CGColorSpaceRef colorspace;
-  void *data = NULL;
 
   _gdk_quartz_window_release_offscreen (impl);
 
   if (w <= 0 || h <= 0)
     return;
 
-  if (_gdk_quartz_use_layer_surface ())
-    {
-      NSDictionary *properties = @{
-        (id) kIOSurfaceWidth: @(w),
-        (id) kIOSurfaceHeight: @(h),
-        (id) kIOSurfaceBytesPerElement: @(4),
-        (id) kIOSurfacePixelFormat: @((unsigned int) 'BGRA'),
-      };
-
-      impl->offscreen_surface = IOSurfaceCreate ((CFDictionaryRef) properties);
-
-      if (impl->offscreen_surface)
-        {
-          /* Kept locked for CPU drawing; updateLayer cycles the lock to
-           * publish a frame.
-           */
-          IOSurfaceLock (impl->offscreen_surface, 0, NULL);
-          data = IOSurfaceGetBaseAddress (impl->offscreen_surface);
-          stride = IOSurfaceGetBytesPerRow (impl->offscreen_surface);
-        }
-    }
-
   colorspace = CGColorSpaceCreateDeviceRGB ();
-  impl->offscreen = CGBitmapContextCreate (data, w, h, 8, stride, colorspace,
+  impl->offscreen = CGBitmapContextCreate (NULL, w, h, 8, stride, colorspace,
                                            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
   CGColorSpaceRelease (colorspace);
 
   if (!impl->offscreen)
+    return;
+
+  impl->offscreen_scale = scale;
+
+  if (_gdk_quartz_use_layer_surface ())
     {
-      _gdk_quartz_window_release_offscreen (impl);
-      return;
+      if (create_layer_surfaces (impl, width, height, w, h))
+        {
+          impl->offscreen_for_layer = TRUE;
+          impl->layer_surface_shown = 0;
+        }
+      else
+        {
+          CGContextRef offscreen = CGContextRetain (impl->offscreen);
+
+          _gdk_quartz_window_release_offscreen (impl);
+          impl->offscreen = offscreen;
+        }
     }
 
-  if (impl->offscreen_surface)
+  if (impl->offscreen_for_layer)
     {
       /* Layer contents are shown as stored: first bitmap row at the top. */
       CGContextTranslateCTM (impl->offscreen, 0, h);
@@ -754,6 +789,74 @@ _gdk_quartz_window_create_offscreen (GdkWindowImplQuartz *impl,
     }
 
   impl->offscreen_needs_full = TRUE;
+}
+
+/* Copy what has been drawn to the offscreen bitmap, damage (in points)
+ * being the newest of it, to the layer surface that is not on screen and
+ * return that surface, which the caller is to show. Writing only to the
+ * hidden surface keeps half-drawn frames (GDK clears the background before
+ * a widget repaints) from ever being visible.
+ */
+IOSurfaceRef
+_gdk_quartz_window_publish_offscreen (GdkWindowImplQuartz *impl,
+                                      const GdkRegion     *damage)
+{
+  const guint target = (impl->layer_surface_shown + 1) % GDK_QUARTZ_N_LAYER_SURFACES;
+  GdkQuartzLayerSurface *ls = &impl->layer_surfaces[target];
+  const int scale = impl->offscreen_scale;
+  const int pixel_width = CGBitmapContextGetWidth (impl->offscreen);
+  const int pixel_height = CGBitmapContextGetHeight (impl->offscreen);
+  const size_t src_stride = CGBitmapContextGetBytesPerRow (impl->offscreen);
+  const guchar *src = CGBitmapContextGetData (impl->offscreen);
+  GdkRectangle *rects;
+  gint n_rects;
+  int i;
+
+  for (i = 0; i < GDK_QUARTZ_N_LAYER_SURFACES; i++)
+    {
+      GdkRegion *stale = impl->layer_surfaces[i].stale;
+
+      if (impl->offscreen_drawn_outside_expose)
+        {
+          GdkRectangle all = { 0, 0, pixel_width / scale, pixel_height / scale };
+          gdk_region_union_with_rect (stale, &all);
+        }
+      else
+        gdk_region_union (stale, damage);
+    }
+  impl->offscreen_drawn_outside_expose = FALSE;
+
+  CGContextFlush (impl->offscreen);
+
+  if (IOSurfaceLock (ls->surface, 0, NULL) == kIOReturnSuccess)
+    {
+      const size_t dst_stride = IOSurfaceGetBytesPerRow (ls->surface);
+      guchar *dst = IOSurfaceGetBaseAddress (ls->surface);
+
+      gdk_region_get_rectangles (ls->stale, &rects, &n_rects);
+
+      for (i = 0; i < n_rects; i++)
+        {
+          const int x0 = CLAMP (rects[i].x * scale, 0, pixel_width);
+          const int x1 = CLAMP ((rects[i].x + rects[i].width) * scale, 0, pixel_width);
+          const int y0 = CLAMP (rects[i].y * scale, 0, pixel_height);
+          const int y1 = CLAMP ((rects[i].y + rects[i].height) * scale, 0, pixel_height);
+          int y;
+
+          for (y = y0; y < y1 && x1 > x0; y++)
+            memcpy (dst + y * dst_stride + x0 * 4, src + y * src_stride + x0 * 4, (x1 - x0) * 4);
+        }
+
+      g_free (rects);
+      IOSurfaceUnlock (ls->surface, 0, NULL);
+
+      gdk_region_destroy (ls->stale);
+      ls->stale = gdk_region_new ();
+    }
+
+  impl->layer_surface_shown = target;
+
+  return ls->surface;
 }
 
 void

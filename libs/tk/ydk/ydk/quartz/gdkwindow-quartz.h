@@ -41,6 +41,14 @@ typedef struct _GdkWindowImplQuartzClass GdkWindowImplQuartzClass;
 #define GDK_IS_WINDOW_IMPL_QUARTZ_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GDK_TYPE_WINDOW_IMPL_QUARTZ))
 #define GDK_WINDOW_IMPL_QUARTZ_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), GDK_TYPE_WINDOW_IMPL_QUARTZ, GdkWindowImplQuartzClass))
 
+#define GDK_QUARTZ_N_LAYER_SURFACES 2
+
+typedef struct
+{
+  IOSurfaceRef surface;
+  GdkRegion *stale; /* drawn to the offscreen bitmap since it was last copied here */
+} GdkQuartzLayerSurface;
+
 struct _GdkWindowImplQuartz
 {
   GdkDrawableImplQuartz parent_instance;
@@ -64,14 +72,19 @@ struct _GdkWindowImplQuartz
 
   guint background_color_set : 1;
 
-  /* All drawing for the window goes to this bitmap context. Its pixels
-   * live in offscreen_surface when the bitmap is handed to CoreAnimation
-   * as the view's layer contents (see _gdk_quartz_use_layer_surface()),
-   * otherwise in plain memory that drawRect: blits to the view.
+  /* All drawing for the window goes to this bitmap context. Finished
+   * frames reach the screen either through drawRect:, which blits it to
+   * the view, or (see _gdk_quartz_use_layer_surface()) by being copied to
+   * one of layer_surfaces, which then becomes the view's layer contents.
+   * The surfaces alternate, so the one on screen is never written to.
    */
   CGContextRef offscreen;
-  IOSurfaceRef offscreen_surface;
+  gint offscreen_scale;           /* pixels per point */
+  GdkQuartzLayerSurface layer_surfaces[GDK_QUARTZ_N_LAYER_SURFACES];
+  guint layer_surface_shown;      /* index of the one last published */
+  guint offscreen_for_layer : 1;  /* layer_surfaces are in use */
   guint offscreen_needs_full : 1; /* (re)created, holds no content yet */
+  guint offscreen_drawn_outside_expose : 1; /* since the last publish */
 };
  
 struct _GdkWindowImplQuartzClass 

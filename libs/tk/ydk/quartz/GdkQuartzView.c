@@ -696,9 +696,9 @@ static bool fullDrawNextTime = FALSE;
   [super setNeedsDisplayInRect:rect];
 }
 
-/* When the window bitmap is an IOSurface, it is handed to CoreAnimation as
- * the layer's contents: AppKit then calls updateLayer instead of allocating
- * a backing store and calling drawRect:.
+/* When finished frames are handed to CoreAnimation as the layer's contents,
+ * AppKit calls updateLayer instead of allocating a backing store and calling
+ * drawRect:.
  */
 -(BOOL)wantsUpdateLayer
 {
@@ -709,7 +709,7 @@ static bool fullDrawNextTime = FALSE;
 
   impl = GDK_WINDOW_IMPL_QUARTZ (GDK_WINDOW_OBJECT (gdk_window)->impl);
 
-  return impl && impl->offscreen_surface != NULL;
+  return impl && impl->offscreen_for_layer;
 }
 
 -(void)updateLayer
@@ -717,9 +717,10 @@ static bool fullDrawNextTime = FALSE;
   GdkWindowObject *private = GDK_WINDOW_OBJECT (gdk_window);
   GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (private->impl);
   CALayer *layer = [self layer];
-  GdkRegion *region;
+  GdkRegion *region, *damage;
+  IOSurfaceRef surface;
 
-  if (GDK_WINDOW_DESTROYED (gdk_window) || !impl->offscreen_surface)
+  if (GDK_WINDOW_DESTROYED (gdk_window) || !impl->offscreen_for_layer)
     return;
 
   if (!(private->event_mask & GDK_EXPOSURE_MASK) || !GDK_WINDOW_IS_MAPPED (gdk_window))
@@ -742,39 +743,29 @@ static bool fullDrawNextTime = FALSE;
   impl->needs_display_region = NULL;
   impl->offscreen_needs_full = FALSE;
 
+  /* the expose takes the region apart as it hands pieces to child windows */
+  damage = gdk_region_copy (region);
+
   impl->in_paint_rect_count++;
   /* this essentially generates an expose event */
   _gdk_window_process_updates_recurse (gdk_window, region);
   impl->in_paint_rect_count--;
 
-  gdk_region_destroy (region);
-
   /* an expose handler may have resized the window and replaced the bitmap */
-  if (!impl->offscreen_surface)
+  surface = impl->offscreen_for_layer && !impl->offscreen_needs_full
+    ? _gdk_quartz_window_publish_offscreen (impl, damage) : NULL;
+
+  gdk_region_destroy (region);
+  gdk_region_destroy (damage);
+
+  if (!surface)
     return;
-
-  CGContextFlush (impl->offscreen);
-
-  /* Cycling the lock bumps the surface seed, which is how the window server
-   * learns that the pixels changed.
-   */
-  IOSurfaceUnlock (impl->offscreen_surface, 0, NULL);
-  IOSurfaceLock (impl->offscreen_surface, 0, NULL);
 
   [CATransaction begin];
   [CATransaction setDisableActions: YES];
   [layer setContentsScale: [[self window] backingScaleFactor]];
   [layer setOpaque: [self isOpaque]];
-  if ([layer contents] != (id) impl->offscreen_surface)
-    [layer setContents: (id) impl->offscreen_surface];
-  else if ([layer respondsToSelector: @selector(setContentsChanged)])
-    [layer performSelector: @selector(setContentsChanged)];
-  else
-    {
-      /* re-setting the same object is a no-op */
-      [layer setContents: nil];
-      [layer setContents: (id) impl->offscreen_surface];
-    }
+  [layer setContents: (id) surface];
   [CATransaction commit];
 
   if (needsInvalidateShadow)

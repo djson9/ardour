@@ -224,5 +224,7 @@ void     _gdk_quartz_window_create_offscreen (GdkWindowImplQuartz *impl,
                                               int                  width,
                                               int                  height);
 void     _gdk_quartz_window_release_offscreen (GdkWindowImplQuartz *impl);
+IOSurfaceRef _gdk_quartz_window_publish_offscreen (GdkWindowImplQuartz *impl,
+                                                   const GdkRegion     *damage);
 
 #endif /* __GDK_PRIVATE_QUARTZ_H__ */
