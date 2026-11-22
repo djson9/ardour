@@ -36,6 +36,7 @@
 #include "pbd/convert.h"
 #include "pbd/unwind.h"
 
+#include "ardour/group_tracks.h"
 #include "ardour/profile.h"
 
 #include "gtkmm2ext/colors.h"
@@ -462,6 +463,20 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 	case GDK_KP_Enter:
 		_editor.edit_track_clip_at_selection (*this);
 		return true;
+	case GDK_Left:
+	case GDK_KP_Left:
+	case GDK_Right:
+	case GDK_KP_Right: {
+		/* Right opens a group, Left closes it. */
+		auto route = route_view->route ();
+		if (!ARDOUR::GroupTracks::is_group (route)) return false;
+		const bool close = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
+		if (event->type == GDK_KEY_PRESS && ARDOUR::GroupTracks::collapsed (route) != close) {
+			_editor.toggle_group_track (route);
+			focus_track_header ();
+		}
+		return true;
+	}
 	default:
 		return false;
 	}
