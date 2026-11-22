@@ -165,24 +165,56 @@ RouteTimeAxisView::setup_live_header ()
 	live_name_column.set_size_request (160 * UIConfiguration::instance().get_ui_scale (), -1);
 	live_name_column.pack_start (group_rail, false, false);
 	live_name_column.pack_start (live_name_box, true, true);
+	{
+		/* Rows butt against each other, parted only by the separator, and
+		 * the separator starts right of the rail: a group's color then runs
+		 * unbroken from its header down the left of all its children. */
+		auto style = time_axis_frame.get_modifier_style ();
+		style->set_xthickness (0);
+		style->set_ythickness (0);
+		time_axis_frame.modify_style (style);
+		Gtk::Widget* separator = *time_axis_vbox.get_children ().begin ();
+		separator->hide ();
+		auto* separator_row = manage (new HBox);
+		auto* separator_line = manage (new EventBox);
+		separator_line->set_size_request (-1, std::max<double> (1., UIConfiguration::instance().get_ui_scale ()));
+		separator_line->modify_bg (Gtk::STATE_NORMAL, Gtkmm2ext::gdk_color_from_rgba (UIConfiguration::instance().color ("track separator")));
+		time_axis_vbox.pack_start (*separator_row, false, false);
+		time_axis_vbox.reorder_child (*separator_row, 0);
+		separator_row->pack_start (group_separator_rail, false, false);
+		separator_row->pack_start (*separator_line, true, true);
+		separator_row->show ();
+		separator_line->show ();
+		group_separator_rail.set_no_show_all (true);
+		group_separator_rail.signal_expose_event ().connect (sigc::bind (sigc::mem_fun (*this, &RouteTimeAxisView::draw_group_rail), &group_separator_rail));
+	}
 	group_rail.set_no_show_all (true);
 	group_rail.set_data ("compact-track-control", const_cast<char*> ("group-rail"));
 	live_name_box.set_data ("compact-track-control", const_cast<char*> ("group-name"));
-	group_rail.signal_expose_event ().connect (sigc::mem_fun (*this, &RouteTimeAxisView::draw_group_rail));
+	group_rail.signal_expose_event ().connect (sigc::bind (sigc::mem_fun (*this, &RouteTimeAxisView::draw_group_rail), &group_rail));
 	live_name_box.add (live_name_content);
 	auto* fold_alignment = manage (new Gtk::Alignment (0.5, 0., 0., 0.));
+	fold_alignment->set_padding (4, 0, 5, 0);
 	fold_alignment->add (group_fold_button);
 	fold_alignment->set_no_show_all (true);
 	live_name_content.pack_start (*fold_alignment, false, false);
 	live_name_content.pack_start (name_label, true, true);
 	group_fold_button.set_data ("compact-track-control", const_cast<char*> ("group-fold"));
 	group_fold_button.set_name ("route button");
-	group_fold_button.set_size_request (20, 20);
+	group_fold_button.set_icon (&RouteTimeAxisView::render_group_fold, this);
+	group_fold_button.set_elements (ArdourButton::IconRenderCallback);
+	group_fold_button.set_size_request (18, 18);
 	group_fold_button.set_no_show_all (true);
 	group_fold_button.signal_clicked.connect ([this] { _editor.toggle_group_track (_route); });
 	live_name_content.show ();
 	name_label.set_alignment (0., 0.);
 	name_label.set_padding (5, 5);
+	{
+		Pango::AttrList attributes;
+		auto bold = Pango::Attribute::create_attr_weight (Pango::WEIGHT_BOLD);
+		attributes.insert (bold);
+		name_label.set_attributes (attributes);
+	}
 	name_label.set_size_request (0, -1);
 	name_label.set_ellipsize (Pango::ELLIPSIZE_END);
 	top_hbox.pack_start (live_name_column, false, false, 0);
@@ -237,6 +269,14 @@ RouteTimeAxisView::setup_live_header ()
 		controls_table.attach (*buttons, 1, 2, 0, 1, FILL|EXPAND, SHRINK);
 		buttons->show ();
 		controls_table.attach (live_gain_box, 0, 1, 1, 2, FILL|EXPAND, FILL|SHRINK);
+	}
+	/* Square, flat controls; the routing choosers read as menus. */
+	for (ArdourButton* button : std::initializer_list<ArdourButton*> {&live_input, &live_output, &live_monitor_in, &live_monitor_auto, &live_monitor_off, mute_button, solo_button, rec_enable_button}) {
+		if (button) button->set_tweaks (ArdourButton::Tweaks (button->tweaks () | ArdourButton::ForceBoxy | ArdourButton::ForceFlat));
+	}
+	for (ArdourButton* button : std::initializer_list<ArdourButton*> {&live_input, &live_output}) {
+		button->set_elements (ArdourButton::Element (button->elements () | ArdourButton::Menu));
+		button->set_alignment (0., .5);
 	}
 	setup_live_gain ();
 	label_view ();
@@ -315,18 +355,28 @@ RouteTimeAxisView::update_live_pan ()
 	live_pan->set_visible (live_gain_box.get_visible ());
 }
 
+/** Width of the strip of group color that each enclosing group adds left of a child's name. */
+static double
+group_rail_step ()
+{
+	return 8 * UIConfiguration::instance().get_ui_scale ();
+}
+
 void
 RouteTimeAxisView::update_group_header ()
 {
 	if (!live_header || !_session) return;
 	const auto depth = std::min<size_t> (8, ARDOUR::GroupTracks::ancestors (*_session, _route).size ());
 	name_label.set_padding (5, 5);
-	group_rail.set_size_request (12 * depth * UIConfiguration::instance().get_ui_scale (), -1);
-	if (depth) { group_rail.show (); group_rail.queue_draw (); } else group_rail.hide ();
+	group_rail.set_size_request (group_rail_step () * depth, -1);
+	group_separator_rail.set_size_request (group_rail_step () * depth, 1);
+	for (auto* rail : {&group_rail, &group_separator_rail}) {
+		if (depth) { rail->show (); rail->queue_draw (); } else rail->hide ();
+	}
 	if (ARDOUR::GroupTracks::is_group (_route)) {
 		const bool folded = ARDOUR::GroupTracks::collapsed (_route);
-		group_fold_button.set_text (folded ? "\u25b6" : "\u25bc");
 		set_tooltip (group_fold_button, folded ? _("Expand group") : _("Collapse group"));
+		group_fold_button.set_dirty ();
 		group_fold_button.show ();
 		group_fold_button.get_parent ()->show ();
 	} else {
@@ -336,22 +386,57 @@ RouteTimeAxisView::update_group_header ()
 }
 
 bool
-RouteTimeAxisView::draw_group_rail (GdkEventExpose*)
+RouteTimeAxisView::draw_group_rail (GdkEventExpose*, Gtk::DrawingArea* rail)
 {
-	if (!_session || !group_rail.get_window ()) return true;
+	if (!_session || !rail->get_window ()) return true;
 	auto chain = GroupTracks::ancestors (*_session, _route);
 	chain.reverse ();
-	auto cr = group_rail.get_window ()->create_cairo_context ();
-	const double step = 12 * UIConfiguration::instance().get_ui_scale ();
+	auto cr = rail->get_window ()->create_cairo_context ();
+	const double step = group_rail_step ();
+	const double edge = std::max<double> (1., UIConfiguration::instance().get_ui_scale ());
+	const double height = rail->get_allocation ().get_height ();
 	double x = 0;
 	for (auto const& parent : chain) {
-		const auto color = parent->presentation_info ().color ();
-		cr->set_source_rgb (((color >> 24) & 255) / 255., ((color >> 16) & 255) / 255., ((color >> 8) & 255) / 255.);
-		cr->rectangle (x, 0, step, group_rail.get_allocation ().get_height ());
+		Gtkmm2ext::set_source_rgba (cr, parent->presentation_info ().color ());
+		cr->rectangle (x, 0, step - edge, height);
+		cr->fill ();
+		/* the same line that parts the rows parts each group from what it holds */
+		Gtkmm2ext::set_source_rgba (cr, UIConfiguration::instance().color ("track separator"));
+		cr->rectangle (x + step - edge, 0, edge, height);
 		cr->fill ();
 		x += step;
 	}
 	return true;
+}
+
+/** A ring holding a right-pointing triangle while the group is folded, and
+ *  lines tapering downwards (its tracks, fanned out) while it is open. */
+void
+RouteTimeAxisView::render_group_fold (cairo_t* cr, int w, int h, uint32_t, void* data)
+{
+	auto* self = static_cast<RouteTimeAxisView*> (data);
+	const Gdk::Color ink = self->name_label.get_style ()->get_fg (Gtk::STATE_NORMAL);
+	const double cx = w / 2., cy = h / 2.;
+	const double r = std::min (w, h) / 2. - 1.5;
+	cairo_set_source_rgb (cr, ink.get_red_p (), ink.get_green_p (), ink.get_blue_p ());
+	cairo_set_line_width (cr, 1.25);
+	cairo_arc (cr, cx, cy, r, 0, 2 * M_PI);
+	cairo_stroke (cr);
+	if (ARDOUR::GroupTracks::collapsed (self->_route)) {
+		cairo_move_to (cr, cx - r * .3, cy - r * .5);
+		cairo_line_to (cr, cx + r * .55, cy);
+		cairo_line_to (cr, cx - r * .3, cy + r * .5);
+		cairo_close_path (cr);
+		cairo_fill (cr);
+	} else {
+		const double widths[] = { .58, .4, .2 };
+		for (int i = 0; i < 3; ++i) {
+			const double y = cy + (i - 1) * r * .38;
+			cairo_move_to (cr, cx - r * widths[i], y);
+			cairo_line_to (cr, cx + r * widths[i], y);
+		}
+		cairo_stroke (cr);
+	}
 }
 
 void

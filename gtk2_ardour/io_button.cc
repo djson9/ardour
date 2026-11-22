@@ -540,7 +540,9 @@ IOButton::add_port (DataType t)
 void
 IOButton::button_resized (Gtk::Allocation& alloc)
 {
-	set_layout_ellipsize_width (alloc.get_width () * PANGO_SCALE);
+	/* a menu arrow takes a square at the right end */
+	const int arrow = (elements () & Menu) ? alloc.get_height () : 0;
+	set_layout_ellipsize_width (std::max (0, alloc.get_width () - arrow) * PANGO_SCALE);
 }
 
 struct RouteCompareByName {
