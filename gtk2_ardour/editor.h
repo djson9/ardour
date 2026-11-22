@@ -740,6 +740,7 @@ private:
 
 	void set_selected_track (TimeAxisView&, ARDOUR::SelectionOperation op = ARDOUR::SelectionSet, bool no_remove=false);
 	void focus_adjacent_track (bool down);
+	void focus_track (TimeAxisView&);
 	bool focus_route_processors ();
 	bool choose_route_plugin (std::shared_ptr<ARDOUR::Route>);
 	void select_all_visible_lanes ();

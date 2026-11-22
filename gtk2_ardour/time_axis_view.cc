@@ -467,13 +467,28 @@ TimeAxisView::track_header_key_press (GdkEventKey* event)
 	case GDK_KP_Left:
 	case GDK_Right:
 	case GDK_KP_Right: {
-		/* Right opens a group, Left closes it. */
+		/* Right unfolds: a group shows its tracks, a track regains its
+		 * height. Left folds, and on something already folded moves to
+		 * the group that holds it. */
+		if (event->type != GDK_KEY_PRESS) return true;
 		auto route = route_view->route ();
-		if (!ARDOUR::GroupTracks::is_group (route)) return false;
-		const bool close = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
-		if (event->type == GDK_KEY_PRESS && ARDOUR::GroupTracks::collapsed (route) != close) {
+		const bool fold = event->keyval == GDK_Left || event->keyval == GDK_KP_Left;
+		const bool group = ARDOUR::GroupTracks::is_group (route);
+		const uint32_t folded_height = preset_height (HeightSmall);
+		const bool folded = group ? ARDOUR::GroupTracks::collapsed (route) : current_height () <= folded_height;
+		if (fold == folded) {
+			auto parent = fold && _session ? ARDOUR::GroupTracks::parent (*_session, route) : nullptr;
+			if (auto* parent_view = parent ? _editor.rtav_from_route (parent) : nullptr) {
+				_editor.focus_track (*parent_view);
+			}
+		} else if (group) {
 			_editor.toggle_group_track (route);
 			focus_track_header ();
+		} else if (fold) {
+			_unfolded_height = current_height ();
+			set_height (folded_height);
+		} else {
+			set_height (_unfolded_height > folded_height ? _unfolded_height : preset_height (HeightNormal));
 		}
 		return true;
 	}

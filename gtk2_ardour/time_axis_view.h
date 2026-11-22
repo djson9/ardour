@@ -257,6 +257,7 @@ protected:
 	Gtk::HBox              top_hbox;
 	Gtk::Fixed             scroomer_placeholder;
 	uint32_t               height;  /* in canvas units */
+	uint32_t               _unfolded_height = 0; ///< height to return to after folding from the keyboard
 	std::string            controls_base_unselected_name;
 	std::string            controls_base_selected_name;
 	Gtk::Menu*             display_menu; /* The standard LHS Track control popup-menus */

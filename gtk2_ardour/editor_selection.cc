@@ -1311,12 +1311,19 @@ Editor::focus_adjacent_track (bool down)
 	} else if (!down && current != visible.begin ()) {
 		--current;
 	}
-	if (!(*current)->selected () || selection->tracks.size () != 1) {
-		set_selected_track (**current, SelectionSet);
+	focus_track (**current);
+}
+
+/** Make @p view the only selected track and give its header the keyboard focus. */
+void
+Editor::focus_track (TimeAxisView& view)
+{
+	if (!view.selected () || selection->tracks.size () != 1) {
+		set_selected_track (view, SelectionSet);
 	}
-	_last_focused_track = (*current)->stripable ();
-	ensure_time_axis_view_is_visible (**current, false);
-	(*current)->focus_track_header ();
+	_last_focused_track = view.stripable ();
+	ensure_time_axis_view_is_visible (view, false);
+	view.focus_track_header ();
 }
 
 void
